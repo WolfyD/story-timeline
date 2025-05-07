@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Story Timeline</title>
+    <link rel="stylesheet" href="main.css" type="text/css" />
+    <link rel="stylesheet" href="timeline.css" type="text/css" />
+  </head>
+  <body>
+    <button class="settings-button open-settings-button no-select" onclick="openSettings()">Settings</button>
+    <div class="title-container">
+      <h1 id="main_title" class="main_title no-select">Story Name</h1>
+      <h2 id="main_subtitle" class="main_subtitle no-select">Story Timeline</h2>
+    </div>
+
+    <!-- Settings -->
+    <div class="settings_container">
+      <div class="settings_div"> <button class="settings-button close_settings-button no-select" onclick="closeSettings()">X</button>
+        <h1 class="no-select">Settings</h1>
+        <div class="font-selector">
+          <label for="font-select no-select">Default Font:</label>
+          <div class="font-selector-container">
+            <select id="font-select" onmousewheel="handleFontMouseWheel()" onchange="handleFontChange(this.value)">
+              <optgroup label="Default fonts">
+                <option value="Georgia">Georgia</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Arial">Arial</option>
+                <option value="Courier New">Courier New</option>
+                <option value="Verdana">Verdana</option>
+                <option value="Tahoma">Tahoma</option>
+                <option value="Trebuchet MS">Trebuchet MS</option>
+                <option value="Palatino">Palatino</option>
+              </optgroup>
+              <optgroup label="Custom fonts">
+                <option value="Homemade Apple">Homemade Apple</option>
+                <option value="Delicious Handrawn">Delicious Handrawn</option>
+                <option value="Borel">Borel</option>
+                <option value="Quintessential">Quintessential</option>
+                <option value="New Rocker">New Rocker</option>
+                <option value="Merienda">Merienda</option>
+                <option value="Lugrasimo">Lugrasimo</option>
+                <option value="Jim Nightshade">Jim Nightshade</option>
+                <option value="Grenze Gotisch">Grenze Gotisch</option>
+                <option value="Felipa">Felipa</option>
+                <option value="Beth Ellen">Beth Ellen</option>
+              </optgroup>
+              <optgroup label="Dyslexia friendly fonts">
+                <option value="Lexend">Lexend</option>
+                <option value="Comic Sans MS">Comic Sans MS</option>
+              </optgroup>
+            </select>
+            <label class="font-size-scale-input-label no-select">Font size scale:</label>
+            <input class="font-size-scale-input no-select" type="number" id="font-size-scale-input" min="0.5" max="5.5" value="1" step="0.01" onmousewheel="handleFontSizeMouseWheel()" oninput="handleFontSizeChange(this.value)" onchange="handleFontSizeChange(this.value)">
+          </div>
+          <div class="preview-text no-select" id="font-preview">
+            <div class="title-container">
+              <h1 class="main_title no-select">Story Name</h1>
+              <h2 class="main_subtitle no-select">Story Timeline</h2>
+            </div>
+            Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc sed nisl ut mi volutpat faucibus vel ullamcorper ipsum. Ut pharetra lorem urna, a lacinia risus mollis auctor. Vivamus non ex quam. Aenean mattis eget tortor nec tincidunt. Fusce et pharetra eros, a commodo nunc. Maecenas aliquet gravida lectus nec pellentesque.
+          </div>
+
+          <!-- Basic settings -->
+          <div class="basic-settings">
+            <div class="settings-form">
+              <div class="settings-row">
+                <label class="no-select" for="title">Title/Universe</label>
+                <div style="position: relative; flex: 1; margin-left: 20px;">
+                  <input type="text" id="title" class="settings-input">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">The main title of your story or the name of the universe it takes place in</div>
+                </div>
+              </div>
+              <div class="settings-row">
+                <label class="no-select" for="author">Author Name</label>
+                <div style="position: relative; flex: 1; margin-left: 20px;">
+                  <input type="text" id="author" class="settings-input">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Your name or the name of the story's author</div>
+                </div>
+              </div>
+              <div class="settings-row">
+                <label class="no-select" for="description">Description</label>
+                <div style="position: relative; flex: 1; margin-left: 20px;">
+                  <input type="text" id="description" class="settings-input">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">A brief description of your story timeline</div>
+                </div>
+              </div>
+              <div class="settings-row">
+                <label class="no-select" for="start">Starting year</label>
+                <div style="position: relative; flex: 1; margin-left: 20px;">
+                  <input type="number" id="start" min="-99999999" max="9999999" onmousewheel="return true"; value="0" class="settings-input">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">The year your timeline begins (can be negative for BC dates)</div>
+                </div>
+              </div>
+              
+              <div class="settings-row">
+                <label class="no-select" for="granularity">Granularity</label>
+                <div style="position: relative; flex: 1; margin-left: 20px;">
+                  <input type="number" id="granularity" min="1" max="30" value="4" onmousewheel="return true"; class="settings-input">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">How detailed your timeline should be (1-30, where 30 is most detailed)<br />Default is 4, for the four seasons</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+
+
+
+          <button class="settings-button save_settings-button no-select" id="btn_SaveSettings">Save and close</button>
+        </div>
+      </div>
+    </div>
+
+
+
+    
+    <!-- Timeline -->
+    <div class="timeline_container" id="timeline-container">
+      <div id="timeline"></div>
+      <div id="arrow"></div><div id="now-marker">Now</div>
+      <div id="center-line"></div>
+      <div id="h-rule"></div>
+      <div id="timeline-hover-marker"></div>
+      <div id="timeline-hover-marker-stick"></div>
+    </div>
+    
+    
+    
+    
+    
+    
+    
+    
+    <script src="timeline.js"></script>
+    <script src="renderer.js"></script>
+    <script>
+      function handleFontSizeMouseWheel() {
+        event.preventDefault();
+        let value = document.getElementById("font-size-scale-input").value;
+        if(event.deltaY > 0) {
+          if(value > 0.5) { 
+            value = parseFloat(value) - 0.01;
+          }
+        } else {
+          if(value < 5.5) {
+            value = parseFloat(value) + 0.01;
+          }
+        }
+
+        document.getElementById("font-size-scale-input").value = value.toFixed(2);
+        handleFontSizeChange(value)
+      }
+
+      document.addEventListener("DOMContentLoaded", function() {
+        setInitialSettings({ focusYear: 0, granularity: 40, items: [] });
+      });
+
+      function handleFontMouseWheel() {
+        event.preventDefault();
+        let value = document.getElementById("font-select").selectedIndex;
+        if(event.deltaY < 0) {
+          if(value > 0) {
+            value = value - 1;
+          }
+        } else {
+          if(value < 20) { 
+            value = value + 1;
+          }
+        }
+        console.log(value);
+        document.getElementById("font-select").selectedIndex = value;
+        handleFontChange(document.getElementById("font-select").value);
+      }
+    </script>
+    <div id="guides">
+      <div id="size_guide">0x0</div> <div id="position_guide">0:0</div> <div id="scale_guide">1</div>
+    </div>
+  </body>
+</html>

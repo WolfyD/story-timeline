@@ -1,0 +1,27 @@
+{
+    "universe_name": "Unnamed universe",
+    "description": "This is a test item",
+    "author": "Anonymous",
+    "start_year": 0,
+    "granularity": 4,
+    "items": [
+        { 
+            "year": 1, 
+            "sub_year": 1, 
+            "title": "Test item", 
+            "description": "This is a test item", 
+            "uuid": "550e8400-e29b-41d4-a716-446655440000",
+            "content": "",
+            "picture": "",
+            "picture_title": "",
+            "references": [
+                { "_comment": "data in references is an array of UUID-s" }
+            ],
+            "book_title": "",
+            "author": "",
+            "chapter": "",
+            "page": "",
+            "story": ""
+        }
+    ]
+}
