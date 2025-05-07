@@ -4,6 +4,7 @@ let loaded_data = {};
 
 function openSettings() {
     document.querySelector('.settings_container').style.display = 'block';
+
 }
 
 function closeSettings() {
@@ -16,8 +17,20 @@ function settingsSetup(settings) {
     fontSelect.selectedIndex = settings.font;
     let fontSizeScale = document.querySelector('#font-size-scale-input');
     fontSizeScale.value = settings.fontSizeScale;
+    
+    let pixelsPerSubtick = document.querySelector('#pixels-per-subtick');
+    pixelsPerSubtick.value = settings.pixelsPerSubtick;
+
+    let customCSS = document.querySelector('#custom-css');
+    let useCustomCSS = document.querySelector('#use-custom-css');
+    useCustomCSS.checked = settings.useCustomCSS;
+    toggleCustomCSS(settings.useCustomCSS);
+
+    customCSS.value = settings.customCSS;
+
     document.body.style.setProperty('--default-font', fontSelect.value);
     document.body.style.setProperty('--default-font-scale', settings.fontSizeScale);
+
 }
 
 function dataSetup(data) {
@@ -56,7 +69,10 @@ document.querySelector('#btn_SaveSettings').addEventListener('click', () => {
     const settings = {
         font: document.querySelector('#font-select').selectedIndex,
         fontSizeScale: document.querySelector('#font-size-scale-input').value,
-        isFullscreen: isFullscreen
+        isFullscreen: isFullscreen,
+        customCSS: document.querySelector('#custom-css').value,
+        useCustomCSS: document.querySelector('#use-custom-css').checked,
+        pixelsPerSubtick: document.querySelector('#pixels-per-subtick').value
     };
 
     const data = {
@@ -110,5 +126,15 @@ function handleFontSizeChange(size) {
     document.querySelector(".preview-text").style.fontSize = 16 * size + "px";
 }
 
+function callSetInitialSettings(){
+    setInitialSettings({ focusYear: 1460, granularity: 4, items: [], pixelsPerSubtick: 30 });
+}
 
-
+function toggleCustomCSS(use = false){
+    const customCSS = document.querySelector('#custom-css');
+    if(use){
+        customCSS.removeAttribute('readonly');
+    } else {
+        customCSS.setAttribute('readonly', 'readonly');
+    }
+}

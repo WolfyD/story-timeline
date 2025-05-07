@@ -92,6 +92,7 @@ body {
     color: #4b2e2e; /* Dark brown ink color */
     font-family: var(--default-font), "Times New Roman", serif; /* Classic book-like font */
     font-size: calc(16px * var(--default-font-scale));
+    overflow-x: hidden;
 }
 
 .settings-button {
@@ -167,7 +168,7 @@ select {
 }
 
 #guides {
-    display: flex;
+    display: none;
     flex-direction: row;
     gap: 5px;
     position: fixed;
@@ -175,6 +176,10 @@ select {
     left: 10px;
     font-size: .8em;
     font-weight: normal;
+}
+
+#guides.visible {
+    display: flex;
 }
 
 #position_guide::before {
@@ -322,4 +327,92 @@ select {
     margin-top: -15px;
     font-size: 1em;
     text-decoration: underline;
+}
+
+#custom-css {
+    height: 300px;
+    tab-size: 2;
+    font-family: monospace;
+    white-space: pre;
+    resize: vertical;
+    padding: 10px;
+    background-color: #f8f8f8;
+    border: 1px solid #ddd;
+    color: #333;
+    cursor: text;
+}
+
+/* Style for the container to ensure proper scrolling */
+.settings-row .code-editor {
+    width: 82%;
+    box-sizing: border-box;
+}
+
+.settings-input-container {
+    position: relative;
+    flex: 1;
+    margin-left: 20px;
+}
+
+/* Custom checkbox styling */
+input[type="checkbox"].settings-input {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 24px;
+    height: 24px;
+    border: 2px solid #4b2e2e;
+    border-radius: 4px;
+    background-color: #f5e6d4;
+    cursor: pointer;
+    position: relative;
+    vertical-align: middle;
+    margin: 0;
+    margin-left: 20px;
+    transition: all 0.2s ease;
+}
+
+input[type="checkbox"].settings-input:checked {
+    background-color: #4b2e2e;
+}
+
+input[type="checkbox"].settings-input:checked::after {
+    content: '✓';
+    position: absolute;
+    color: #f5e6d4;
+    font-size: 18px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
+input[type="checkbox"].settings-input:hover {
+    border-color: #6a3e3e;
+    box-shadow: 0 0 0 2px rgba(75, 46, 46, 0.2);
+}
+
+input[type="checkbox"].settings-input:focus {
+    outline: none;
+    border-color: #6a3e3e;
+    box-shadow: 0 0 0 2px rgba(75, 46, 46, 0.3);
+}
+
+/* Adjust the info icon position for checkbox */
+input[type="checkbox"].settings-input + .info-icon {
+    position: absolute;
+    right: 40px;
+    margin-left: 0;
+    vertical-align: middle;
+}
+
+/* Ensure the info bubble for checkbox aligns with others */
+input[type="checkbox"].settings-input + .info-icon + .info-bubble {
+    left: 5%;
+    transform: translateX(-50%);
+}
+
+#custom-css[readonly]{
+    background-color: #ddd;
+    color: #333;
+    cursor: not-allowed;
+    user-select: none;
 }

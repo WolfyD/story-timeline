@@ -46,9 +46,14 @@ function createWindow () {
     if (fs.existsSync(settingsPath)) {
       const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
       mainWindow.webContents.send("window-resized", mainWindow.getSize());
+      if(!settings.customCSS || settings.customCSS == ""){
+        console.log("No custom CSS found, loading template");
+        settings.customCSS = fs.readFileSync(path.join(__dirname, 'customCSSTemplate.txt'), 'utf8');
+      }
       mainWindow.webContents.send('call-load-settings', settings);
 
       mainWindow.setPosition(settings.position.x, settings.position.y);
+
 
       console.log("Settings loaded!:", settings);
       mainWindow.show();
@@ -98,15 +103,7 @@ ipcMain.on('save-settings', (event, settings, data) => {
   settings.position = {};
   settings.position.x = mainWindow.getPosition()[0] + 2;
   settings.position.y = mainWindow.getPosition()[1] + 1;
-
-  //TODO: add full screen size
-
-  // data.title = settings.title || "";
-  // data.author = settings.author || "";
-  // data.description = settings.description || "";
-  // data.start = settings.start || 0;
-  // data.granularity = settings.granularity || 4;
-
+  
   fs.writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
   fs.writeFileSync(dataPath, JSON.stringify(data, null, 4));
   console.log("Settings saved:", settings);
@@ -117,10 +114,12 @@ ipcMain.on('save-settings', (event, settings, data) => {
 ipcMain.on('load-settings', () => {
   const settingsPath = path.join(__dirname, 'settings.json');
   const settings = JSON.parse(fs.readFileSync(settingsPath, 'utf8'));
+  if(!settings.customCSS || settings.customCSS == ""){
+    settings.customCSS = fs.readFileSync(path.join(__dirname, 'customCSSTemplate.txt'), 'utf8');
+  }
   mainWindow.webContents.send("window-resized", mainWindow.getSize());
   mainWindow.webContents.send('call-load-settings', settings);
   mainWindow.setPosition(settings.position.x, settings.position.y);
   mainWindow.setSize(settings.size.x, settings.size.y);
-  console.log("Settings loaded!!:", settings);
 });
 

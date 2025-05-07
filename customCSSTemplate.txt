@@ -1,0 +1,76 @@
+#timeline-container {
+	
+}
+
+#timeline {
+	
+}
+
+.tick {
+	
+}
+
+.tick .marker {
+	
+}
+
+#h-rule {
+	
+}
+
+
+#center-line {
+	
+}
+
+#now-marker {
+	
+}
+
+#arrow::before {
+	
+}
+
+#arrow::after {
+	
+}
+
+.tick-fullyear {
+	
+}
+
+#timeline-hover-marker {
+	
+}
+
+#timeline-hover-marker-stick {
+	
+}
+
+.marker_stick_below {
+	
+}
+
+.marker_stick_above {
+	
+}
+
+.marker_above {
+	
+}
+
+.marker_below {
+	
+}
+
+.marker_left {
+	
+}
+
+.subtick {
+	
+}
+
+.fullyear {
+	
+}

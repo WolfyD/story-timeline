@@ -80,8 +80,43 @@ function getNumberLineLabel(v, granularity) {
         year += (snapped >= 0 ? 1 : -1);
         subtick = 0;
     }
-    //return `${year} [${subtick}]`;
+
     return `${year}.${subtick}`;
+}
+
+function getHoverLabel(v, granularity) {
+    // Round to nearest subtick
+    const step = 1 / granularity;
+    const snapped = Math.round(v / step) * step;
+
+    let year, subtick;
+
+    console.log("Before", snapped, v, granularity);
+
+    if (snapped >= 0) {
+        year = Math.floor(snapped);
+        subtick = Math.round((snapped - year) * granularity);
+    } else {
+        year = Math.ceil(snapped);
+        subtick = Math.round((snapped - year) * granularity);
+    }
+
+    console.log("After", snapped, year, subtick);
+
+
+    subtick = Math.abs(subtick);
+
+    // Clamp subtick to [0, granularity-1]
+    if (subtick >= granularity) {
+        year += (snapped >= 0 ? 1 : -1);
+        subtick = 0;
+    }
+
+    if(year === 0 && snapped < 0){
+        return `-${year}. ${subtick}`;
+    }
+
+    return `${year}. ${subtick}`;
 }
 
 function renderTimeline() {
@@ -94,7 +129,7 @@ function renderTimeline() {
     const rightYear = focusYear + ((containerRect.width - centerX - offsetPx) / (granularity * pixelsPerSubtick));
 
     // Add a buffer of subticks on both sides for edge safety
-    const bufferSubticks = granularity * 5;
+    const bufferSubticks = granularity * 10;
     const startSubtick = Math.floor(leftYear * granularity) - bufferSubticks;
     const endSubtick = Math.ceil(rightYear * granularity) + bufferSubticks;
 
@@ -135,16 +170,44 @@ function renderTimeline() {
 }
 
 function updateHoverMarker(x, y) {
+
     const floatYear = calculateYearFromPosition(x);
     const hRule = document.getElementById("h-rule");
     const containerTop = document.getElementById("timeline-container").offsetTop;
-    const relativeY = y - containerTop - 20;
-    const height = Math.abs(relativeY - hRule.offsetTop);
+    const relativeY = y - containerTop;
+    
+    // Calculate the snapped position for the stick
+    const containerRect = container.getBoundingClientRect();
+    const centerX = containerRect.width / 2;
+    const snappedYear = Math.round(floatYear * timelineState.granularity) / timelineState.granularity;
+    const snappedX = centerX + (snappedYear - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity + timelineState.offsetPx;
+    
+
     hoverMarker.style.left = `${x}px`;
-    hoverMarkerStick.style.left = `${x - 9.5}px`;
-    hoverMarkerStick.style.top = `${relativeY}px`;
-    hoverMarkerStick.style.height = `${height}px`;
-    hoverMarker.innerText = getNumberLineLabel(floatYear, timelineState.granularity);
+    hoverMarkerStick.style.left = `${snappedX}px`;
+    if(relativeY < hRule.offsetTop){
+        hoverMarkerStick.classList.add('marker_stick_above');
+        hoverMarkerStick.classList.remove('marker_stick_below');
+
+        hoverMarker.classList.add('marker_above');
+        hoverMarker.classList.remove('marker_below');
+    }else{
+        hoverMarkerStick.classList.add('marker_stick_below');
+        hoverMarkerStick.classList.remove('marker_stick_above');
+
+        hoverMarker.classList.add('marker_below');
+        hoverMarker.classList.remove('marker_above');
+    }
+
+    if(x < containerRect.width/2){
+        hoverMarker.classList.add('marker_left');
+        hoverMarker.classList.remove('marker_right');
+    }else{
+        hoverMarker.classList.add('marker_right');
+        hoverMarker.classList.remove('marker_left');
+    }
+
+    hoverMarker.innerText = getHoverLabel(floatYear, timelineState.granularity);
     hoverMarker.style.display = 'block';
 }
 
@@ -183,7 +246,19 @@ container.addEventListener("mouseleave", () => {
 });
 
 container.addEventListener("wheel", (event) => {
-    timelineState.offsetPx -= event.deltaY;
+    
+    if(!isPositionWholeYear()){
+        const nearestYear = getNearestYearFromPosition(null, event.deltaY > 0 ? -1 : 1);
+        jumpToYear(nearestYear);
+    } else {
+
+        if(event.deltaY > 0){
+            timelineState.offsetPx += timelineState.pixelsPerSubtick * timelineState.granularity;
+        } else {
+            timelineState.offsetPx -= timelineState.pixelsPerSubtick * timelineState.granularity;
+        }
+    }
+    
     renderTimeline();
 });
 
@@ -198,21 +273,19 @@ function scrollBy(years) {
     renderTimeline();
 }
 
-function setInitialSettings({ focusYear, granularity, items }) {
+function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 10 }) {
     timelineState.focusYear = focusYear;
     timelineState.granularity = granularity;
     timelineState.items = items;
-    timelineState.pixelsPerSubtick = 10;
+    timelineState.pixelsPerSubtick = pixelsPerSubtick;
     timelineState.offsetPx = 0;
     renderTimeline();
 }
 
-// Export to window if needed
 window.jumpToYear = jumpToYear;
 window.scrollBy = scrollBy;
 window.setInitialSettings = setInitialSettings;
 
-// Initial render
 renderTimeline();
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -221,5 +294,40 @@ document.addEventListener("DOMContentLoaded", () => {
     }, 200);
 });
 
+function getNearestYearFromPosition(x = null, direction = 0) {
+    const containerRect = container.getBoundingClientRect();
+    const centerX = containerRect.width / 2;
+    
+    if (x === null) {
+        x = centerX;
+    }
+    
+    const year = calculateYearFromPosition(x);
+    
+    if (direction > 0) {
+        return Math.ceil(year);
+    } else if (direction < 0) {
+        return Math.floor(year);
+    } else {
+        return Math.round(year);
+    }
+}
 
-
+function isPositionWholeYear(x = null, tolerance = 2) {
+    const containerRect = container.getBoundingClientRect();
+    const centerX = containerRect.width / 2;
+    
+    if (x === null) {
+        x = centerX;
+    }
+    
+    // Calculate the year at the given position
+    const year = calculateYearFromPosition(x);
+    
+    // Get the position of the nearest whole year
+    const nearestYear = Math.round(year);
+    const yearPosition = calculatePositionFromYear(nearestYear);
+    
+    // Check if we're within tolerance of the whole year position
+    return Math.abs(x - yearPosition) <= tolerance;
+}

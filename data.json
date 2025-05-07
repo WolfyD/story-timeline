@@ -3,6 +3,6 @@
     "author": "Myself",
     "description": "This is a test",
     "start": "1430",
-    "granularity": "10",
+    "granularity": "4",
     "items": []
 }
