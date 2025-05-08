@@ -1,27 +1,71 @@
 {
-    "universe_name": "Unnamed universe",
-    "description": "This is a test item",
-    "author": "Anonymous",
-    "start_year": 0,
-    "granularity": 4,
+    "universe_name": "Dergderg Dorgness's universe",
+    "description": "The universe of Dergderg Dorgness",
+    "author": "Dergderg Dorgness",
+    "start_year": 1430,
+    "granularity": 12,
     "items": [
         { 
-            "year": 1, 
-            "sub_year": 1, 
-            "title": "Test item", 
-            "description": "This is a test item", 
-            "uuid": "550e8400-e29b-41d4-a716-446655440000",
-            "content": "",
-            "picture": "",
-            "picture_title": "",
-            "references": [
-                { "_comment": "data in references is an array of UUID-s" }
+            "year": 1430, 
+            "sub_year": 3, 
+            "title": "The hero is born", 
+            "description": "The hero is born in a small village in the middle of nowhere. The villagers are all very poor and the hero's parents are too. The hero is a very special child and is destined to save the world from the evil empire.", 
+            "uuid": "generated-uuid-01",
+            "content": "The entire chapter here potentially",
+            "tags": ["hero", "birth", "village", "parents", "evil empire", "has pictures"],
+            "pictures": [
+                {
+                    "picture": "Picture of the cover",
+                    "title": "The cover",
+                    "description": "The cover of the book"
+                },
+                {
+                    "picture": "Picture of the hero's parents",
+                    "title": "The parents",
+                    "description": "The parents of the hero"
+                },
+                {
+                    "picture": "Picture of the hero's as a baby",
+                    "title": "The hero as a baby",
+                    "description": "He's so cute!"
+                }
             ],
-            "book_title": "",
-            "author": "",
-            "chapter": "",
-            "page": "",
-            "story": ""
+            "book_title": "The hero's awakening",
+            "author": "Dergderg Dorgness",
+            "chapter": "The hero is born",
+            "page": "1",
+            "story": "The hero's life",
+            "story-id": "generated-story-id-01"
+        },
+        {
+            "year": 1442, 
+            "sub_year": 11, 
+            "title": "First signs of awakening", 
+            "description": "The hero starts to show signs of awakening. He is very curious about the world and wants to know more about it.", 
+            "uuid": "generated-uuid-02",
+            "content": "The entire chapter here potentially",
+            "tags": ["hero", "awakening", "teen", "curiosity", "world", "has pictures", "has references"],
+            "pictures": [
+                {
+                    "picture": "Picture of the hero as a teenager",
+                    "title": "The hero as a teenager",
+                    "description": "Getting older!"
+                },
+                {
+                    "picture": "Picture of something scary",
+                    "title": "Something scary",
+                    "description": "Something scary"
+                }
+            ],
+            "references": [
+                { "uuid": "generated-uuid-01" }
+            ],
+            "book_title": "The hero's awakening",
+            "author": "Dergderg Dorgness",
+            "chapter": "The teen hero",
+            "page": "32",
+            "story": "The hero's life",
+            "story-id": "generated-story-id-01"
         }
     ]
 }

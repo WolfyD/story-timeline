@@ -1,6 +1,7 @@
 let items = [];
 let isFullscreen = false;
 let loaded_data = {};
+let storyIndex = {}; // Object to store story titles and IDs for quick lookup
 
 function openSettings() {
     document.querySelector('.settings_container').style.display = 'block';
@@ -51,6 +52,26 @@ function dataSetup(data) {
     let main_subtitle = document.querySelector('#main_subtitle');
     main_subtitle.textContent = data.author || "";
 
+    items = data.items;
+    
+    // Build story index from existing items
+    storyIndex = {};
+    items.forEach(item => {
+        if (item.story && item['story-id']) {
+            // Store both by story ID and title for flexible lookup
+            storyIndex[item['story-id']] = {
+                title: item.story,
+                id: item['story-id']
+            };
+            storyIndex[item.story.toLowerCase()] = {
+                title: item.story,
+                id: item['story-id']
+            };
+        }
+    });
+    
+    console.log("Story index built:", storyIndex);
+
     loaded_data = data;
 }
 
@@ -64,7 +85,7 @@ function loadData(data){
     description.value = data.description || "";
 }
 
-document.querySelector('#btn_SaveSettings').addEventListener('click', () => {
+document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
     console.log("save settings button clicked");
     const settings = {
         font: document.querySelector('#font-select').selectedIndex,
@@ -116,6 +137,28 @@ window.api.receive('call-load-data', (data) => {
     loadData(data);
 });
 
+function openAddItemWindow(year, subtick){
+    year = Math.floor(year);
+
+    window.api.send('open-add-item-window', year, subtick);
+}
+
+window.api.receive('items', (allItems) => {
+    console.log("Received all items:", allItems);
+    items = allItems; // Update the local items array
+    // If you need to update the UI or timeline, do it here
+    if (timelineState) {
+        timelineState.items = items;
+        renderTimeline();
+    }
+});
+
+window.api.receive('add-timeline-item', (data) => {
+    console.log("Received new timeline item:", data);
+    // Request updated items list
+    refreshAllItems();
+});
+
 function handleFontChange(font) {
     console.log("font changed to:", font);
     document.querySelector(".preview-text").style.fontFamily = font;
@@ -127,7 +170,7 @@ function handleFontSizeChange(size) {
 }
 
 function callSetInitialSettings(){
-    setInitialSettings({ focusYear: 1460, granularity: 4, items: [], pixelsPerSubtick: 30 });
+    setInitialSettings({ focusYear: 0, granularity: 4, items: [], pixelsPerSubtick: 20 });
 }
 
 function toggleCustomCSS(use = false){
@@ -138,3 +181,46 @@ function toggleCustomCSS(use = false){
         customCSS.setAttribute('readonly', 'readonly');
     }
 }
+
+// Listen for new timeline items
+window.api.receive('addTimelineItem', (data) => {
+    console.log("Received new timeline item:", data);
+    // Add the new item to the timeline
+    if (data && data.year && data.subtick) {
+        const newItem = {
+            ...data,
+            date: parseFloat(data.year) + (parseFloat(data.subtick) / timelineState.granularity)
+        };
+        timelineState.items.push(newItem);
+        renderTimeline();
+    }
+});
+
+// Helper function to search stories
+function searchStories(query) {
+    query = query.toLowerCase();
+    const results = [];
+    
+    // Search through the index
+    Object.entries(storyIndex).forEach(([key, value]) => {
+        if (key.includes(query) || value.title.toLowerCase().includes(query)) {
+            // Only add if not already in results
+            if (!results.some(r => r.id === value.id)) {
+                results.push(value);
+            }
+        }
+    });
+    
+    return results;
+}
+
+// Add a function to explicitly request all items
+function refreshAllItems() {
+    console.log("Requesting all items...");
+    window.api.send('getAllItems');
+}
+
+// Call this when the page loads
+document.addEventListener('DOMContentLoaded', () => {
+    refreshAllItems();
+});

@@ -1,16 +1,16 @@
 {
-  "font": 0,
-  "fontSizeScale": "1.20",
+  "font": 1,
+  "fontSizeScale": "1",
   "isFullscreen": false,
   "customCSS": "#timeline-container {\n\t\n}\n\n#timeline {\n\t\n}\n\n.tick {\n\t\n}\n\n.tick .marker {\n\t\n}\n\n#h-rule {\n\t\n}\n\n\n#center-line {\n\t\n}\n\n#now-marker {\n\t\n}\n\n#arrow::before {\n\t\n}\n\n#arrow::after {\n\t\n}\n\n.tick-fullyear {\n\t\n}\n\n#timeline-hover-marker {\n\t\n}\n\n#timeline-hover-marker-stick {\n\t\n}\n\n.marker_stick_below {\n\t\n}\n\n.marker_stick_above {\n\t\n}\n\n.marker_above {\n\t\n}\n\n.marker_below {\n\t\n}\n\n.marker_left {\n\t\n}\n\n.subtick {\n\t\n}\n\n.fullyear {\n\t\n}",
   "useCustomCSS": true,
-  "pixelsPerSubtick": "",
+  "pixelsPerSubtick": "10",
   "size": {
-    "x": 961,
-    "y": 580
+    "x": 958,
+    "y": 581
   },
   "position": {
-    "x": -1271,
-    "y": 81
+    "x": -1402,
+    "y": -7
   }
 }

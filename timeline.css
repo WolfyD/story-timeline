@@ -134,6 +134,7 @@
 #timeline-hover-marker {
     position: absolute;
     color: red;
+    white-space: nowrap;
 }
 
 #timeline-hover-marker-stick {

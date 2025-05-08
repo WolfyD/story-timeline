@@ -18,6 +18,12 @@ let initialOffset = 0;
 let tickWidthCssOffset = 10;
 let tickOffset = 0;
 
+updateTickOffset();
+window.addEventListener('resize', updateTickOffset);
+window.jumpToYear = jumpToYear;
+window.scrollBy = scrollBy;
+window.setInitialSettings = setInitialSettings;
+
 function calculateYearFromPosition(x) {
     const containerRect = container.getBoundingClientRect();
     const centerX = containerRect.width / 2;
@@ -30,10 +36,21 @@ function calculateSubtickFromPosition(x) {
     const centerX = containerRect.width / 2;
     // Calculate the floating-point year
     const year = timelineState.focusYear + ((x - containerRect.left - centerX - timelineState.offsetPx) / (timelineState.pixelsPerSubtick * timelineState.granularity));
-    // Get the subtick index within the year (0-based)
-    let subtick = Math.floor((year - Math.floor(year)) * timelineState.granularity);
-    // Handle edge case where subtick would be granularity (i.e., exactly at next year)
-    if (subtick === timelineState.granularity) subtick = 0;
+    
+    let subtick;
+    if (year >= 0) {
+        subtick = Math.round((year - Math.floor(year)) * timelineState.granularity);
+    } else {
+        subtick = Math.round((year - Math.ceil(year)) * timelineState.granularity);
+    }
+    
+    subtick = Math.abs(subtick);
+    
+    // Clamp subtick to [0, granularity-1]
+    if (subtick >= timelineState.granularity) {
+        subtick = 0;
+    }
+    
     return subtick;
 }
 
@@ -55,9 +72,6 @@ function updateTickOffset() {
     // If using only border, offset by borderLeftWidth/2; if using width, offset by tickWidth/2
     tickOffset = tickWidth > 0 ? tickWidth / 2 : borderLeftWidth / 2;
 }
-
-updateTickOffset();
-window.addEventListener('resize', updateTickOffset);
 
 function getNumberLineLabel(v, granularity) {
     // Round to nearest subtick
@@ -91,8 +105,6 @@ function getHoverLabel(v, granularity) {
 
     let year, subtick;
 
-    console.log("Before", snapped, v, granularity);
-
     if (snapped >= 0) {
         year = Math.floor(snapped);
         subtick = Math.round((snapped - year) * granularity);
@@ -100,9 +112,6 @@ function getHoverLabel(v, granularity) {
         year = Math.ceil(snapped);
         subtick = Math.round((snapped - year) * granularity);
     }
-
-    console.log("After", snapped, year, subtick);
-
 
     subtick = Math.abs(subtick);
 
@@ -160,12 +169,13 @@ function renderTimeline() {
 
     // Render items
     timelineState.items.forEach(item => {
-        const itemX = centerX + (item.date - focusYear) * pixelsPerSubtick * granularity + offsetPx;
-        const el = document.createElement("div");
-        el.className = "marker";
-        el.style.left = `${itemX}px`;
-        el.style.position = 'absolute';
-        timeline.appendChild(el);
+        console.log("item", item);
+        // const itemX = centerX + (item.date - focusYear) * pixelsPerSubtick * granularity + offsetPx;
+        // const el = document.createElement("div");
+        // el.className = "marker";
+        // el.style.left = `${itemX}px`;
+        // el.style.position = 'absolute';
+        // timeline.appendChild(el);
     });
 }
 
@@ -209,6 +219,7 @@ function updateHoverMarker(x, y) {
 
     hoverMarker.innerText = getHoverLabel(floatYear, timelineState.granularity);
     hoverMarker.style.display = 'block';
+    hoverMarkerStick.style.display = 'block';
 }
 
 container.addEventListener("mousemove", (e) => {
@@ -231,11 +242,11 @@ container.addEventListener("mouseup", (e) => {
     mouseDown = false;
     if (Math.abs(e.clientX - dragStartX) < 5) {
         const year = calculateYearFromPosition(e.clientX);
-        timelineState.items.push({
-            date: year,
-            x: e.clientX
-        });
-        console.log("Added item at", year.toFixed(2));
+        const subtick = calculateSubtickFromPosition(e.clientX);
+        
+        let newItem = addItem(year, subtick);
+
+        timelineState.items.push(newItem);
         renderTimeline();
     }
     dragStartX = null;
@@ -243,6 +254,7 @@ container.addEventListener("mouseup", (e) => {
 
 container.addEventListener("mouseleave", () => {
     hoverMarker.style.display = 'none';
+    hoverMarkerStick.style.display = 'none';
 });
 
 container.addEventListener("wheel", (event) => {
@@ -282,18 +294,6 @@ function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 
     renderTimeline();
 }
 
-window.jumpToYear = jumpToYear;
-window.scrollBy = scrollBy;
-window.setInitialSettings = setInitialSettings;
-
-renderTimeline();
-
-document.addEventListener("DOMContentLoaded", () => {
-    window.setTimeout(() => {
-        jumpToYear(timelineState.focusYear);
-    }, 200);
-});
-
 function getNearestYearFromPosition(x = null, direction = 0) {
     const containerRect = container.getBoundingClientRect();
     const centerX = containerRect.width / 2;
@@ -331,3 +331,17 @@ function isPositionWholeYear(x = null, tolerance = 2) {
     // Check if we're within tolerance of the whole year position
     return Math.abs(x - yearPosition) <= tolerance;
 }
+
+function addItem(year, subtick) {
+    let newItem = openAddItemWindow(year, subtick);
+    //let newItem = window.webContents.send('open-add-item-window', year, subtick);
+    return newItem;
+}
+
+document.addEventListener("DOMContentLoaded", () => {
+    window.setTimeout(() => {
+        jumpToYear(timelineState.focusYear);
+    }, 200);
+});
+
+renderTimeline();
