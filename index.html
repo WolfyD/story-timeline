@@ -5,6 +5,7 @@
     <title>Story Timeline</title>
     <link rel="stylesheet" href="main.css" type="text/css" />
     <link rel="stylesheet" href="timeline.css" type="text/css" />
+    <link rel="stylesheet" href="modal.css" type="text/css" />
   </head>
   <body>
     <button class="settings-button open-settings-button no-select" onclick="openSettings()">Settings</button>
@@ -132,6 +133,15 @@
                 </div>
               </div>
 
+              <div class="settings-row">
+                <label class="no-select" for="show-guides">Show guides</label>
+                <div class="settings-input-container">
+                  <input type="checkbox" id="show-guides" class="settings-input" onclick="toggleGuides(this.checked)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Show guides for the timeline</div>
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -154,6 +164,71 @@
       <div id="h-rule"></div>
       <div id="timeline-hover-marker"></div>
       <div id="timeline-hover-marker-stick"></div>
+    </div>
+    
+    <div class="timeline-info-container">
+      <div class="timeline-info-item">
+        <div class="timeline-info-item-value" id="timeline-info-now">0 .0</div>
+        <div class="timeline-info-item-value" id="timeline-info-hover">0 .0</div>
+      </div>
+    </div>
+    
+    
+    
+    
+    
+    
+    
+    <div id="item-viewer-modal" class="modal">
+      <div class="modal-content fullscreen">
+        <button class="close-button" id="item-viewer-close">&times;</button>
+        
+        <div class="modal-header">
+          <h1 id="item-viewer-title">Item Title</h1>
+          <div class="date-row">
+            <span><span class="label">Year:</span> <span id="item-viewer-year"></span></span>
+            <span><span class="label">Subyear:</span> <span id="item-viewer-subtick"></span></span>
+          </div>
+          <div class="description" id="item-viewer-description"></div>
+          <div class="tags-container" id="item-viewer-tags"></div>
+        </div>
+
+        <div class="modal-body">
+          <div class="content-section">
+            <h2>Content</h2>
+            <div class="content-text" id="item-viewer-content" onclick="this.classList.toggle('content-text-open')"></div>
+          </div>
+
+          <div class="images-section">
+            <h2>Images</h2>
+            <div class="images-grid" id="item-viewer-pictures">
+              <!-- Images will be inserted here -->
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <div class="book-info">
+            <div class="book-title" id="item-viewer-book-title"></div>
+            <div class="book-details">
+              <span><span class="label">Chapter:</span> <span id="item-viewer-chapter"></span></span>
+              <span><span class="label">Page:</span> <span id="item-viewer-page"></span></span>
+            </div>
+          </div>
+
+          <div class="story-references">
+            <h3>Story References</h3>
+            <div class="story-list" id="item-viewer-stories">
+              <!-- Story references will be inserted here -->
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-controls">
+          <button class="modal-button edit-button" id="item-viewer-edit">Edit</button>
+          <button class="modal-button delete-button" id="item-viewer-delete">Delete</button>
+        </div>
+      </div>
     </div>
     
     
@@ -222,6 +297,14 @@
       document.addEventListener("DOMContentLoaded", function() {
         callSetInitialSettings();
       });
+
+      document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+              if(document.getElementById('item-viewer-modal').classList.contains('active')) {
+                document.getElementById('item-viewer-close').click();
+              }
+            }
+        });
 
       function handleFontMouseWheel() {
         event.preventDefault();

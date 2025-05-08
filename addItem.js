@@ -11,7 +11,7 @@ window.api.receive('storySuggestions', (suggestions) => {
 });
 
 // Handle story input for autocomplete
-document.getElementById('story').addEventListener('input', function(e) {
+document.getElementById('story')?.addEventListener('input', function(e) {
     const query = e.target.value.toLowerCase();
     const suggestions = storySuggestions.filter(s => 
         s.title.toLowerCase().includes(query)
@@ -41,7 +41,10 @@ document.getElementById('story').addEventListener('input', function(e) {
 // Close suggestions when clicking outside
 document.addEventListener('click', function(e) {
     if (!e.target.closest('.autocomplete-container')) {
-        document.getElementById('storySuggestions').style.display = 'none';
+        const dropdown = document.getElementById('storySuggestions');
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
     }
 });
 
@@ -107,38 +110,238 @@ function addImagePreview(dataUrl) {
     images.push(dataUrl);
 }
 
-// Handle form submission
-document.getElementById('addItemForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
-    const formData = {
-        title: document.getElementById('title').value,
-        description: document.getElementById('description').value,
-        content: document.getElementById('content').value,
-        tags: Array.from(tags),
-        pictures: images.map((dataUrl, index) => ({
-            picture: dataUrl,
-            title: `Image ${index + 1}`,
-            description: ''
-        })),
-        book_title: document.getElementById('bookTitle').value,
-        chapter: document.getElementById('chapter').value,
-        page: document.getElementById('page').value,
-        story: document.getElementById('story').value,
-        'story-id': document.getElementById('storyId').value,
-        year: new URLSearchParams(window.location.search).get('year'),
-        subtick: new URLSearchParams(window.location.search).get('subtick')
+// --- Story References Logic ---
+let storyRefs = [];
+
+function createStoryRefRow(storyTitle = '', storyId = '') {
+    const row = document.createElement('div');
+    row.className = 'story-ref-row';
+
+    // Title input container
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'story-ref-title-container';
+
+    // Title input
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.placeholder = 'Story Title';
+    titleInput.className = 'input-text story-ref-title';
+    titleInput.value = storyTitle;
+
+    // Suggestions dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'story-suggestions';
+
+    // Add input event listener for autocomplete
+    titleInput.addEventListener('input', function(e) {
+        const query = e.target.value.toLowerCase();
+        // Collect all selected story IDs (except this row)
+        const selectedTitles = Array.from(document.querySelectorAll('.story-ref-title'))
+            .filter(input => input !== titleInput)
+            .map(input => input.value.trim().toLowerCase())
+            .filter(Boolean);
+        // Filter suggestions to exclude already selected titles
+        const suggestions = storySuggestions.filter(s => 
+            s.title.toLowerCase().includes(query) &&
+            !selectedTitles.includes(s.title.toLowerCase())
+        );
+        dropdown.innerHTML = '';
+        if (suggestions.length > 0 && query.length > 0) {
+            suggestions.forEach(suggestion => {
+                const div = document.createElement('div');
+                div.className = 'suggestion-item';
+                div.textContent = suggestion.title;
+                div.onclick = () => {
+                    titleInput.value = suggestion.title;
+                    idInput.value = suggestion.id;
+                    titleInput.readOnly = true;
+                    idInput.readOnly = true;
+                    dropdown.style.display = 'none';
+                };
+                dropdown.appendChild(div);
+            });
+            dropdown.style.display = 'block';
+        } else {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    // Close dropdown when clicking outside
+    document.addEventListener('click', function(e) {
+        if (!titleContainer.contains(e.target)) {
+            dropdown.style.display = 'none';
+        }
+    });
+
+    titleContainer.appendChild(titleInput);
+    titleContainer.appendChild(dropdown);
+
+    // ID input
+    const idInput = document.createElement('input');
+    idInput.type = 'text';
+    idInput.placeholder = 'Story ID';
+    idInput.className = 'input-text story-ref-id';
+    idInput.value = storyId;
+
+    // Remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '✕';
+    removeBtn.className = 'button-debug';
+    removeBtn.onclick = function() {
+        row.remove();
     };
 
-    // Send data through IPC
-    window.api.send('addTimelineItem', formData);
-    
-    // Notify that we're closing
-    window.api.send('add-item-window-closing');
-    
-    // Close the window
-    window.close();
+    row.appendChild(titleContainer);
+    row.appendChild(idInput);
+    row.appendChild(removeBtn);
+    return row;
+}
+
+function addStoryRefRow(storyTitle = '', storyId = '') {
+    const container = document.getElementById('storyRefsContainer');
+    container.appendChild(createStoryRefRow(storyTitle, storyId));
+}
+
+document.getElementById('addStoryRefBtn').addEventListener('click', function() {
+    addStoryRefRow();
 });
+
+// Add one row by default
+addStoryRefRow();
+
+function generateStoryId(title) {
+    // Simple: STORY-<timestamp>-<random>
+    return 'STORY-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+}
+
+function collectStoryRefs() {
+    const refs = [];
+    document.querySelectorAll('.story-ref-row').forEach(row => {
+        const title = row.querySelector('.story-ref-title').value.trim();
+        let id = row.querySelector('.story-ref-id').value.trim();
+        if (title) {
+            if (!id) {
+                id = generateStoryId(title);
+                row.querySelector('.story-ref-id').value = id; // update UI
+            }
+            refs.push({ story_title: title, story_id: id });
+        }
+    });
+    return refs;
+}
+
+// Check if we're in edit mode
+const urlParams = new URLSearchParams(window.location.search);
+const isEditMode = urlParams.get('edit') === 'true';
+const editItemId = urlParams.get('itemId');
+
+if (isEditMode && editItemId) {
+    // Get the item data
+    window.api.send('getItem', editItemId);
+    window.api.receive('itemData', (item) => {
+        if (item) {
+            // Fill in the form with item data
+            document.getElementById('title').value = item.title || '';
+            document.getElementById('description').value = item.description || '';
+            document.getElementById('content').value = item.content || '';
+            document.getElementById('bookTitle').value = item.book_title || '';
+            document.getElementById('chapter').value = item.chapter || '';
+            document.getElementById('page').value = item.page || '';
+            document.getElementById('yearInput').value = item.year || '';
+            document.getElementById('subtickInput').value = item.subtick || '';
+
+            // Set tags
+            if (item.tags) {
+                item.tags.forEach(tag => {
+                    tags.add(tag);
+                });
+                updateTagDisplay();
+            }
+
+            // Set images
+            if (item.pictures) {
+                item.pictures.forEach(pic => {
+                    addImagePreview(pic.picture);
+                });
+            }
+
+            // Set story references
+            if (item.story_refs) {
+                // Clear default row
+                document.getElementById('storyRefsContainer').innerHTML = '';
+                // Add rows for each story reference
+                item.story_refs.forEach(story => {
+                    addStoryRefRow(story.title, story.id);
+                });
+            }
+
+            // Update form submission handler for editing
+            document.getElementById('addItemForm').onsubmit = function(e) {
+                e.preventDefault();
+                const formData = {
+                    id: editItemId, // Keep the same ID
+                    title: document.getElementById('title').value,
+                    description: document.getElementById('description').value,
+                    content: document.getElementById('content').value,
+                    tags: Array.from(tags),
+                    pictures: images.map((dataUrl, index) => ({
+                        picture: dataUrl,
+                        title: `Image ${index + 1}`,
+                        description: ''
+                    })),
+                    book_title: document.getElementById('bookTitle').value,
+                    chapter: document.getElementById('chapter').value,
+                    page: document.getElementById('page').value,
+                    year: document.getElementById('yearInput').value,
+                    subtick: document.getElementById('subtickInput').value,
+                    story_refs: collectStoryRefs()
+                };
+                // Send update request
+                window.api.send('updateTimelineItem', formData);
+                window.close();
+            };
+        }
+    });
+} else {
+    // Handle form submission for new items
+    document.getElementById('addItemForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        // Get form data
+        const formData = {
+            title: document.getElementById('title').value,
+            description: document.getElementById('description').value,
+            content: document.getElementById('content').value,
+            tags: Array.from(document.querySelectorAll('.tag-item')).map(tag => tag.textContent),
+            images: images.map((dataUrl, index) => ({
+                picture: dataUrl,
+                title: `Image ${index + 1}`,
+                description: ''
+            })),
+            bookTitle: document.getElementById('bookTitle').value,
+            chapter: document.getElementById('chapter').value,
+            page: document.getElementById('page').value,
+            year: document.getElementById('yearInput').value,
+            subtick: document.getElementById('subtickInput').value,
+            story_refs: collectStoryRefs(),
+            story: '',
+            'story-id': ''
+        };
+        try {
+            if (formData.story_refs.length > 0) {
+                formData.story = formData.story_refs[0].story_title;
+                formData['story-id'] = formData.story_refs[0].story_id;
+            }
+            // Send data through IPC
+            window.api.send('addTimelineItem', formData);
+            window.api.send('add-item-window-closing');
+            window.close();
+        } catch (error) {
+            console.error('Error submitting form:', error);
+            alert('An error occurred. Please try again.');
+        }
+    });
+}
 
 // Debug function to fill all fields with random data
 document.getElementById('testFillBtn').addEventListener('click', function() {
@@ -165,7 +368,6 @@ document.getElementById('testFillBtn').addEventListener('click', function() {
     document.getElementById('bookTitle').value = randomText(2);
     document.getElementById('chapter').value = randomNumber(1, 20).toString();
     document.getElementById('page').value = randomNumber(1, 500).toString();
-    document.getElementById('story').value = randomText(2);
     //document.getElementById('storyId').value = `STORY-${randomNumber(1000, 9999)}`;
 
     // Fill textareas
@@ -185,3 +387,26 @@ document.getElementById('testFillBtn').addEventListener('click', function() {
     const sampleImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIiBmaWxsPSIjNjY2Ij5TYW1wbGUgSW1hZ2U8L3RleHQ+PC9zdmc+';
     addImagePreview(sampleImage);
 }); 
+
+window.addEventListener('DOMContentLoaded', function() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const year = urlParams.get('year');
+    const subtick = urlParams.get('subtick');
+    let granularity = urlParams.get('granularity');
+    
+    if (!granularity || isNaN(parseInt(granularity))) {
+        granularity = 4;
+    } else {
+        granularity = Math.max(0, parseInt(granularity - 1));
+    }
+    // Only auto-populate if not in edit mode
+    if (!isEditMode) {
+        if (year !== null) document.getElementById('yearInput').value = year;
+        if (subtick !== null) document.getElementById('subtickInput').value = subtick;
+    }
+    // Set subtick max
+    document.getElementById('subtickInput').setAttribute('max', granularity);
+    // Update header display
+    document.getElementById('header-year-value').textContent = `${year}`;
+    document.getElementById('header-subtick-value').textContent = `${subtick}`;
+});

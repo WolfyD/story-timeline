@@ -2,12 +2,32 @@
 <html>
 <head>
     <title>Add Timeline Item</title>
+    <meta charset="UTF-8">
     <link rel="stylesheet" href="main.css">
     <link rel="stylesheet" href="addItem.css">
 </head>
 <body>
+    <div class="top-header-container">
+        <h1 class="title">Add Timeline Item</h1>
+        <div class="header-container">
+            <header class="header-row">
+                <span class="header-field", id="header-year"><span class="header-field-item header-field-label">Year</span> <span class="header-field-item header-field-value" id="header-year-value"> #1990</span></span>
+                <span class="header-field", id="header-subtick"><span class="header-field-item header-field-label">Subyear</span> <span class="header-field-item header-field-value" id="header-subtick-value"> #36</span></span>
+            </header>
+        </div>
+    </div>
     <form id="addItemForm">
         <div class="form-group">
+            <div id="year-subtick-container">
+                <div class="form-line-2">
+                    <label for="year">Year:</label>
+                    <input type="number" id="yearInput" name="year" class="input-text" required>
+                </div>
+                <div class="form-line-2">
+                    <label for="subtick">Subyear:</label>
+                    <input type="number" id="subtickInput" name="subtick" class="input-text" required min="0">
+                </div>
+            </div>
             <div class="form-line">
                 <label for="title">Title:</label>
                 <input type="text" id="title" name="title" class="input-text" required>
@@ -62,15 +82,11 @@
 
         <div class="form-group">
             <div class="form-line">
-                <label for="story">Story:</label>
-                <div class="autocomplete-container">
-                    <input type="text" id="story" name="story" class="input-text">
-                    <div id="storySuggestions" class="suggestions-dropdown"></div>
+                <label>Story References:</label>
+                <div id="storyRefsContainer">
+                    <!-- Story reference rows will be added here -->
                 </div>
-            </div>
-            <div class="form-line">
-                <label for="storyId">Story ID:</label>
-                <input type="text" id="storyId" name="storyId" class="input-text" readonly>
+                <button type="button" id="addStoryRefBtn" class="button-debug" style="margin-top:8px;">+ Add Story Reference</button>
             </div>
         </div>
 
@@ -80,7 +96,14 @@
         </div>
     </form>
 
+    <script>
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                window.close();
+            }
+        });
+    </script>   
+
     <script src="addItem.js"></script>
-    <script src="renderer.js"></script>
 </body>
 </html>

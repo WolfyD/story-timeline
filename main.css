@@ -416,3 +416,59 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     cursor: not-allowed;
     user-select: none;
 }
+
+.timeline-item-box {
+    background: #fff;
+    border: 2px solid #333;
+    border-radius: 3px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    font-size: 15px;
+    font-weight: normal;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    padding: 0 10px;
+    line-height: 28px;
+    width: 130px;
+    height: 28px;
+    margin-bottom: 2px;
+}
+.timeline-item-box.above {}
+.timeline-item-box.below {}
+.timeline-item-box:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    border-color: #0074d9;
+}
+.timeline-item-line {
+    z-index: 1;
+    background: #555;
+    position: absolute;
+    width: 2px;
+}
+.timeline-item-date {
+    font-weight: bold;
+    font-size: 13px;
+    margin-bottom: 2px;
+}
+.timeline-item-title {
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 140px;
+}
+
+.timeline-item-box.highlighted {
+    background: #eaf4ff;
+    border-color: #3399ff;
+    box-shadow: 0 4px 16px rgba(51,153,255,0.12);
+}
+.timeline-item-line.highlighted-line {
+    background: #3399ff !important;
+}

@@ -1,9 +1,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
-console.warn('[preload] loaded into newItemWindow');
-
 contextBridge.exposeInMainWorld('api', {
     send: (channel, ...args) => {
+        console.log("preload.js: send called with channel:", channel, "and args:", args);  
         const validChannels = [
             'save-settings', 
             'load-settings', 
@@ -15,7 +14,10 @@ contextBridge.exposeInMainWorld('api', {
             'removeItem',
             'getAllItems',
             'addTimelineItem',
-            'add-item-window-closing'
+            'add-item-window-closing',
+            'updateTimelineItem',
+            'getItem',
+            'open-edit-item-window'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -38,7 +40,8 @@ contextBridge.exposeInMainWorld('api', {
             'tagSearchResults',
             'dateSearchResults',
             'itemRemoved',
-            'items'
+            'items',
+            'itemData'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
