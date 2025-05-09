@@ -1,23 +1,54 @@
 {
   "name": "story-timeline",
-  "version": "1.0.0",
-  "description": "",
+  "version": "0.1.1",
+  "description": "Timeline builder for your stories",
   "main": "main.js",
   "scripts": {
     "start": "electron .",
     "dev": "nodemon --watch . --ext js,html,css --exec electron .",
-    "rebuild": "electron-rebuild -f -w better-sqlite3"
+    "rebuild": "electron-rebuild -f -w better-sqlite3",
+    "build": "electron-builder"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
     "electron": "^36.1.0",
+    "electron-builder": "^26.0.12",
     "electron-rebuild": "^3.2.9",
     "nodemon": "^3.1.10"
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",
     "uuid": "^11.1.0"
+  },
+  "build": {
+    "appId": "com.wolfpaw.story-timeline",
+    "productName": "Story Timeline",
+    "asar": true,
+    "npmRebuild": false,
+  "nodeGypRebuild": false,
+    "files": [
+      "**/*"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "useZip": false,
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Story Timeline"
+    }
   }
 }

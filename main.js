@@ -1,6 +1,33 @@
 /**
  * Main Process Module
- * Handles application lifecycle, window management, and IPC communication.
+ * 
+ * This is the main Electron process file that handles the core application functionality.
+ * It manages the application lifecycle, window creation, IPC communication, and database operations.
+ * 
+ * Key Responsibilities:
+ * - Application initialization and lifecycle management
+ * - Window creation and management (main window, add/edit item windows)
+ * - IPC communication between main and renderer processes
+ * - File system operations (import/export)
+ * - Database operations through dbManager
+ * 
+ * Main Functions:
+ * - createWindow(): Creates and configures the main application window
+ * - createAddItemWindow(year, subtick, granularity): Creates window for adding new timeline items
+ * - createEditItemWindow(item): Creates window for editing existing timeline items
+ * - setupIpcHandlers(): Sets up all IPC communication handlers
+ * - loadSettings(): Loads application settings from database
+ * - saveSettings(newSettings): Saves application settings to database
+ * - loadData(): Loads timeline data from database
+ * - saveData(newData): Saves timeline data to database
+ * 
+ * IPC Handlers:
+ * - 'save-settings': Handles saving application settings
+ * - 'addTimelineItem': Handles adding new timeline items
+ * - 'updateTimelineItem': Handles updating existing timeline items
+ * - 'removeItem': Handles removing timeline items
+ * - 'import-timeline-data': Handles importing timeline data from JSON
+ * - 'export-timeline-data': Handles exporting timeline data to JSON
  */
 
 // ===== Imports =====
@@ -77,9 +104,13 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       enableRemoteModule: false,
-      nodeIntegration: false
+      nodeIntegration: false,
+      defaultEncoding: 'utf-8',
+      webgl: true
     }
   });
+
+  mainWindow.setMenuBarVisibility(false);
   
   mainWindow.loadFile('index.html');
 
@@ -110,6 +141,9 @@ function createWindow() {
     
     // Always show the window first
     mainWindow.show();
+
+    // Send app version to renderer
+    mainWindow.webContents.send('app-version', app.getVersion());
 
     if (settings) {
       mainWindow.webContents.send("window-resized", mainWindow.getSize());
@@ -162,7 +196,6 @@ function createWindow() {
       ...updatedData
     };
     
-    logToFile("Loaded data:", "data:" + JSON.stringify(data, null, 4));
     mainWindow.webContents.send('call-load-data', data);
   });
 }
@@ -608,6 +641,112 @@ function setupIpcHandlers() {
       event.reply('itemRemoved', { success: false, error: error.message });
     }
   });
+
+  // ===== Export/Import Handlers =====
+  ipcMain.handle('export-timeline-data', async (event, loaded_data) => {
+    console.log("Exporting timeline data...", loaded_data);
+    try {
+        // Get the directory where the executable is located
+        const exportDir = path.join(process.resourcesPath, 'export');
+        if (!fs.existsSync(exportDir)) {
+            fs.mkdirSync(exportDir);
+        }
+
+        // Sanitize title and author for filename
+        const sanitizeForFilename = (str) => {
+            return (str || 'untitled')
+                .replace(/[^a-z0-9]/gi, '_')
+                .toLowerCase();
+        };
+
+        // Create filename with timestamp
+        const now = new Date();
+        const timestamp = now.getFullYear() +
+            String(now.getMonth() + 1).padStart(2, '0') +
+            String(now.getDate()).padStart(2, '0') + 'T' +
+            String(now.getHours()).padStart(2, '0') +
+            String(now.getMinutes()).padStart(2, '0') +
+            String(now.getSeconds()).padStart(2, '0');
+        const filename = `${sanitizeForFilename(data.title)}_by_${sanitizeForFilename(data.author)}_timeline_export_${timestamp}.json`;
+        const filePath = path.join(exportDir, filename);
+
+        // Write the file
+        await fs.promises.writeFile(filePath, JSON.stringify(loaded_data, null, 2));
+        
+        // Open the folder containing the exported file
+        require('electron').shell.openPath(exportDir);
+        
+        event.sender.send('export-timeline-data-success', filePath);
+    } catch (error) {
+        console.error('Export error:', error);
+        event.sender.send('export-timeline-data-error', error.message);
+    }
+  });
+
+  ipcMain.handle('import-timeline-data', async (event) => {
+    console.log("Importing timeline data...");
+    try {
+        const { filePaths } = await dialog.showOpenDialog(mainWindow, {
+            title: 'Import Timeline Data',
+            filters: [
+                { name: 'JSON Files', extensions: ['json'] }
+            ],
+            properties: ['openFile']
+        });
+
+        if (!filePaths || filePaths.length === 0) return; // User cancelled
+
+        const fileContent = await fs.promises.readFile(filePaths[0], 'utf8');
+        const importedData = JSON.parse(fileContent);
+
+        // Validate the imported data structure
+        if (!importedData.items || !importedData.storyReferences) {
+            throw new Error('Invalid import file format');
+        }
+
+        // Count items to be imported
+        const itemCount = importedData.items.length;
+        
+        // Send confirmation request to renderer
+        event.sender.send('import-timeline-data-confirm', {
+            itemCount,
+            filePath: filePaths[0],
+            data: importedData
+        });
+    } catch (error) {
+        console.error('Import error:', error);
+        event.sender.send('import-timeline-data-error', error.message);
+    }
+  });
+
+  // Add new handler for confirmed imports
+  ipcMain.on('confirm-import-timeline-data', async (event, { filePath, data }) => {
+    console.log("NOW Importing timeline data...", data, filePath);
+    try {
+        // Import story references first
+        for (const [id, story] of Object.entries(data.storyReferences)) {
+            await dbManager.addStory({ id, title: story.title, description: '' });
+        }
+
+        // Then import items
+        for (const item of data.items) {
+            await dbManager.addItem(item);
+        }
+
+        // Get all updated items and send to renderer
+        const allItems = dbManager.getAllItems();
+        mainWindow.webContents.send('items', allItems);
+        
+        event.sender.send('import-timeline-data-success', data);
+    } catch (error) {
+        console.error('Import error:', error);
+        event.sender.send('import-timeline-data-error', error.message);
+    }
+  });
+
+  ipcMain.on('quit-app', () => {
+    app.quit();
+  });
 }
 
 // ===== Application Lifecycle =====
@@ -648,11 +787,3 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
-
-const logFile = path.join(__dirname, 'app.log');
-
-function logToFile(message, data) {
-  const timestamp = new Date().toISOString();
-  fs.appendFileSync(logFile, `[${timestamp}] ${message}\n${data}\n`);
-}
-

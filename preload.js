@@ -17,10 +17,21 @@ contextBridge.exposeInMainWorld('api', {
             'add-item-window-closing',
             'updateTimelineItem',
             'getItem',
-            'open-edit-item-window'
+            'open-edit-item-window',
+            'confirm-import-timeline-data'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
+        }
+    },
+    invoke: async (channel, ...args) => {
+        console.log("preload.js: invoke called with channel:", channel, "and args:", args);
+        const validChannels = [
+            'export-timeline-data',
+            'import-timeline-data'
+        ];
+        if (validChannels.includes(channel)) {
+            return await ipcRenderer.invoke(channel, ...args);
         }
     },
     receive: (channel, func) => {
@@ -41,7 +52,12 @@ contextBridge.exposeInMainWorld('api', {
             'dateSearchResults',
             'itemRemoved',
             'items',
-            'itemData'
+            'itemData',
+            'export-timeline-data-success',
+            'export-timeline-data-error',
+            'import-timeline-data-confirm',
+            'import-timeline-data-success',
+            'import-timeline-data-error'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

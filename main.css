@@ -110,6 +110,15 @@ body {
     right: 20px;
 }
 
+.version-display {
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    font-size: 0.8em;
+    color: #4b2e2e;
+    opacity: 0.7;
+}
+
 .close_settings-button {
     position: absolute;
     top: 20px;
@@ -471,4 +480,52 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 }
 .timeline-item-line.highlighted-line {
     background: #3399ff !important;
+}
+
+#jump-to-date{
+    width: 100px;
+}
+
+.jump-to-date-container {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    bottom: 10px;
+    width: 100%;
+}
+
+.jump-to-date-container input {
+    padding: 8px 12px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    margin-right: 8px;
+    outline: none;
+    transition: border-color 0.2s ease;
+}
+
+.jump-to-date-container input:focus {
+    border-color: #0074d9;
+    box-shadow: 0 0 5px rgba(0,116,217,0.2);
+}
+
+.jump-to-date-container button {
+    padding: 8px 16px;
+    background-color: #4b2e2e;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.jump-to-date-container button:hover {
+    background-color: #0063b8;
+}
+
+.jump-to-date-container button:active {
+    background-color: #005299;
 }

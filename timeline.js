@@ -586,12 +586,23 @@ container.addEventListener("mouseleave", () => {
 });
 
 container.addEventListener("wheel", (event) => {
-    
+    // check if control key is pressed
+    // if(event.ctrlKey){
+    //     // zoom in or out
+    //     const currentScale = parseFloat(timeline.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
+    //     const newScale = event.deltaY > 0 
+    //         ? Math.max(0.1, currentScale - 0.1)  // zoom out
+    //         : Math.min(10, currentScale + 0.1);  // zoom in
+        
+    //     timeline.style.transform = `scale(${newScale})`;
+    //     console.log('[timeline.js:600] Control key pressed, new scale:', newScale);
+    //     return;
+    // }
+
     if(!isPositionWholeYear()){
         const nearestYear = getNearestYearFromPosition(null, event.deltaY > 0 ? -1 : 1);
         jumpToYear(nearestYear);
     } else {
-
         if(event.deltaY > 0){
             timelineState.offsetPx += timelineState.pixelsPerSubtick * timelineState.granularity;
         } else {

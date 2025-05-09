@@ -1,4 +1,38 @@
 /**
+ * Renderer Process Module
+ * 
+ * This is the main renderer process file that handles the user interface and timeline visualization.
+ * It manages the DOM, user interactions, and communication with the main process.
+ * 
+ * Key Responsibilities:
+ * - Timeline rendering and visualization
+ * - User interaction handling (clicks, drags, wheel events)
+ * - Timeline item management (add, edit, remove)
+ * - Timeline navigation and zooming
+ * - Communication with main process via IPC
+ * 
+ * Main Functions:
+ * - renderTimeline(): Renders the entire timeline with all items
+ * - renderTimelineItem(item): Renders a single timeline item
+ * - renderYear(year): Renders a year marker on the timeline
+ * - renderSubtick(year, subtick): Renders a subtick marker
+ * - renderGuides(): Renders guide lines for timeline navigation
+ * - handleTimelineClick(event): Handles clicks on the timeline
+ * - handleTimelineDrag(event): Handles drag operations on the timeline
+ * - handleTimelineWheel(event): Handles zoom and scroll operations
+ * - addTimelineItem(year, subtick, title, description): Adds a new timeline item
+ * - updateTimelineItem(item): Updates an existing timeline item
+ * - removeTimelineItem(itemId): Removes a timeline item
+ * 
+ * Event Listeners:
+ * - Timeline click: Handles item selection and navigation
+ * - Timeline drag: Handles timeline scrolling
+ * - Timeline wheel: Handles zooming and year navigation
+ * - Window resize: Handles timeline redrawing
+ * - IPC messages: Handles communication with main process
+ */
+
+/**
  * Story Timeline Renderer
  * Main renderer module for the Story Timeline application.
  * Handles UI rendering, state management, and IPC communication.
@@ -52,7 +86,7 @@ window.openItemViewer = function(itemId) {
     function setTextContent(elementId, text) {
         const element = document.getElementById(elementId);
         if (element) {
-            element.textContent = text || '';
+            element.textContent = text === null || text === undefined ? '' : text;
         }
     }
 
@@ -60,8 +94,8 @@ window.openItemViewer = function(itemId) {
     setTextContent('item-viewer-title', item.title || '(No Title)');
 
     // Set date
-    setTextContent('item-viewer-year', item.year || '');
-    setTextContent('item-viewer-subtick', item.subtick || '');
+    setTextContent('item-viewer-year', item.year ?? '');
+    setTextContent('item-viewer-subtick', item.subtick ?? '');
 
     // Set description and content
     setTextContent('item-viewer-description', item.description || '');
@@ -742,3 +776,93 @@ function searchStories(query) {
     
     return results;
 }
+
+// ===== Data Export/Import =====
+/**
+ * Exports timeline data to a JSON file
+ * 
+ * How it works:
+ * 1. Collects all items and story references
+ * 2. Sends to main process for file save
+ * 
+ * Possible errors:
+ * - File save failure
+ * - IPC communication failure
+ */
+async function exportTimelineData() {
+    // Collect all items and their story references
+    const exportData = {
+        items: items,
+        storyReferences: Object.entries(storyIndex).reduce((acc, [key, value]) => {
+            if (key === value.id) { // Only include the ID-based entries
+                acc[value.id] = {
+                    title: value.title,
+                    id: value.id
+                };
+            }
+            return acc;
+        }, {})
+    };
+    
+    try {
+        await window.api.invoke('export-timeline-data', exportData);
+    } catch (error) {
+        alert(`Error exporting timeline data: ${error}`);
+    }
+}
+
+/**
+ * Imports timeline data from a JSON file
+ * 
+ * How it works:
+ * 1. Triggers file selection
+ * 2. Sends selected file to main process
+ * 
+ * Possible errors:
+ * - File read failure
+ * - Invalid JSON
+ * - IPC communication failure
+ */
+async function importTimelineData() {
+    try {
+        await window.api.invoke('import-timeline-data');
+    } catch (error) {
+        alert(`Error importing timeline data: ${error}`);
+    }
+}
+
+// Add IPC handlers for export/import
+window.api.receive('export-timeline-data-success', (filePath) => {
+    // Just show a success message without affecting settings
+});
+
+window.api.receive('export-timeline-data-error', (error) => {
+    alert(`Error exporting timeline data: ${error}`);
+});
+
+window.api.receive('import-timeline-data-confirm', ({ itemCount, filePath, data }) => {
+    if (confirm(`Importing ${itemCount} items to your timeline. Continue?`)) {
+        console.log("Sending confirm-import-timeline-data with data:", data);
+        window.api.send('confirm-import-timeline-data', { filePath, data });
+    }
+});
+
+window.api.receive('import-timeline-data-success', (importedData) => {
+    // Update story index with new references
+    Object.entries(importedData.storyReferences).forEach(([id, story]) => {
+        storyIndex[id] = story;
+        storyIndex[story.title.toLowerCase()] = story;
+    });
+    
+    // Refresh items to show imported data
+    refreshAllItems();
+    alert('Timeline data imported successfully');
+});
+
+window.api.receive('import-timeline-data-error', (error) => {
+    alert(`Error importing timeline data: ${error}`);
+});
+
+window.api.receive('app-version', (version) => {
+    document.getElementById('version-display').textContent = `v${version}`;
+});

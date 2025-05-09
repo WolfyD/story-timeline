@@ -6,9 +6,11 @@
     <link rel="stylesheet" href="main.css" type="text/css" />
     <link rel="stylesheet" href="timeline.css" type="text/css" />
     <link rel="stylesheet" href="modal.css" type="text/css" />
+    <link rel="stylesheet" href="menubar.css" type="text/css" />
   </head>
   <body>
     <button class="settings-button open-settings-button no-select" onclick="openSettings()">Settings</button>
+    <div id="version-display" class="version-display no-select">v0.1.1</div>
     <div class="title-container">
       <h1 id="main_title" class="main_title no-select">Story Name</h1>
       <h2 id="main_subtitle" class="main_subtitle no-select">Story Timeline</h2>
@@ -142,6 +144,16 @@
                 </div>
               </div>
 
+              <div class="settings-row">
+                <label class="no-select">Data Management</label>
+                <div class="settings-input-container">
+                  <button class="settings-button" onclick="exportTimelineData()">Export Timeline Data</button>
+                  <button class="settings-button" onclick="importTimelineData()">Import Timeline Data</button>
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Export/Import timeline items and story references</div>
+                </div>
+              </div>
+
             </div>
           </div>
 
@@ -164,6 +176,12 @@
       <div id="h-rule"></div>
       <div id="timeline-hover-marker"></div>
       <div id="timeline-hover-marker-stick"></div>
+    </div>
+
+    <!-- jump to date -->
+    <div class="jump-to-date-container">
+      <input type="number" id="jump-to-date" onmousewheel="" class="jump-to-date-input" min="-99999999" max="99999999" value="0" step="1">
+      <button id="jump-to-date-button" onclick="jumpToDate()">Jump</button>
     </div>
     
     <div class="timeline-info-container">
@@ -240,88 +258,36 @@
     
     <script src="timeline.js"></script>
     <script src="renderer.js"></script>
-    <script>
-      function handleFontSizeMouseWheel() {
-        event.preventDefault();
-        let value = document.getElementById("font-size-scale-input").value;
-        if(event.deltaY > 0) {
-          if(value > 0.5) { 
-            value = parseFloat(value) - 0.01;
-          }
-        } else {
-          if(value < 5.5) {
-            value = parseFloat(value) + 0.01;
-          }
-        }
+    <script type="module">
+      import menubar from './menubar.js';
 
-        document.getElementById("font-size-scale-input").value = value.toFixed(2);
-        handleFontSizeChange(value)
-      }
+      // Add File menu
+      menubar.addMenu('File', [
+        { label: 'New Timeline', action: () => console.log('New Timeline') },
+        { label: 'Import...', action: () => importTimelineData() },
+        { label: 'Export...', action: () => exportTimelineData() },
+        { separator: true },
+        { label: 'Refresh', action: () => refreshAllItems() },
+        { separator: true },
+        { label: 'Exit', action: () => window.api.send('quit-app') }
+      ]);
 
-      function handleCodeEditorKeydown(event) {
-        const textarea = event.target;
-        
-        if (event.key === 'Tab') {
-          event.preventDefault();
-          
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          
-          // Insert tab at cursor position
-          textarea.value = textarea.value.substring(0, start) + '\t' + textarea.value.substring(end);
-          
-          // Move cursor after the inserted tab
-          textarea.selectionStart = textarea.selectionEnd = start + 1;
-        }
-        else if (event.key === 'Enter') {
-          event.preventDefault();
-          
-          const start = textarea.selectionStart;
-          const end = textarea.selectionEnd;
-          
-          // Get the current line's content up to the cursor
-          const currentLine = textarea.value.substring(0, start).split('\n').pop();
-          
-          // Count leading tabs/spaces
-          const indentMatch = currentLine.match(/^[\t ]*/);
-          const indent = indentMatch ? indentMatch[0] : '';
-          
-          // Insert newline with the same indentation
-          textarea.value = textarea.value.substring(0, start) + '\n' + indent + textarea.value.substring(end);
-          
-          // Move cursor after the inserted newline and indentation
-          textarea.selectionStart = textarea.selectionEnd = start + 1 + indent.length;
-        }
-      }
+      // Add Edit menu
+      menubar.addMenu('Edit', [
+        { label: 'Add Item', action: () => openAddItemWindow(0, 0, 4) },
+        { label: 'Settings', action: () => openSettings() }
+      ]);
 
-      document.addEventListener("DOMContentLoaded", function() {
-        callSetInitialSettings();
-      });
+      // Add View menu
+      menubar.addMenu('View', [
+        { label: 'Show Guides', action: () => toggleGuides(true) },
+        { label: 'Hide Guides', action: () => toggleGuides(false) }
+      ]);
 
-      document.addEventListener('keydown', (event) => {
-            if (event.key === 'Escape') {
-              if(document.getElementById('item-viewer-modal').classList.contains('active')) {
-                document.getElementById('item-viewer-close').click();
-              }
-            }
-        });
-
-      function handleFontMouseWheel() {
-        event.preventDefault();
-        let value = document.getElementById("font-select").selectedIndex;
-        if(event.deltaY < 0) {
-          if(value > 0) {
-            value = value - 1;
-          }
-        } else {
-          if(value < 20) { 
-            value = value + 1;
-          }
-        }
-        console.log(value);
-        document.getElementById("font-select").selectedIndex = value;
-        handleFontChange(document.getElementById("font-select").value);
-      }
+      // Add Help menu
+      menubar.addMenu('Help', [
+        { label: 'About', action: () => alert('Story Timeline v' + document.getElementById('version-display').textContent) }
+      ]);
     </script>
     <div id="guides">
       <div id="size_guide">0x0</div> <div id="position_guide">0:0</div> <div id="scale_guide">1</div>

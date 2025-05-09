@@ -1,3 +1,32 @@
+/**
+ * Add Item Window Module
+ * 
+ * This module handles the creation and management of the Add Item window.
+ * It provides a form interface for adding new timeline items and communicates
+ * with the main process to save the new items.
+ * 
+ * Key Features:
+ * - Form for entering timeline item details (title, description)
+ * - Year and subtick display
+ * - Form validation
+ * - Communication with main process
+ * - Window management
+ * 
+ * Main Functions:
+ * - initializeForm(): Sets up the form and its event listeners
+ * - validateForm(): Validates form input before submission
+ * - handleSubmit(): Handles form submission and item creation
+ * - closeWindow(): Closes the add item window
+ * 
+ * Form Fields:
+ * - Title: Required, cannot be empty
+ * - Description: Optional, can be empty
+ * 
+ * IPC Communication:
+ * - Sends 'addTimelineItem' message to main process with new item data
+ * - Listens for 'item-added' confirmation from main process
+ */
+
 const tags = new Set();
 const images = [];
 let storySuggestions = [];
@@ -104,10 +133,20 @@ function addImagePreview(dataUrl) {
     preview.className = 'image-preview';
     preview.innerHTML = `
         <img src="${dataUrl}">
-        <button class="remove-image" onclick="this.parentElement.remove()">&times;</button>
+        <button class="remove-image" onclick="removeImage(this, '${dataUrl}')">&times;</button>
     `;
     container.insertBefore(preview, document.getElementById('addImageBtn'));
     images.push(dataUrl);
+}
+
+function removeImage(button, dataUrl) {
+    // Remove from DOM
+    button.parentElement.remove();
+    // Remove from images array
+    const index = images.indexOf(dataUrl);
+    if (index > -1) {
+        images.splice(index, 1);
+    }
 }
 
 // --- Story References Logic ---
@@ -249,7 +288,7 @@ if (isEditMode && editItemId) {
             document.getElementById('chapter').value = item.chapter || '';
             document.getElementById('page').value = item.page || '';
             document.getElementById('yearInput').value = item.year || '';
-            document.getElementById('subtickInput').value = item.subtick || '';
+            document.getElementById('subtickInput').value = item.subtick ?? '';
 
             // Set tags
             if (item.tags) {
@@ -313,7 +352,7 @@ if (isEditMode && editItemId) {
             description: document.getElementById('description').value,
             content: document.getElementById('content').value,
             tags: Array.from(document.querySelectorAll('.tag-item')).map(tag => tag.textContent),
-            images: images.map((dataUrl, index) => ({
+            pictures: images.map((dataUrl, index) => ({
                 picture: dataUrl,
                 title: `Image ${index + 1}`,
                 description: ''

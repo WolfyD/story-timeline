@@ -1,0 +1,84 @@
+.menubar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 30px;
+    background-color: #f0f0f0;
+    border-bottom: 1px solid #ccc;
+    display: flex;
+    align-items: center;
+    padding: 0 10px;
+    z-index: 1000;
+}
+
+.menubar-button {
+    padding: 5px 10px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: #333;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    position: relative;
+}
+
+.menubar-button:hover {
+    background-color: #e0e0e0;
+}
+
+.menubar-dropdown {
+    position: fixed;
+    top: 30px;
+    background-color: white;
+    border: 1px solid #ccc;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+    min-width: 150px;
+    display: none;
+    z-index: 1001;
+}
+
+.menubar-dropdown.active {
+    display: block;
+}
+
+.menubar-dropdown-item {
+    padding: 8px 15px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #333;
+    text-decoration: none;
+}
+
+.menubar-dropdown-item:hover {
+    background-color: #f0f0f0;
+}
+
+.menubar-dropdown-item.disabled {
+    color: #999;
+    cursor: not-allowed;
+}
+
+.menubar-dropdown-separator {
+    height: 1px;
+    background-color: #ccc;
+    margin: 5px 0;
+}
+
+/* Adjust main content to account for menubar */
+body {
+    padding-top: 30px;
+}
+
+/* Adjust other fixed elements to account for menubar */
+.settings-button.open-settings-button {
+    top: 50px;
+}
+
+.version-display {
+    top: 40px;
+} 
