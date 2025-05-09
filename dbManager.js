@@ -1,6 +1,6 @@
-const Database = require('better-sqlite3');
 const path = require('path');
 const { app } = require('electron');
+const { v4: uuidv4 } = require('uuid');
 
 class DatabaseManager {
     constructor() {
@@ -10,7 +10,7 @@ class DatabaseManager {
 
         console.log(dbPath);
         
-        this.db = new Database(dbPath);
+        this.db = require('better-sqlite3')(dbPath);
         this.initializeTables();
         this.initializeDefaultData();
     }
@@ -71,9 +71,11 @@ class DatabaseManager {
                 story_id TEXT,
                 year INTEGER,
                 subtick INTEGER,
+                original_subtick INTEGER,
                 book_title TEXT,
                 chapter TEXT,
                 page TEXT,
+                creation_granularity INTEGER DEFAULT 4,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (story_id) REFERENCES stories(id)
@@ -117,64 +119,56 @@ class DatabaseManager {
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS notes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                content TEXT NOT NULL,
                 year INTEGER,
                 subtick INTEGER,
+                content TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
-        // Item-Story references (many-to-many)
+        // Item-Story References table
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS item_story_refs (
                 item_id TEXT,
                 story_id TEXT,
-                PRIMARY KEY (item_id, story_id),
                 FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
-                FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE
+                FOREIGN KEY (story_id) REFERENCES stories(id) ON DELETE CASCADE,
+                PRIMARY KEY (item_id, story_id)
             )
         `);
 
-        // Create triggers for updated_at timestamps
+        // Create triggers for updated_at
         this.db.exec(`
             CREATE TRIGGER IF NOT EXISTS update_universe_data_timestamp 
             AFTER UPDATE ON universe_data
             BEGIN
                 UPDATE universe_data SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END
-        `);
+            END;
 
-        this.db.exec(`
             CREATE TRIGGER IF NOT EXISTS update_settings_timestamp 
             AFTER UPDATE ON settings
             BEGIN
                 UPDATE settings SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END
-        `);
+            END;
 
-        this.db.exec(`
             CREATE TRIGGER IF NOT EXISTS update_stories_timestamp 
             AFTER UPDATE ON stories
             BEGIN
                 UPDATE stories SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END
-        `);
+            END;
 
-        this.db.exec(`
             CREATE TRIGGER IF NOT EXISTS update_items_timestamp 
             AFTER UPDATE ON items
             BEGIN
                 UPDATE items SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END
-        `);
+            END;
 
-        this.db.exec(`
             CREATE TRIGGER IF NOT EXISTS update_notes_timestamp 
             AFTER UPDATE ON notes
             BEGIN
                 UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END
+            END;
         `);
     }
 
@@ -212,6 +206,44 @@ class DatabaseManager {
         }
     }
 
+    // Helper function to convert subtick between granularities
+    convertSubtickBetweenGranularities(originalSubtick, originalGranularity, newGranularity) {
+        // Calculate the ratio of the subtick within its original granularity
+        const ratio = originalSubtick / originalGranularity;
+        // Apply that ratio to the new granularity
+        return Math.round(ratio * newGranularity);
+    }
+
+    // Update all items' subticks when granularity changes
+    updateItemsForGranularityChange(newGranularity) {
+        // Get all items that have original_subtick set
+        const stmt = this.db.prepare(`
+            SELECT id, original_subtick, creation_granularity
+            FROM items
+            WHERE original_subtick IS NOT NULL
+        `);
+        const items = stmt.all();
+
+        // Update each item's subtick
+        const updateStmt = this.db.prepare(`
+            UPDATE items
+            SET subtick = @new_subtick
+            WHERE id = @id
+        `);
+
+        for (const item of items) {
+            const newSubtick = this.convertSubtickBetweenGranularities(
+                item.original_subtick,
+                item.creation_granularity,
+                newGranularity
+            );
+            updateStmt.run({
+                id: item.id,
+                new_subtick: newSubtick
+            });
+        }
+    }
+
     // Universe data operations
     getUniverseData() {
         const stmt = this.db.prepare('SELECT * FROM universe_data ORDER BY id DESC LIMIT 1');
@@ -232,6 +264,10 @@ class DatabaseManager {
     }
 
     updateUniverseData(data) {
+        // Get current universe data to check if granularity is changing
+        const currentData = this.getUniverseData();
+        const granularityChanged = currentData && currentData.granularity !== data.granularity;
+
         // Convert frontend field names to database field names
         const dbData = {
             title: data.title,
@@ -245,7 +281,14 @@ class DatabaseManager {
             INSERT INTO universe_data (title, author, description, start_year, granularity)
             VALUES (@title, @author, @description, @start_year, @granularity)
         `);
-        return stmt.run(dbData);
+        const result = stmt.run(dbData);
+
+        // If granularity changed, update all items' subticks
+        if (granularityChanged) {
+            this.updateItemsForGranularityChange(data.granularity);
+        }
+
+        return result;
     }
 
     // Settings operations
@@ -359,66 +402,109 @@ class DatabaseManager {
     }
 
     addItem(item) {
-        // Main story reference (for backward compatibility)
-        let storyId = item.story_id || item['story-id'];
-        let storyTitle = item.story;
-        if (storyId && storyTitle) {
-            this.getOrCreateStory(storyTitle, storyId);
+        // Generate a new ID if none is provided
+        const itemId = item.id || uuidv4();
+
+        // Handle story relationship
+        let storyId = null;
+        if (item['story-id']) {
+            // Ensure story exists and get its ID
+            const story = this.getOrCreateStory(item.story || '', item['story-id']);
+            if (story) {
+                storyId = story.id;
+            }
         }
-        // Generate a unique ID if not provided
-        const id = item.id || item['id'] || `ITEM-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
         const stmt = this.db.prepare(`
             INSERT INTO items (
                 id, title, description, content, story_id, 
-                year, subtick, book_title, chapter, page
-            )
-            VALUES (
+                year, subtick, original_subtick, book_title, chapter, page,
+                creation_granularity
+            ) VALUES (
                 @id, @title, @description, @content, @story_id,
-                @year, @subtick, @book_title, @chapter, @page
+                @year, @subtick, @original_subtick, @book_title, @chapter, @page,
+                @creation_granularity
             )
         `);
 
-        console.log("item: ", item);
+        // Get current granularity from universe data
+        const universeData = this.getUniverseData();
+        const currentGranularity = universeData ? universeData.granularity : 4;
 
-        stmt.run({
-            id: id,
+        const result = stmt.run({
+            id: itemId,
             title: item.title,
             description: item.description,
             content: item.content,
-            story_id: storyId || null,
+            story_id: storyId,
             year: item.year,
             subtick: item.subtick,
+            original_subtick: item.subtick, // Set original_subtick to the same value as subtick
             book_title: item.book_title,
             chapter: item.chapter,
-            page: item.page
+            page: item.page,
+            creation_granularity: currentGranularity
         });
+
+        // Add tags if present
         if (item.tags && item.tags.length > 0) {
-            this.addTagsToItem(id, item.tags);
+            this.addTagsToItem(itemId, item.tags);
         }
+
+        // Add pictures if present
         if (item.pictures && item.pictures.length > 0) {
-            this.addPicturesToItem(id, item.pictures);
+            this.addPicturesToItem(itemId, item.pictures);
         }
-        // Handle multiple story references
-        if (item.story_refs && Array.isArray(item.story_refs)) {
-            this.addStoryReferencesToItem(id, item.story_refs);
+
+        // Add story references if present
+        if (item.story_refs && item.story_refs.length > 0) {
+            this.addStoryReferencesToItem(itemId, item.story_refs);
         }
-        return this.getItem(id);
+
+        return result;
     }
 
     getItem(id) {
         const stmt = this.db.prepare(`
-            SELECT i.*, s.title as story_title, s.id as story_id, s.description as story_description
-            FROM items i 
-            LEFT JOIN stories s ON i.story_id = s.id 
+            SELECT i.*, 
+                   GROUP_CONCAT(DISTINCT t.name) as tags,
+                   GROUP_CONCAT(DISTINCT s.id || ':' || s.title) as story_refs
+            FROM items i
+            LEFT JOIN item_tags it ON i.id = it.item_id
+            LEFT JOIN tags t ON it.tag_id = t.id
+            LEFT JOIN item_story_refs isr ON i.id = isr.item_id
+            LEFT JOIN stories s ON isr.story_id = s.id
             WHERE i.id = ?
+            GROUP BY i.id
         `);
+        
         const item = stmt.get(id);
-        if (item) {
-            item.tags = this.getItemTags(id);
-            item.pictures = this.getItemPictures(id);
-            item.story_refs = this.getItemStoryReferences(id);
-        }
-        return item;
+        if (!item) return null;
+
+        // Get pictures
+        const pictures = this.getItemPictures(id);
+
+        // Convert database fields to frontend fields
+        return {
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            content: item.content,
+            'story-id': item.story_id,
+            year: item.year,
+            subtick: item.subtick,
+            original_subtick: item.original_subtick,
+            creation_granularity: item.creation_granularity,
+            book_title: item.book_title,
+            chapter: item.chapter,
+            page: item.page,
+            tags: item.tags ? item.tags.split(',') : [],
+            story_refs: item.story_refs ? item.story_refs.split(',').map(ref => {
+                const [id, title] = ref.split(':');
+                return { id, title };
+            }) : [],
+            pictures: pictures
+        };
     }
 
     getAllItems() {
@@ -438,21 +524,32 @@ class DatabaseManager {
     }
 
     updateItem(id, item) {
+        // First get the existing item to preserve creation_granularity and check if subtick changed
+        const existingItem = this.getItem(id);
+        if (!existingItem) return null;
+
+        // Check if subtick has changed
+        const subtickChanged = item.subtick !== existingItem.subtick;
+
         const stmt = this.db.prepare(`
-            UPDATE items 
-            SET title = @title,
+            UPDATE items SET
+                title = @title,
                 description = @description,
                 content = @content,
                 story_id = @story_id,
                 year = @year,
                 subtick = @subtick,
+                original_subtick = CASE 
+                    WHEN @subtick_changed = 1 THEN @subtick 
+                    ELSE original_subtick 
+                END,
                 book_title = @book_title,
                 chapter = @chapter,
                 page = @page
             WHERE id = @id
         `);
-        
-        stmt.run({
+
+        const result = stmt.run({
             id: id,
             title: item.title,
             description: item.description,
@@ -460,22 +557,28 @@ class DatabaseManager {
             story_id: item['story-id'],
             year: item.year,
             subtick: item.subtick,
+            subtick_changed: subtickChanged ? 1 : 0,
             book_title: item.book_title,
             chapter: item.chapter,
             page: item.page
         });
 
-        // Update tags and pictures if provided
+        // Update tags if present
         if (item.tags) {
             this.updateItemTags(id, item.tags);
         }
+
+        // Update pictures if present
         if (item.pictures) {
             this.updateItemPictures(id, item.pictures);
         }
 
-        // Update story references
+        // Update story references if present
         if (item.story_refs) {
-            this.db.prepare('DELETE FROM item_story_refs WHERE item_id = ?').run(id);
+            // First remove all existing references
+            const deleteStmt = this.db.prepare('DELETE FROM item_story_refs WHERE item_id = ?');
+            deleteStmt.run(id);
+            // Then add the new ones
             this.addStoryReferencesToItem(id, item.story_refs);
         }
 

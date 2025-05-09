@@ -42,6 +42,7 @@ let dragStartX = null;
 let initialOffset = 0;
 let tickWidthCssOffset = 10;
 let tickOffset = 0;
+let lastMouseX = 0; // Track last mouse position for screen wrapping
 
 let lastHoverYear = null;
 let lastHoverSubtick = null;
@@ -56,6 +57,7 @@ let middleMouseStartOffset = 0;
 updateTickOffset();
 window.addEventListener('resize', updateTickOffset);
 window.jumpToYear = jumpToYear;
+window.jumpToDate = jumpToDate;
 window.scrollBy = scrollBy;
 window.setInitialSettings = setInitialSettings;
 
@@ -523,6 +525,7 @@ container.addEventListener("mousemove", (e) => {
         renderTimeline();
     }
     updateHoverMarker(e.clientX, e.clientY);
+    lastMouseX = e.clientX;
 });
 
 container.addEventListener("mousedown", (e) => {
@@ -530,6 +533,8 @@ container.addEventListener("mousedown", (e) => {
         mouseDown = true;
         dragStartX = e.clientX;
         initialOffset = timelineState.offsetPx;
+        // Capture the mouse to handle dragging outside the window
+        container.setPointerCapture(e.pointerId);
     }
     // Middle mouse drag start
     if (e.button === 1) {
@@ -539,7 +544,34 @@ container.addEventListener("mousedown", (e) => {
         middleMouseStartOffset = timelineState.offsetPx;
         container.style.cursor = 'grabbing';
         middleMouseScrollAnim = requestAnimationFrame(middleMouseScrollStep);
+        // Capture the mouse for middle button drag
+        container.setPointerCapture(e.pointerId);
         e.preventDefault();
+    }
+});
+
+// Add pointermove event listener for handling screen wrapping
+container.addEventListener("pointermove", (e) => {
+    if (!mouseDown && !isMiddleMouseDragging) return;
+
+    const screenWidth = window.innerWidth;
+    const currentX = e.clientX;
+
+    // Handle screen wrapping for left button drag
+    if (mouseDown && e.button === 0) {
+        if (currentX <= 0) {
+            // Wrap to right side
+            const newX = screenWidth - 1;
+            dragStartX = newX;
+            initialOffset = timelineState.offsetPx;
+            e.target.setPointerCapture(e.pointerId);
+        } else if (currentX >= screenWidth) {
+            // Wrap to left side
+            const newX = 1;
+            dragStartX = newX;
+            initialOffset = timelineState.offsetPx;
+            e.target.setPointerCapture(e.pointerId);
+        }
     }
 });
 
@@ -551,6 +583,7 @@ container.addEventListener("mouseup", (e) => {
             cancelAnimationFrame(middleMouseScrollAnim);
             middleMouseScrollAnim = null;
         }
+        container.releasePointerCapture(e.pointerId);
         return;
     }
     if (e.button === 0) {
@@ -569,6 +602,7 @@ container.addEventListener("mouseup", (e) => {
             renderTimeline();
         }
         dragStartX = null;
+        container.releasePointerCapture(e.pointerId);
     }
 });
 
@@ -766,6 +800,40 @@ function openAddItemWindow(year, subtick, granularity){
     console.log('[timeline.js:755] opening add item window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity);
     // Pass granularity as a third argument
     window.api.send('open-add-item-window', year, subtick, granularity);
+}
+
+/**
+ * Jumps to a specific date (year and subtick)
+ * 
+ * How it works:
+ * 1. Gets the target year and subtick from input
+ * 2. Updates focus year
+ * 3. Calculates offset to center the target date
+ * 4. Re-renders timeline
+ * 
+ * Possible errors:
+ * - Invalid input
+ * - Render failure
+ */
+function jumpToDate() {
+    const input = document.getElementById('jump-to-date');
+    const value = parseFloat(input.value);
+    
+    if (isNaN(value)) return;
+    
+    const year = Math.floor(value);
+    const subtick = Math.round((value - year) * timelineState.granularity);
+    
+    // Update focus year
+    timelineState.focusYear = year;
+    
+    // Calculate offset to center the target date
+    const containerRect = container.getBoundingClientRect();
+    const centerX = containerRect.width / 2;
+    const targetX = centerX + (year + subtick / timelineState.granularity - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity;
+    timelineState.offsetPx = centerX - targetX;
+    
+    renderTimeline();
 }
 
 // ===== Initialization =====

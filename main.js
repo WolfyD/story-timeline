@@ -412,7 +412,7 @@ function saveSettings(newSettings) {
   };
   
   console.log("Saving universe data:", universeData);
-  dbManager.updateUniverseData(universeData);
+  const result = dbManager.updateUniverseData(universeData);
   
   // Update our settings state
   settings = {
@@ -422,6 +422,12 @@ function saveSettings(newSettings) {
   
   // Send updated settings to renderer
   mainWindow.webContents.send('call-load-settings', settings);
+  
+  // If items were updated due to granularity change, reload them
+  if (result.itemsUpdated) {
+    const items = dbManager.getAllItems();
+    mainWindow.webContents.send('items', items);
+  }
   
   console.log("Settings saved:", dbSettings);
   return true;
@@ -523,6 +529,10 @@ function setupIpcHandlers() {
     console.log("Updated data state:", data);
     
     if (saveSettings(settings)) {
+      // Get all items from database to ensure we have the latest data
+      const allItems = dbManager.getAllItems();
+      data.items = allItems;
+      
       // Send the updated data to renderer
       mainWindow.webContents.send('call-load-data', data);
       event.sender.send('settings-saved', true);
@@ -723,6 +733,10 @@ function setupIpcHandlers() {
   ipcMain.on('confirm-import-timeline-data', async (event, { filePath, data }) => {
     console.log("NOW Importing timeline data...", data, filePath);
     try {
+        // Get current universe data for granularity
+        const universeData = dbManager.getUniverseData();
+        const currentGranularity = universeData ? universeData.granularity : 4;
+
         // Import story references first
         for (const [id, story] of Object.entries(data.storyReferences)) {
             await dbManager.addStory({ id, title: story.title, description: '' });
@@ -730,6 +744,10 @@ function setupIpcHandlers() {
 
         // Then import items
         for (const item of data.items) {
+            // Set creation_granularity if not present
+            if (item.creation_granularity === undefined) {
+                item.creation_granularity = currentGranularity;
+            }
             await dbManager.addItem(item);
         }
 

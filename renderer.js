@@ -377,6 +377,9 @@ function dataSetup(data) {
         timelineState.focusYear = parseInt(data.start) || 0;
         timelineState.granularity = parseInt(data.granularity) || 4;
         timelineState.offsetPx = 0;
+        
+        // Force a re-render of the timeline with the new data
+        renderTimeline(timelineState.focusYear, timelineState.granularity, window.innerWidth);
     }
 
     checkAllLoaded();
