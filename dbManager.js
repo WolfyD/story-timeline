@@ -49,6 +49,8 @@ class DatabaseManager {
                 window_size_y INTEGER DEFAULT 600,
                 window_position_x INTEGER DEFAULT 100,
                 window_position_y INTEGER DEFAULT 100,
+                use_custom_scaling INTEGER DEFAULT 0,
+                custom_scale REAL DEFAULT 1.0,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -204,18 +206,22 @@ class DatabaseManager {
                 window_size_x: 800,
                 window_size_y: 600,
                 window_position_x: 100,
-                window_position_y: 100
+                window_position_y: 100,
+                use_custom_scaling: 0,
+                custom_scale: 1.0
             };
 
             const insertStmt = this.db.prepare(`
                 INSERT INTO settings (
                     id, font, font_size_scale, pixels_per_subtick, custom_css,
                     custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
-                    is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y
+                    is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                    use_custom_scaling, custom_scale
                 ) VALUES (
                     @id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
                     @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
-                    @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y
+                    @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
+                    @use_custom_scaling, @custom_scale
                 )
             `);
             insertStmt.run(defaultSettings);
@@ -347,7 +353,9 @@ class DatabaseManager {
             position: {
                 x: settings.window_position_x,
                 y: settings.window_position_y
-            }
+            },
+            useCustomScaling: settings.use_custom_scaling === 1,
+            customScale: settings.custom_scale
         };
     }
 
@@ -368,19 +376,25 @@ class DatabaseManager {
             window_size_x: parseInt((settings.size && settings.size.x) || 800),
             window_size_y: parseInt((settings.size && settings.size.y) || 600),
             window_position_x: parseInt((settings.position && settings.position.x) || 100),
-            window_position_y: parseInt((settings.position && settings.position.y) || 100)
+            window_position_y: parseInt((settings.position && settings.position.y) || 100),
+            use_custom_scaling: settings.useCustomScaling ? 1 : 0,
+            custom_scale: parseFloat(settings.customScale || 1.0)
         };
+
+        console.log("\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\nXXXXX---SETTINGS---XXXXX",settings,"\r\n|------|\r\n",dbSettings);
 
         const stmt = this.db.prepare(`
             INSERT OR REPLACE INTO settings (
                 id, font, font_size_scale, pixels_per_subtick, custom_css, 
                 custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
-                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y
+                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                use_custom_scaling, custom_scale
             )
             VALUES (
                 1, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
                 @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
-                @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y
+                @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
+                @use_custom_scaling, @custom_scale
             )
         `);
 

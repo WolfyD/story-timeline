@@ -284,6 +284,19 @@ function settingsSetup(settings) {
     showGuides.checked = settings.showGuides;
     toggleGuides(settings.showGuides);
 
+    // Set up custom scaling
+    let useCustomScaling = document.querySelector('#use-custom-scaling');
+    useCustomScaling.checked = settings.useCustomScaling;
+    let customScale = document.querySelector('#custom-scale');
+    customScale.value = settings.customScale;
+    
+    // Apply window scaling if enabled
+    if (settings.useCustomScaling) {
+        window.api.send('set-window-scale', parseFloat(settings.customScale));
+    } else {
+        window.api.send('set-window-scale', 1.0);
+    }
+
     document.body.style.setProperty('--default-font', fontSelect.value);
     document.body.style.setProperty('--default-font-scale', settings.fontSizeScale);
 
@@ -554,7 +567,9 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         useMainCSS: document.querySelector('#use-main-css').checked,
         useItemsCSS: document.querySelector('#use-items-css').checked,
         pixelsPerSubtick: document.querySelector('#pixels-per-subtick').value,
-        showGuides: document.querySelector('#show-guides').checked
+        showGuides: document.querySelector('#show-guides').checked,
+        useCustomScaling: document.querySelector('#use-custom-scaling').checked,
+        customScale: document.querySelector('#custom-scale').value
     };
 
     const data = {
@@ -996,5 +1011,29 @@ async function resetToTemplate(textareaId) {
         }
     } catch (error) {
         console.error('Error loading template:', error);
+    }
+}
+
+/**
+ * Toggles custom window scaling
+ * @param {boolean} enabled - Whether custom scaling is enabled
+ */
+function toggleCustomScaling(enabled) {
+    const customScale = document.querySelector('#custom-scale');
+    if (enabled) {
+        window.api.send('set-window-scale', parseFloat(customScale.value));
+    } else {
+        window.api.send('set-window-scale', 1.0);
+    }
+}
+
+/**
+ * Updates the custom scale factor
+ * @param {number} value - The new scale factor
+ */
+function updateCustomScale(value) {
+    const useCustomScaling = document.querySelector('#use-custom-scaling');
+    if (useCustomScaling.checked) {
+        window.api.send('set-window-scale', parseFloat(value));
     }
 }

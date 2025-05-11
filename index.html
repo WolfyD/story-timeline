@@ -184,6 +184,24 @@
               </div>
 
               <div class="settings-row">
+                <label class="no-select" for="use-custom-scaling">Use Custom Scaling</label>
+                <div class="settings-input-container">
+                  <input type="checkbox" id="use-custom-scaling" class="settings-input" onclick="toggleCustomScaling(this.checked)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Enable custom window scaling</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="custom-scale">Custom Scale</label>
+                <div class="settings-input-container">
+                  <input type="number" id="custom-scale" class="settings-input" min="0.5" max="2.0" step="0.1" value="1.0" onchange="updateCustomScale(this.value)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Set the window scale factor (0.5x to 2.0x)</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
                 <label class="no-select">Data Management</label>
                 <div class="settings-input-container">
                   <button class="settings-button" onclick="exportTimelineData()">Export Timeline Data</button>

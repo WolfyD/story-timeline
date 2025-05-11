@@ -57,7 +57,9 @@ const DEFAULT_SETTINGS = {
     useMainCSS: false,
     useItemsCSS: false,
     pixelsPerSubtick: 20,
-    showGuides: true
+    showGuides: true,
+    useCustomScaling: false,
+    customScale: 1.0
 };
 
 // ===== State Management =====
@@ -174,6 +176,10 @@ function createWindow() {
         
         if (settings.isFullscreen) {
           mainWindow.maximize();
+        }
+
+        if (settings.useCustomScaling) {
+          mainWindow.webContents.setZoomFactor(settings.customScale);
         }
       }
     } else {
@@ -416,10 +422,19 @@ function saveSettings(newSettings) {
     windowSizeX: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
     windowSizeY: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
     windowPositionX: parseInt(mainWindow.getPosition()[0] + 2),
-    windowPositionY: parseInt(mainWindow.getPosition()[1] + 1)
+    windowPositionY: parseInt(mainWindow.getPosition()[1] + 1),
+    useCustomScaling: newSettings.useCustomScaling ? 1 : 0,
+    customScale: parseFloat(newSettings.customScale || 1.0)
   };
   
   dbManager.updateSettings(dbSettings);
+
+  // Apply window scaling if enabled
+  if (newSettings.useCustomScaling) {
+    mainWindow.webContents.setZoomFactor(parseFloat(newSettings.customScale));
+  } else {
+    mainWindow.webContents.setZoomFactor(1.0);
+  }
 
   // Save universe data
   const universeData = {
@@ -557,6 +572,12 @@ function setupIpcHandlers() {
       event.sender.send('settings-saved', true);
     } else {
       event.sender.send('settings-saved', false);
+    }
+  });
+
+  ipcMain.on('set-window-scale', (event, scale) => {
+    if (mainWindow) {
+      mainWindow.webContents.setZoomFactor(scale);
     }
   });
 
