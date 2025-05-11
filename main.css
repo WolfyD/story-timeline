@@ -93,6 +93,94 @@ body {
     font-family: var(--default-font), "Times New Roman", serif; /* Classic book-like font */
     font-size: calc(16px * var(--default-font-scale));
     overflow-x: hidden;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    width: 100vw;
+    display: grid;
+    grid-template-rows: 80px 1fr 400px 100px; /* Header, main content, timeline, jump-to-date */
+    grid-template-columns: 1fr 1fr; /* Two columns for main content */
+    grid-template-areas: 
+        "header header"
+        "left right"
+        "timeline timeline"
+        "jump-to-date jump-to-date";
+    box-sizing: border-box;
+}
+
+/* Header area */
+.title-container {
+    grid-area: header;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+    background-color: rgba(75, 46, 46, 0.1);
+    border-bottom: 1px solid rgba(75, 46, 46, 0.2);
+    min-height: 0;
+}
+
+/* Main content areas */
+.main-content-left {
+    grid-area: left;
+    padding: 20px;
+    border-right: 1px solid rgba(75, 46, 46, 0.2);
+    overflow-y: auto;
+    min-height: 0;
+}
+
+.main-content-right {
+    grid-area: right;
+    padding: 20px;
+    overflow-y: auto;
+    min-height: 0;
+}
+
+/* Timeline area */
+#timeline-container {
+    grid-area: timeline;
+    width: 100%;
+    height: 100%;
+    position: relative;
+    background: #eee;
+    user-select: none;
+    min-height: 0;
+}
+
+/* Jump to date container */
+#jump-to-date-container {
+    grid-area: jump-to-date;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    padding: 0 10px;
+    background-color: rgba(75, 46, 46, 0.05);
+    border-top: 1px solid rgba(75, 46, 46, 0.2);
+    min-height: 0;
+}
+
+/* Adjust existing elements */
+.settings-button.open-settings-button {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+}
+
+.version-display {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    font-size: 0.8em;
+    color: #4b2e2e;
+    opacity: 0.7;
+    z-index: 100;
+}
+
+/* Ensure settings overlay covers everything */
+.settings_container {
+    z-index: 1000;
 }
 
 .settings-button {
@@ -102,21 +190,6 @@ body {
     border: none;
     border-radius: 4px;
     cursor: pointer;
-}
-
-.open-settings-button {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-}
-
-.version-display {
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    font-size: 0.8em;
-    color: #4b2e2e;
-    opacity: 0.7;
 }
 
 .close_settings-button {
@@ -147,15 +220,16 @@ body {
 
 .settings_div {
     position: relative;
-    background-color: rgb(245, 230, 212); 
-    margin: 20px calc(5% - 20px);
+    background-color: rgb(245, 230, 212);
+    margin: 20px 0;
     padding: 20px;
     width: 90%;
     border-radius: 7px;
     min-height: calc(100vh - 80px);
     box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.5);
-
     padding-bottom: 50px;
+    max-width: 800px;
+    left: calc(50% - 400px - 20px);
 }
 
 .font-selector {
@@ -317,14 +391,6 @@ select {
     -moz-user-drag: none;
     -o-user-drag: none;
     user-drag: none;
-}
-
-.title-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    margin-top: -20px;
 }
 
 .main_title {
@@ -491,8 +557,6 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     flex-direction: row;
     align-items: center;
     justify-content: center;
-    position: absolute;
-    bottom: 10px;
     width: 100%;
 }
 
