@@ -4,3 +4,4 @@ app.log
 settings.json
 data copy.json
 dist/
+dist_*/

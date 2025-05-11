@@ -250,7 +250,7 @@ select {
 }
 
 .info-icon {
-    position: relative;
+    position: absolute;
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -338,7 +338,7 @@ select {
     text-decoration: underline;
 }
 
-#custom-css {
+.custom-css {
     height: 300px;
     tab-size: 2;
     font-family: monospace;
@@ -408,7 +408,7 @@ input[type="checkbox"].settings-input:focus {
 /* Adjust the info icon position for checkbox */
 input[type="checkbox"].settings-input + .info-icon {
     position: absolute;
-    right: 40px;
+    right: 30px;
     margin-left: 0;
     vertical-align: middle;
 }
@@ -419,7 +419,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     transform: translateX(-50%);
 }
 
-#custom-css[readonly]{
+.custom-css[readonly]{
     background-color: #ddd;
     color: #333;
     cursor: not-allowed;
@@ -528,4 +528,30 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 
 .jump-to-date-container button:active {
     background-color: #005299;
+}
+
+.reset-template-button {
+    position: absolute;
+    transform: translateY(-50%);
+    padding: 4px 8px;
+    font-size: 12px;
+    background-color: #4b2e2e;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+
+    top: -32px;
+    width: 150px;
+    transform: translateX(-100%);
+}
+
+.reset-template-button:hover {
+    background-color: #6a3e3e;
+}
+
+/* Adjust info icon position to account for reset button */
+.settings-input-container .info-icon {
+    right: 30px;
 }

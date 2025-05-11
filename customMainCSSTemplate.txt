@@ -1,0 +1,39 @@
+body {
+    /* Main body styles */
+}
+
+.title-container {
+    /* Title container styles */
+}
+
+.main_title {
+    /* Main title styles */
+}
+
+.main_subtitle {
+    /* Subtitle styles */
+}
+
+.settings_container {
+    /* Settings container styles */
+}
+
+.settings_div {
+    /* Settings panel styles */
+}
+
+.settings-button {
+    /* Settings button styles */
+}
+
+.version-display {
+    /* Version display styles */
+}
+
+#guides {
+    /* Guides container styles */
+}
+
+.jump-to-date-container {
+    /* Jump to date container styles */
+} 

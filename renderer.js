@@ -259,15 +259,30 @@ function settingsSetup(settings) {
     pixelsPerSubtick.value = settings.pixelsPerSubtick;
 
     let customCSS = document.querySelector('#custom-css');
-    let useCustomCSS = document.querySelector('#use-custom-css');
-    useCustomCSS.checked = settings.useCustomCSS;
-    toggleCustomCSS(settings.useCustomCSS);
+    let customMainCSS = document.querySelector('#custom-main-css');
+    let customItemsCSS = document.querySelector('#custom-items-css');
+    
+    // Set up timeline CSS
+    let useTimelineCSS = document.querySelector('#use-timeline-css');
+    useTimelineCSS.checked = settings.useTimelineCSS;
+    toggleTimelineCSS(settings.useTimelineCSS);
+    customCSS.value = settings.customCSS;
+
+    // Set up main CSS
+    let useMainCSS = document.querySelector('#use-main-css');
+    useMainCSS.checked = settings.useMainCSS;
+    toggleMainCSS(settings.useMainCSS);
+    customMainCSS.value = settings.customMainCSS;
+
+    // Set up items CSS
+    let useItemsCSS = document.querySelector('#use-items-css');
+    useItemsCSS.checked = settings.useItemsCSS;
+    toggleItemsCSS(settings.useItemsCSS);
+    customItemsCSS.value = settings.customItemsCSS;
 
     let showGuides = document.querySelector('#show-guides');
     showGuides.checked = settings.showGuides;
     toggleGuides(settings.showGuides);
-
-    customCSS.value = settings.customCSS;
 
     document.body.style.setProperty('--default-font', fontSelect.value);
     document.body.style.setProperty('--default-font-scale', settings.fontSizeScale);
@@ -276,22 +291,66 @@ function settingsSetup(settings) {
     checkAllLoaded();
 }
 
-/**
- * Toggles custom CSS editing
- * @param {boolean} use - Whether to enable custom CSS editing
- * 
- * How it works:
- * - Toggles readonly attribute on custom CSS textarea
- * 
- * Possible errors:
- * - Custom CSS element not found
- */
-function toggleCustomCSS(use = false) {
+function toggleTimelineCSS(use = false) {
     const customCSS = document.querySelector('#custom-css');
     if(use) {
         customCSS.removeAttribute('readonly');
+        // Apply the custom CSS
+        const styleElement = document.getElementById('custom-timeline-style') || document.createElement('style');
+        styleElement.id = 'custom-timeline-style';
+        styleElement.textContent = customCSS.value;
+        if (!document.getElementById('custom-timeline-style')) {
+            document.head.appendChild(styleElement);
+        }
     } else {
         customCSS.setAttribute('readonly', 'readonly');
+        // Remove the custom CSS
+        const styleElement = document.getElementById('custom-timeline-style');
+        if (styleElement) {
+            styleElement.remove();
+        }
+    }
+}
+
+function toggleMainCSS(use = false) {
+    const customMainCSS = document.querySelector('#custom-main-css');
+    if(use) {
+        customMainCSS.removeAttribute('readonly');
+        // Apply the custom CSS
+        const styleElement = document.getElementById('custom-main-style') || document.createElement('style');
+        styleElement.id = 'custom-main-style';
+        styleElement.textContent = customMainCSS.value;
+        if (!document.getElementById('custom-main-style')) {
+            document.head.appendChild(styleElement);
+        }
+    } else {
+        customMainCSS.setAttribute('readonly', 'readonly');
+        // Remove the custom CSS
+        const styleElement = document.getElementById('custom-main-style');
+        if (styleElement) {
+            styleElement.remove();
+        }
+    }
+}
+
+function toggleItemsCSS(use = false) {
+    const customItemsCSS = document.querySelector('#custom-items-css');
+    if(use) {
+        customItemsCSS.removeAttribute('readonly');
+        // Apply the custom CSS
+        const styleElement = document.getElementById('custom-items-style') || document.createElement('style');
+        styleElement.id = 'custom-items-style';
+        styleElement.textContent = customItemsCSS.value;
+        if (!document.getElementById('custom-items-style')) {
+            document.head.appendChild(styleElement);
+        }
+    } else {
+        customItemsCSS.setAttribute('readonly', 'readonly');
+        // Remove the custom CSS
+        const styleElement = document.getElementById('custom-items-style');
+        if (styleElement) {
+            styleElement.remove();
+        }
     }
 }
 
@@ -489,7 +548,11 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         fontSizeScale: document.querySelector('#font-size-scale-input').value,
         isFullscreen: isFullscreen,
         customCSS: document.querySelector('#custom-css').value,
-        useCustomCSS: document.querySelector('#use-custom-css').checked,
+        customMainCSS: document.querySelector('#custom-main-css').value,
+        customItemsCSS: document.querySelector('#custom-items-css').value,
+        useTimelineCSS: document.querySelector('#use-timeline-css').checked,
+        useMainCSS: document.querySelector('#use-main-css').checked,
+        useItemsCSS: document.querySelector('#use-items-css').checked,
         pixelsPerSubtick: document.querySelector('#pixels-per-subtick').value,
         showGuides: document.querySelector('#show-guides').checked
     };
@@ -869,3 +932,69 @@ window.api.receive('import-timeline-data-error', (error) => {
 window.api.receive('app-version', (version) => {
     document.getElementById('version-display').textContent = `v${version}`;
 });
+
+// Add event listeners for CSS changes
+document.querySelector('#custom-css')?.addEventListener('input', function() {
+    if (document.querySelector('#use-timeline-css').checked) {
+        const styleElement = document.getElementById('custom-timeline-style');
+        if (styleElement) {
+            styleElement.textContent = this.value;
+        }
+    }
+});
+
+document.querySelector('#custom-main-css')?.addEventListener('input', function() {
+    if (document.querySelector('#use-main-css').checked) {
+        const styleElement = document.getElementById('custom-main-style');
+        if (styleElement) {
+            styleElement.textContent = this.value;
+        }
+    }
+});
+
+document.querySelector('#custom-items-css')?.addEventListener('input', function() {
+    if (document.querySelector('#use-items-css').checked) {
+        const styleElement = document.getElementById('custom-items-style');
+        if (styleElement) {
+            styleElement.textContent = this.value;
+        }
+    }
+});
+
+// Function to reset a CSS textarea to its template content
+async function resetToTemplate(textareaId) {
+    const textarea = document.getElementById(textareaId);
+    if (!textarea) return;
+
+    let templateFile;
+    switch (textareaId) {
+        case 'custom-css':
+            templateFile = 'customCSSTemplate.txt';
+            break;
+        case 'custom-main-css':
+            templateFile = 'customMainCSSTemplate.txt';
+            break;
+        case 'custom-items-css':
+            templateFile = 'customItemsCSSTemplate.txt';
+            break;
+        default:
+            return;
+    }
+
+    try {
+        const templateContent = await window.api.readFile(templateFile);
+        textarea.value = templateContent;
+        
+        // If the CSS is enabled, update the style element
+        const checkbox = document.getElementById(`use-${textareaId.replace('custom-', '')}`);
+        if (checkbox && checkbox.checked) {
+            const styleId = `${textareaId.replace('custom-', 'custom-')}-style`;
+            let styleElement = document.getElementById(styleId);
+            if (styleElement) {
+                styleElement.textContent = templateContent;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading template:', error);
+    }
+}

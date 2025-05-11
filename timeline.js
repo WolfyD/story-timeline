@@ -404,20 +404,18 @@ function renderTimeline() {
         }
         timeline.appendChild(line);
 
-        // Create the box (unchanged from previous step, but with new left position)
+        // Create the box
         const box = document.createElement('div');
         box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
         box.style.position = 'absolute';
         box.style.left = `${boxLeft}px`;
         box.style.top = `${boxTop}px`;
         box.setAttribute('data-id', item.id || item['story-id'] || idx);
-        box.setAttribute('data-year', itemYear);
-        box.setAttribute('data-subtick', itemSubtick);
+        box.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
         box.setAttribute('data-line-id', lineId);
-        // Format: year.subtick - title
-        const yearStr = `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`;
+        // Only show the title in the box
         const titleStr = item.title || '(No Title)';
-        box.innerHTML = `<span style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;display:inline-block;\">${yearStr} - ${titleStr}</span>`;
+        box.innerHTML = `<span style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;display:inline-block;\">${titleStr}</span>`;
         box.addEventListener('click', function(e) {
             e.stopPropagation();
             window.openItemViewer && window.openItemViewer(box.getAttribute('data-id'));
@@ -427,11 +425,35 @@ function renderTimeline() {
             box.classList.add('highlighted');
             const lineElem = document.getElementById(lineId);
             if (lineElem) lineElem.classList.add('highlighted-line');
+            
+            // Show hover bubble
+            let hoverBubble = document.querySelector('.timeline-hover-bubble');
+            if (!hoverBubble) {
+                hoverBubble = document.createElement('div');
+                hoverBubble.className = 'timeline-hover-bubble';
+                document.body.appendChild(hoverBubble);
+            }
+            
+            // Get the year and subtick from the data attributes
+            const year = box.getAttribute('data-year');
+            hoverBubble.textContent = year;
+            
+            // Calculate position relative to the viewport
+            const boxRect = box.getBoundingClientRect();
+            hoverBubble.style.left = `${boxRect.left + boxRect.width/2}px`;
+            hoverBubble.style.top = `${boxRect.top - 25}px`;
+            hoverBubble.classList.add('visible');
         });
         box.addEventListener('mouseleave', function() {
             box.classList.remove('highlighted');
             const lineElem = document.getElementById(lineId);
             if (lineElem) lineElem.classList.remove('highlighted-line');
+            
+            // Hide hover bubble
+            const hoverBubble = document.querySelector('.timeline-hover-bubble');
+            if (hoverBubble) {
+                hoverBubble.classList.remove('visible');
+            }
         });
         timeline.appendChild(box);
         itemBoxes.push(box);
@@ -519,10 +541,17 @@ container.addEventListener("mousemove", (e) => {
         return;
     }
     if (mouseDown) {
-        isDragging = true;
         const dx = e.clientX - dragStartX;
-        timelineState.offsetPx = initialOffset + dx;
-        renderTimeline();
+        // Only set isDragging if movement exceeds threshold
+        if (Math.abs(dx) > 3) {
+            isDragging = true;
+            // Close the item selector if it's open
+            closeItemSelector();
+        }
+        if (isDragging) {
+            timelineState.offsetPx = initialOffset + dx;
+            renderTimeline();
+        }
     }
     updateHoverMarker(e.clientX, e.clientY);
     lastMouseX = e.clientX;
@@ -533,8 +562,10 @@ container.addEventListener("mousedown", (e) => {
         mouseDown = true;
         dragStartX = e.clientX;
         initialOffset = timelineState.offsetPx;
-        // Capture the mouse to handle dragging outside the window
-        container.setPointerCapture(e.pointerId);
+        // Only set pointer capture if it's a pointer event
+        if (e instanceof PointerEvent) {
+            container.setPointerCapture(e.pointerId);
+        }
     }
     // Middle mouse drag start
     if (e.button === 1) {
@@ -544,8 +575,10 @@ container.addEventListener("mousedown", (e) => {
         middleMouseStartOffset = timelineState.offsetPx;
         container.style.cursor = 'grabbing';
         middleMouseScrollAnim = requestAnimationFrame(middleMouseScrollStep);
-        // Capture the mouse for middle button drag
-        container.setPointerCapture(e.pointerId);
+        // Only set pointer capture if it's a pointer event
+        if (e instanceof PointerEvent) {
+            container.setPointerCapture(e.pointerId);
+        }
         e.preventDefault();
     }
 });
@@ -583,7 +616,10 @@ container.addEventListener("mouseup", (e) => {
             cancelAnimationFrame(middleMouseScrollAnim);
             middleMouseScrollAnim = null;
         }
-        container.releasePointerCapture(e.pointerId);
+        // Only release pointer capture if it's a pointer event
+        if (e instanceof PointerEvent) {
+            container.releasePointerCapture(e.pointerId);
+        }
         return;
     }
     if (e.button === 0) {
@@ -592,17 +628,11 @@ container.addEventListener("mouseup", (e) => {
         if (e.target.closest('.timeline-item-box')) {
             return; // Don't open add item window if clicking on an item
         }
-        if (Math.abs(e.clientX - dragStartX) < 5) {
-            // Use the last hover marker year/subtick instead of recalculating
-            let year = lastHoverYear;
-            let subtick = lastHoverSubtick;
-            console.log('[timeline.js:566] adding item at year:', year, 'and subtick:', subtick, 'with granularity:', timelineState.granularity);   
-            let newItem = addItem(year, subtick, timelineState.granularity);
-            timelineState.items.push(newItem);
-            renderTimeline();
-        }
         dragStartX = null;
-        container.releasePointerCapture(e.pointerId);
+        // Only release pointer capture if it's a pointer event
+        if (e instanceof PointerEvent) {
+            container.releasePointerCapture(e.pointerId);
+        }
     }
 });
 
@@ -836,6 +866,34 @@ function jumpToDate() {
     renderTimeline();
 }
 
+function closeItemSelector() {
+    console.log('[timeline.js] closing item selector');
+    const selector = document.getElementById('item-selector');
+    if (!selector) return;
+    
+    // Remove the click handler
+    selector.removeEventListener('click', handleSelectorClick);
+    selector.classList.remove('visible');
+    selector.style.display = 'none';
+}
+
+function handleSelectorClick(e) {
+    const button = e.target.closest('.item-selector-button');
+    if (!button) return;
+
+    const type = button.dataset.type;
+    const year = parseInt(this.dataset.year);
+    const subtick = parseInt(this.dataset.subtick);
+
+    console.log('[timeline.js] button clicked:', button, 'type:', type, 'year:', year, 'subtick:', subtick);
+
+    // Close the item selector
+    closeItemSelector();
+
+    // Open the appropriate add item window
+    openAddItemWindow(year, subtick, type);
+}
+
 // ===== Initialization =====
 document.addEventListener("DOMContentLoaded", () => {
     window.setTimeout(() => {
@@ -844,3 +902,62 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 renderTimeline();
+// Add click handler for the timeline
+container.addEventListener('click', function(e) {
+    
+    e.bubbles = false;
+    e.stopPropagation();
+    console.log('[timeline.js:899] timeline container clicked');
+    // Don't show selector if clicking on an existing item
+    if (e.target.closest('.timeline-item-box')) {
+        return;
+    }
+
+    // Don't show selector if we were dragging
+    if (isDragging) {
+        isDragging = false;
+        return;
+    }
+
+    const selector = document.getElementById('item-selector');
+    if (!selector) return;
+
+    // If selector is already visible, close it
+    if (selector.style.display === 'flex') {
+        closeItemSelector();
+        return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const year = Math.floor(x / timelineState.pixelsPerSubtick);
+    const subtick = Math.floor((x % timelineState.pixelsPerSubtick) / (timelineState.pixelsPerSubtick / timelineState.granularity));
+
+    // Position the selector
+    selector.style.left = `${e.clientX}px`;
+    selector.style.top = `${e.clientY}px`;
+    selector.style.display = 'flex';
+    
+    // Add click handler before showing
+    selector.addEventListener('click', handleSelectorClick);
+    selector.classList.add('visible');
+
+    // Store the position for later use
+    selector.dataset.year = year;
+    selector.dataset.subtick = subtick;
+});
+
+// Close selector when clicking outside
+document.addEventListener('click', function(e) {
+    e.bubbles = false;
+    e.stopPropagation();
+    console.log('[timeline.js:935] clicking outside');
+    // if the target is the timeline container, return
+    if (e.target.closest('#timeline')) {
+        return;
+    }
+
+    if (!e.target.closest('#item-selector') && !e.target.closest('#timeline')) {
+        closeItemSelector();
+    }
+});

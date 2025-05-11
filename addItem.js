@@ -348,6 +348,7 @@ if (isEditMode && editItemId) {
         e.preventDefault();
         // Get form data
         const formData = {
+            id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 10000), // Generate a unique item ID
             title: document.getElementById('title').value,
             description: document.getElementById('description').value,
             content: document.getElementById('content').value,

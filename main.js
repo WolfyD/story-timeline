@@ -51,7 +51,11 @@ const DEFAULT_SETTINGS = {
     fontSizeScale: 1,
     isFullscreen: false,
     customCSS: '',
-    useCustomCSS: false,
+    customMainCSS: '',
+    customItemsCSS: '',
+    useTimelineCSS: false,
+    useMainCSS: false,
+    useItemsCSS: false,
     pixelsPerSubtick: 20,
     showGuides: true
 };
@@ -341,7 +345,11 @@ function loadSettings() {
       fontSizeScale: parseFloat(savedSettings.fontSizeScale || 1.0),
       pixelsPerSubtick: parseInt(savedSettings.pixelsPerSubtick || 20),
       customCSS: savedSettings.customCSS || '',
-      useCustomCSS: Boolean(savedSettings.useCustomCSS),
+      customMainCSS: savedSettings.customMainCSS || '',
+      customItemsCSS: savedSettings.customItemsCSS || '',
+      useTimelineCSS: Boolean(savedSettings.useTimelineCSS),
+      useMainCSS: Boolean(savedSettings.useMainCSS),
+      useItemsCSS: Boolean(savedSettings.useItemsCSS),
       isFullscreen: Boolean(savedSettings.isFullscreen),
       showGuides: Boolean(savedSettings.showGuides),
       size: {
@@ -354,8 +362,15 @@ function loadSettings() {
       }
     };
 
+    // Load templates if CSS fields are empty
     if (!settings.customCSS || settings.customCSS === "") {
       settings.customCSS = fs.readFileSync(path.join(__dirname, 'customCSSTemplate.txt'), 'utf8');
+    }
+    if (!settings.customMainCSS || settings.customMainCSS === "") {
+      settings.customMainCSS = fs.readFileSync(path.join(__dirname, 'customMainCSSTemplate.txt'), 'utf8');
+    }
+    if (!settings.customItemsCSS || settings.customItemsCSS === "") {
+      settings.customItemsCSS = fs.readFileSync(path.join(__dirname, 'customItemsCSSTemplate.txt'), 'utf8');
     }
     
     mainWindow.webContents.send("window-resized", mainWindow.getSize());
@@ -388,16 +403,20 @@ function saveSettings(newSettings) {
   // Save settings to database
   const dbSettings = {
     font: newSettings.font || 'Arial',
-    font_size_scale: parseFloat(newSettings.fontSizeScale || 1.0),
-    pixels_per_subtick: parseInt(newSettings.pixelsPerSubtick || 20),
-    custom_css: newSettings.customCSS || '',
-    use_custom_css: newSettings.useCustomCSS ? 1 : 0,
-    is_fullscreen: newSettings.isFullscreen ? 1 : 0,
-    show_guides: newSettings.showGuides ? 1 : 0,
-    window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
-    window_size_y: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
-    window_position_x: parseInt(mainWindow.getPosition()[0] + 2),
-    window_position_y: parseInt(mainWindow.getPosition()[1] + 1)
+    fontSizeScale: parseFloat(newSettings.fontSizeScale || 1.0),
+    pixelsPerSubtick: parseInt(newSettings.pixelsPerSubtick || 20),
+    customCSS: newSettings.customCSS || '',
+    customMainCSS: newSettings.customMainCSS || '',
+    customItemsCSS: newSettings.customItemsCSS || '',
+    useTimelineCSS: newSettings.useTimelineCSS ? 1 : 0,
+    useMainCSS: newSettings.useMainCSS ? 1 : 0,
+    useItemsCSS: newSettings.useItemsCSS ? 1 : 0,
+    isFullscreen: newSettings.isFullscreen ? 1 : 0,
+    showGuides: newSettings.showGuides ? 1 : 0,
+    windowSizeX: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
+    windowSizeY: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
+    windowPositionX: parseInt(mainWindow.getPosition()[0] + 2),
+    windowPositionY: parseInt(mainWindow.getPosition()[1] + 1)
   };
   
   dbManager.updateSettings(dbSettings);
@@ -764,6 +783,18 @@ function setupIpcHandlers() {
 
   ipcMain.on('quit-app', () => {
     app.quit();
+  });
+
+  // Add handler for reading template files
+  ipcMain.handle('read-file', async (event, filename) => {
+    try {
+      const filePath = path.join(__dirname, filename);
+      const content = await fs.promises.readFile(filePath, 'utf8');
+      return content;
+    } catch (error) {
+      console.error('Error reading file:', error);
+      throw error;
+    }
   });
 }
 

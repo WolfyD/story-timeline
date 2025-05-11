@@ -62,5 +62,6 @@ contextBridge.exposeInMainWorld('api', {
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
         }
-    }
+    },
+    readFile: (filename) => ipcRenderer.invoke('read-file', filename)
 });

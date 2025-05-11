@@ -43,7 +43,6 @@
     background: black;
 }
 
-
 #center-line {
     position: absolute;
     top: 60%;
@@ -72,38 +71,32 @@
     width: 0;
     height: 0;
     margin: auto;
-
-    /* Positioning the arrow */
     position: relative;
     top: 0;
-
-    /* Stick part */
     border-left: 1.5px solid red;
     border-right: 1.5px solid red;
     height: 100px;
-
-    /* Create the arrowhead with a triangle */
     box-sizing: content-box;
 }
+
 #arrow::after {
     content: '';
     display: block;
     width: 0;
     height: 0;
     margin: auto;
-
-    /* Triangle pointing down */
     border-left: 6px solid transparent;
     border-right: 6px solid transparent;
     border-top: 8px solid red;
 }
+
 .tick-fullyear {
     font-size: .8em;
     color: #000;
     position: absolute;
-    top: 100%;         /* Place below the tick */
-    left: 50%;         /* Center horizontally */
-    width: 48px;       /* Fixed width, enough for 6 digits and some padding */
+    top: 100%;
+    left: 50%;
+    width: 48px;
     text-align: center;
     transform: translateX(-50%);
     white-space: nowrap;
@@ -115,9 +108,9 @@
     font-size: .8em;
     color: #000;
     position: absolute;
-    top: 100%;         /* Place below the tick */
-    left: 50%;         /* Center horizontally */
-    width: 48px;       /* Fixed width, enough for 6 digits and some padding */
+    top: 100%;
+    left: 50%;
+    width: 48px;
     text-align: center;
     transform: translateX(-65%);
     white-space: nowrap;
@@ -129,7 +122,6 @@
 .tick:hover .tick-subyear {
     display: block;
 }
-
 
 #timeline-hover-marker {
     position: absolute;
@@ -195,6 +187,84 @@
     align-items: center;
     justify-content: space-between;
     gap: 20px;
+}
+
+/* Item Selector Styles */
+.item-selector {
+    position: fixed;
+    background: #f5e6d4;
+    border: 2px solid #4b2e2e;
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    display: none;
+    flex-direction: column;
+    gap: 8px;
+    min-width: 200px;
+}
+
+.item-selector.visible {
+    display: flex;
+}
+
+.item-selector-button {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 16px;
+    background: #fff;
+    border: 1px solid #4b2e2e;
+    border-radius: 6px;
+    color: #4b2e2e;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    text-align: left;
+}
+
+.item-selector-button:hover {
+    background: #4b2e2e;
+    color: #f5e6d4;
+}
+
+.item-selector-button i {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+/* Add Font Awesome for icons */
+@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
+
+.timeline-hover-bubble {
+    position: fixed;
+    background: #4b2e2e;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.2s;
+    transform: translateX(-50%);
+}
+
+.timeline-hover-bubble.visible {
+    opacity: 1;
+}
+
+.timeline-hover-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 4px 4px 0 4px;
+    border-style: solid;
+    border-color: #4b2e2e transparent transparent transparent;
 }
 
 

@@ -10,7 +10,7 @@
   </head>
   <body>
     <button class="settings-button open-settings-button no-select" onclick="openSettings()">Settings</button>
-    <div id="version-display" class="version-display no-select">v0.1.1</div>
+    <div id="version-display" class="version-display no-select">v0.1.3</div>
     <div class="title-container">
       <h1 id="main_title" class="main_title no-select">Story Name</h1>
       <h2 id="main_subtitle" class="main_subtitle no-select">Story Timeline</h2>
@@ -118,20 +118,59 @@
               </div>
 
               <div class="settings-row">
-                <label class="no-select" for="granularity">Use custom CSS</label>
+                <label class="no-select" for="use-timeline-css">Use Timeline CSS</label>
                 <div class="settings-input-container">
-                  <input type="checkbox" id="use-custom-css" class="settings-input" onclick="toggleCustomCSS(this.checked)">
+                  <input type="checkbox" id="use-timeline-css" class="settings-input" onclick="toggleTimelineCSS(this.checked)">
                   <span class="info-icon">?</span>
                   <div class="info-bubble no-select">Use custom CSS for the timeline</div>
                 </div>
               </div>
 
               <div class="settings-row">
-                <label class="no-select" for="custom-css">Custom CSS</label>
+                <label class="no-select" for="custom-css">Timeline CSS</label>
                 <div class="settings-input-container">
-                  <textarea readonly id="custom-css" class="settings-input" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
+                  <textarea readonly id="custom-css" class="settings-input custom-css" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
+                  <button class="settings-button reset-template-button" onclick="resetToTemplate('custom-css')">Reset to Template</button>
                   <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Custom CSS for the timeline</div>
+                  <div class="info-bubble no-select">Custom CSS for the timeline container and elements</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="use-main-css">Use Main CSS</label>
+                <div class="settings-input-container">
+                  <input type="checkbox" id="use-main-css" class="settings-input" onclick="toggleMainCSS(this.checked)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Use custom CSS for the main application</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="custom-main-css">Main CSS</label>
+                <div class="settings-input-container">
+                  <textarea readonly id="custom-main-css" class="settings-input custom-css" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
+                  <button class="settings-button reset-template-button" onclick="resetToTemplate('custom-main-css')">Reset to Template</button>
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Custom CSS for the main application body and elements</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="use-items-css">Use Items CSS</label>
+                <div class="settings-input-container">
+                  <input type="checkbox" id="use-items-css" class="settings-input" onclick="toggleItemsCSS(this.checked)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Use custom CSS for timeline items</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="custom-items-css">Items CSS</label>
+                <div class="settings-input-container">
+                  <textarea readonly id="custom-items-css" class="settings-input custom-css" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
+                  <button class="settings-button reset-template-button" onclick="resetToTemplate('custom-items-css')">Reset to Template</button>
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Custom CSS for timeline items and markers</div>
                 </div>
               </div>
 
@@ -291,6 +330,34 @@
     </script>
     <div id="guides">
       <div id="size_guide">0x0</div> <div id="position_guide">0:0</div> <div id="scale_guide">1</div>
+    </div>
+
+    <!-- Item Selector -->
+    <div id="item-selector" class="item-selector">
+      <button class="item-selector-button" data-type="event">
+        <i class="fas fa-calendar-day"></i>
+        Event
+      </button>
+      <button class="item-selector-button" data-type="period">
+        <i class="fas fa-calendar-week"></i>
+        Period
+      </button>
+      <button class="item-selector-button" data-type="age">
+        <i class="fas fa-hourglass-half"></i>
+        Age
+      </button>
+      <button class="item-selector-button" data-type="picture">
+        <i class="fas fa-image"></i>
+        Picture
+      </button>
+      <button class="item-selector-button" data-type="note">
+        <i class="fas fa-sticky-note"></i>
+        Note
+      </button>
+      <button class="item-selector-button" data-type="bookmark">
+        <i class="fas fa-bookmark"></i>
+        Bookmark
+      </button>
     </div>
   </body>
 </html>

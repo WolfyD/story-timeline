@@ -64,6 +64,7 @@
     width: 90%;
     margin: 0 auto;
     overflow-y: auto;
+    max-width: 800px;
 }
 
 .modal-header {

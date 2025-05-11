@@ -33,19 +33,22 @@ class DatabaseManager {
         // Settings table
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                font TEXT,
+                id INTEGER PRIMARY KEY,
+                font TEXT DEFAULT 'Arial',
                 font_size_scale REAL DEFAULT 1.0,
                 pixels_per_subtick INTEGER DEFAULT 20,
                 custom_css TEXT,
-                use_custom_css BOOLEAN DEFAULT 0,
-                is_fullscreen BOOLEAN DEFAULT 0,
-                show_guides BOOLEAN DEFAULT 1,
-                window_size_x INTEGER,
-                window_size_y INTEGER,
-                window_position_x INTEGER,
-                window_position_y INTEGER,
-                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                custom_main_css TEXT,
+                custom_items_css TEXT,
+                use_timeline_css INTEGER DEFAULT 0,
+                use_main_css INTEGER DEFAULT 0,
+                use_items_css INTEGER DEFAULT 0,
+                is_fullscreen INTEGER DEFAULT 0,
+                show_guides INTEGER DEFAULT 1,
+                window_size_x INTEGER DEFAULT 800,
+                window_size_y INTEGER DEFAULT 600,
+                window_position_x INTEGER DEFAULT 100,
+                window_position_y INTEGER DEFAULT 100,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
@@ -138,58 +141,84 @@ class DatabaseManager {
             )
         `);
 
-        // Create triggers for updated_at
-        this.db.exec(`
-            CREATE TRIGGER IF NOT EXISTS update_universe_data_timestamp 
-            AFTER UPDATE ON universe_data
-            BEGIN
-                UPDATE universe_data SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END;
+        // // Create triggers for updated_at
+        // this.db.exec(`
+        //     CREATE TRIGGER IF NOT EXISTS update_universe_data_timestamp 
+        //     AFTER UPDATE ON universe_data
+        //     BEGIN
+        //         UPDATE universe_data SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        //     END;
 
-            CREATE TRIGGER IF NOT EXISTS update_settings_timestamp 
-            AFTER UPDATE ON settings
-            BEGIN
-                UPDATE settings SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END;
+        //     CREATE TRIGGER IF NOT EXISTS update_settings_timestamp 
+        //     AFTER UPDATE ON settings
+        //     BEGIN
+        //         UPDATE settings SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        //     END;
 
-            CREATE TRIGGER IF NOT EXISTS update_stories_timestamp 
-            AFTER UPDATE ON stories
-            BEGIN
-                UPDATE stories SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END;
+        //     CREATE TRIGGER IF NOT EXISTS update_stories_timestamp 
+        //     AFTER UPDATE ON stories
+        //     BEGIN
+        //         UPDATE stories SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        //     END;
 
-            CREATE TRIGGER IF NOT EXISTS update_items_timestamp 
-            AFTER UPDATE ON items
-            BEGIN
-                UPDATE items SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END;
+        //     CREATE TRIGGER IF NOT EXISTS update_items_timestamp 
+        //     AFTER UPDATE ON items
+        //     BEGIN
+        //         UPDATE items SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        //     END;
 
-            CREATE TRIGGER IF NOT EXISTS update_notes_timestamp 
-            AFTER UPDATE ON notes
-            BEGIN
-                UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-            END;
-        `);
+        //     CREATE TRIGGER IF NOT EXISTS update_notes_timestamp 
+        //     AFTER UPDATE ON notes
+        //     BEGIN
+        //         UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
+        //     END;
+        // `);
     }
 
     initializeDefaultData() {
-        // Check if we have any settings
-        const settings = this.getSettings();
-        if (!settings) {
+        // Initialize default settings if none exist
+        const stmt = this.db.prepare('SELECT COUNT(*) as count FROM settings');
+        const result = stmt.get();
+        
+        if (result.count === 0) {
+            // Load template files
+            const fs = require('fs');
+            const path = require('path');
+            const customCSSTemplate = fs.readFileSync(path.join(__dirname, 'customCSSTemplate.txt'), 'utf8');
+            const customMainCSSTemplate = fs.readFileSync(path.join(__dirname, 'customMainCSSTemplate.txt'), 'utf8');
+            const customItemsCSSTemplate = fs.readFileSync(path.join(__dirname, 'customItemsCSSTemplate.txt'), 'utf8');
+
             const defaultSettings = {
+                id: 1,
                 font: 'Arial',
                 font_size_scale: 1.0,
                 pixels_per_subtick: 20,
-                custom_css: '',
-                use_custom_css: false,
-                is_fullscreen: false,
-                show_guides: true,
+                custom_css: customCSSTemplate,
+                custom_main_css: customMainCSSTemplate,
+                custom_items_css: customItemsCSSTemplate,
+                use_timeline_css: 0,
+                use_main_css: 0,
+                use_items_css: 0,
+                is_fullscreen: 0,
+                show_guides: 1,
                 window_size_x: 800,
                 window_size_y: 600,
                 window_position_x: 100,
                 window_position_y: 100
             };
-            this.updateSettings(defaultSettings);
+
+            const insertStmt = this.db.prepare(`
+                INSERT INTO settings (
+                    id, font, font_size_scale, pixels_per_subtick, custom_css,
+                    custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                    is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y
+                ) VALUES (
+                    @id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
+                    @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                    @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y
+                )
+            `);
+            insertStmt.run(defaultSettings);
         }
 
         // Check if we have universe data
@@ -293,21 +322,24 @@ class DatabaseManager {
 
     // Settings operations
     getSettings() {
-        const stmt = this.db.prepare('SELECT * FROM settings ORDER BY id DESC LIMIT 1');
+        const stmt = this.db.prepare('SELECT * FROM settings WHERE id = 1');
         const settings = stmt.get();
         
-        if (!settings) {
-            return null;
-        }
+        if (!settings) return null;
 
-        // Convert database field names to frontend field names and convert integers back to booleans
+        // Convert database snake_case to camelCase for frontend
         return {
             font: settings.font,
             fontSizeScale: settings.font_size_scale,
             pixelsPerSubtick: settings.pixels_per_subtick,
             customCSS: settings.custom_css,
-            useCustomCSS: Boolean(settings.use_custom_css),
-            isFullscreen: Boolean(settings.is_fullscreen),
+            customMainCSS: settings.custom_main_css,
+            customItemsCSS: settings.custom_items_css,
+            useTimelineCSS: settings.use_timeline_css === 1,
+            useMainCSS: settings.use_main_css === 1,
+            useItemsCSS: settings.use_items_css === 1,
+            isFullscreen: settings.is_fullscreen === 1,
+            showGuides: settings.show_guides === 1,
             size: {
                 x: settings.window_size_x,
                 y: settings.window_size_y
@@ -320,33 +352,39 @@ class DatabaseManager {
     }
 
     updateSettings(settings) {
-        // Convert frontend field names to database field names and ensure proper types
+        // Convert frontend camelCase to database snake_case
         const dbSettings = {
             font: settings.font || 'Arial',
-            font_size_scale: parseFloat(settings.fontSizeScale || settings.font_size_scale || 1.0),
-            pixels_per_subtick: parseInt(settings.pixelsPerSubtick || settings.pixels_per_subtick || 20),
-            custom_css: settings.customCSS || settings.custom_css || '',
-            use_custom_css: (settings.useCustomCSS || settings.use_custom_css || false) ? 1 : 0,
-            is_fullscreen: (settings.isFullscreen || settings.is_fullscreen || false) ? 1 : 0,
-            window_size_x: parseInt((settings.size && settings.size.x) || settings.window_size_x || 800),
-            window_size_y: parseInt((settings.size && settings.size.y) || settings.window_size_y || 600),
-            window_position_x: parseInt((settings.position && settings.position.x) || settings.window_position_x || 100),
-            window_position_y: parseInt((settings.position && settings.position.y) || settings.window_position_y || 100)
+            font_size_scale: parseFloat(settings.fontSizeScale || 1.0),
+            pixels_per_subtick: parseInt(settings.pixelsPerSubtick || 20),
+            custom_css: settings.customCSS || '',
+            custom_main_css: settings.customMainCSS || '',
+            custom_items_css: settings.customItemsCSS || '',
+            use_timeline_css: settings.useTimelineCSS ? 1 : 0,
+            use_main_css: settings.useMainCSS ? 1 : 0,
+            use_items_css: settings.useItemsCSS ? 1 : 0,
+            is_fullscreen: settings.isFullscreen ? 1 : 0,
+            show_guides: settings.showGuides ? 1 : 0,
+            window_size_x: parseInt((settings.size && settings.size.x) || 800),
+            window_size_y: parseInt((settings.size && settings.size.y) || 600),
+            window_position_x: parseInt((settings.position && settings.position.x) || 100),
+            window_position_y: parseInt((settings.position && settings.position.y) || 100)
         };
 
         const stmt = this.db.prepare(`
-            INSERT INTO settings (
-                font, font_size_scale, pixels_per_subtick, custom_css, 
-                use_custom_css, is_fullscreen, window_size_x, window_size_y,
-                window_position_x, window_position_y
+            INSERT OR REPLACE INTO settings (
+                id, font, font_size_scale, pixels_per_subtick, custom_css, 
+                custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y
             )
             VALUES (
-                @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                @use_custom_css, @is_fullscreen, @window_size_x, @window_size_y,
-                @window_position_x, @window_position_y
+                1, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
+                @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y
             )
         `);
-        return stmt.run(dbSettings);
+
+        stmt.run(dbSettings);
     }
 
     // Helper: get or create a story by title and id
@@ -402,8 +440,10 @@ class DatabaseManager {
     }
 
     addItem(item) {
-        // Generate a new ID if none is provided
-        const itemId = item.id || uuidv4();
+        // Ensure item has an ID
+        if (!item.id) {
+            throw new Error('Item must have an ID');
+        }
 
         // Handle story relationship
         let storyId = null;
@@ -432,7 +472,7 @@ class DatabaseManager {
         const currentGranularity = universeData ? universeData.granularity : 4;
 
         const result = stmt.run({
-            id: itemId,
+            id: item.id,
             title: item.title,
             description: item.description,
             content: item.content,
@@ -448,17 +488,17 @@ class DatabaseManager {
 
         // Add tags if present
         if (item.tags && item.tags.length > 0) {
-            this.addTagsToItem(itemId, item.tags);
+            this.addTagsToItem(item.id, item.tags);
         }
 
         // Add pictures if present
         if (item.pictures && item.pictures.length > 0) {
-            this.addPicturesToItem(itemId, item.pictures);
+            this.addPicturesToItem(item.id, item.pictures);
         }
 
         // Add story references if present
         if (item.story_refs && item.story_refs.length > 0) {
-            this.addStoryReferencesToItem(itemId, item.story_refs);
+            this.addStoryReferencesToItem(item.id, item.story_refs);
         }
 
         return result;

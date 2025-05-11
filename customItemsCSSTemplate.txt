@@ -1,0 +1,69 @@
+/* Timeline Item Box Styles */
+.timeline-item-box {
+    /*  */
+}
+
+.timeline-item-box:hover {
+    /*  */
+}
+
+/* Hover Bubble Styles */
+.timeline-hover-bubble {
+    /*  */
+}
+
+.timeline-hover-bubble::after {
+    /*  */
+}
+
+.timeline-hover-bubble.visible {
+    /*  */
+}
+
+.timeline-item-line {
+    /*  */
+}
+
+.timeline-item-box.highlighted {
+    /*  */
+}
+
+.timeline-item-line.highlighted-line {
+    /*  */
+}
+
+.timeline-item-box.above {
+    /* Styles for items above the timeline */
+}
+
+.timeline-item-box.below {
+    /* Styles for items below the timeline */
+}
+
+.timeline-item-date {
+    /* Timeline item date styles */
+}
+
+.timeline-item-title {
+    /* Timeline item title styles */
+}
+
+.marker_stick_below {
+    /* Marker stick below styles */
+}
+
+.marker_stick_above {
+    /* Marker stick above styles */
+}
+
+.marker_above {
+    /* Marker above styles */
+}
+
+.marker_below {
+    /* Marker below styles */
+}
+
+.marker_left {
+    /* Marker left styles */
+} 
