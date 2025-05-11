@@ -365,7 +365,8 @@ if (isEditMode && editItemId) {
             subtick: document.getElementById('subtickInput').value,
             story_refs: collectStoryRefs(),
             story: '',
-            'story-id': ''
+            'story-id': '',
+            type: (urlParams.get('type') || 'event').charAt(0).toUpperCase() + (urlParams.get('type') || 'event').slice(1)
         };
         try {
             if (formData.story_refs.length > 0) {

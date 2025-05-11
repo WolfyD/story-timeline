@@ -15,6 +15,7 @@
  * - createWindow(): Creates and configures the main application window
  * - createAddItemWindow(year, subtick, granularity): Creates window for adding new timeline items
  * - createEditItemWindow(item): Creates window for editing existing timeline items
+ * - createAddItemWithRangeWindow(year, subtick, granularity): Creates window for adding new timeline items with a range
  * - setupIpcHandlers(): Sets up all IPC communication handlers
  * - loadSettings(): Loads application settings from database
  * - saveSettings(newSettings): Saves application settings to database
@@ -215,6 +216,7 @@ function createWindow() {
  * @param {number} year - Year position
  * @param {number} subtick - Subtick position
  * @param {number} granularity - Granularity of the timeline
+ * @param {string} type - Type of the item
  * 
  * How it works:
  * 1. Creates BrowserWindow instance
@@ -226,7 +228,7 @@ function createWindow() {
  * - File load failure
  * - IPC communication failure
  */
-function createAddItemWindow(year, subtick, granularity) {
+function createAddItemWindow(year, subtick, granularity, type) {
   let newItemWindow = new BrowserWindow({
     width: 500,
     height: 400,
@@ -256,7 +258,8 @@ function createAddItemWindow(year, subtick, granularity) {
     query: {
       year: year,
       subtick: subtick,
-      granularity: granularity
+      granularity: granularity,
+      type: type
     }
   });
   
@@ -321,6 +324,55 @@ function createEditItemWindow(item) {
     mainWindow.getPosition()[1] + 100
   );
   editItemWindow.show();
+}
+
+/**
+ * Creates the add item with range window
+ * @param {number} year - Year position
+ * @param {number} subtick - Subtick position
+ * @param {number} granularity - Granularity of the timeline
+ * @param {string} type - Type of the item
+ */
+function createAddItemWithRangeWindow(year, subtick, granularity, type) {
+  let newItemWindow = new BrowserWindow({
+    width: 500,
+    height: 400,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      parent: mainWindow,
+      contextIsolation: true,
+      nodeIntegration: false,
+      modal: true,
+      show: false,
+      resizable: true,
+      minimizable: false,
+      maximizable: false,
+      fullscreenable: false,
+      alwaysOnTop: true,
+      title: "Add Item with Range"
+    }
+  });
+
+  newItemWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.key === "F12") {
+      newItemWindow.webContents.openDevTools();
+    }
+  });
+
+  newItemWindow.loadFile('addItemWithRange.html', {
+    query: {
+      year: year,
+      subtick: subtick,
+      granularity: granularity,
+      type: type
+    }
+  });
+  
+  newItemWindow.setPosition(
+    mainWindow.getPosition()[0] + 100, 
+    mainWindow.getPosition()[1] + 100
+  );
+  newItemWindow.show();
 }
 
 // ===== File Management =====
@@ -588,9 +640,14 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.on('open-add-item-window', (event, year, subtick, granularity) => {
-    console.log('[main.js:509] opening add item window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity);
-    createAddItemWindow(year, subtick, granularity);
+  ipcMain.on('open-add-item-window', (event, year, subtick, granularity, type) => {
+    console.log('[main.js:509] opening add item window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity, 'and type:', type);
+    createAddItemWindow(year, subtick, granularity, type);
+  });
+
+  ipcMain.on('open-add-item-with-range-window', (event, year, subtick, granularity, type) => {
+    console.log('[main.js] opening add item with range window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity, 'and type:', type);
+    createAddItemWithRangeWindow(year, subtick, granularity, type);
   });
 
   ipcMain.on('getStorySuggestions', (event) => {

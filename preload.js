@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('api', {
             'save-settings', 
             'load-settings', 
             'open-add-item-window',
+            'open-add-item-with-range-window',
             'getStorySuggestions',
             'searchItems',
             'getItemsByTag',

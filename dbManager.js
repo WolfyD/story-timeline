@@ -66,24 +66,59 @@ class DatabaseManager {
             )
         `);
 
-        // Items table
+        // Create item_types table
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS item_types (
+                id INTEGER PRIMARY KEY,
+                name TEXT UNIQUE,
+                description TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+
+        // Insert default item types
+        const defaultTypes = [
+            { name: 'Event', description: 'A specific point in time' },
+            { name: 'Period', description: 'A span of time' },
+            { name: 'Age', description: 'A significant era or period' },
+            { name: 'Picture', description: 'An image or visual record' },
+            { name: 'Note', description: 'A text note or annotation' },
+            { name: 'Bookmark', description: 'A marked point of interest' },
+            { name: 'Character', description: 'A person or entity' }
+        ];
+
+        const insertTypeStmt = this.db.prepare(`
+            INSERT OR IGNORE INTO item_types (name, description)
+            VALUES (@name, @description)
+        `);
+
+        for (const type of defaultTypes) {
+            insertTypeStmt.run(type);
+        }
+
+        // Create items table
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS items (
                 id TEXT PRIMARY KEY,
-                title TEXT NOT NULL,
+                title TEXT,
                 description TEXT,
                 content TEXT,
                 story_id TEXT,
+                type_id INTEGER DEFAULT 1,
                 year INTEGER,
                 subtick INTEGER,
                 original_subtick INTEGER,
+                end_year INTEGER,
+                end_subtick INTEGER,
+                original_end_subtick INTEGER,
                 book_title TEXT,
                 chapter TEXT,
                 page TEXT,
-                creation_granularity INTEGER DEFAULT 4,
+                creation_granularity INTEGER,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (story_id) REFERENCES stories(id)
+                FOREIGN KEY (story_id) REFERENCES stories(id),
+                FOREIGN KEY (type_id) REFERENCES item_types(id)
             )
         `);
 
@@ -469,14 +504,26 @@ class DatabaseManager {
             }
         }
 
+        // Get type_id from type name if provided
+        let typeId = 1; // Default to Event type
+        if (item.type) {
+            const typeStmt = this.db.prepare('SELECT id FROM item_types WHERE name = ?');
+            const typeResult = typeStmt.get(item.type);
+            if (typeResult) {
+                typeId = typeResult.id;
+            }
+        }
+
         const stmt = this.db.prepare(`
             INSERT INTO items (
-                id, title, description, content, story_id, 
-                year, subtick, original_subtick, book_title, chapter, page,
+                id, title, description, content, story_id, type_id,
+                year, subtick, original_subtick, end_year, end_subtick, original_end_subtick,
+                book_title, chapter, page,
                 creation_granularity
             ) VALUES (
-                @id, @title, @description, @content, @story_id,
-                @year, @subtick, @original_subtick, @book_title, @chapter, @page,
+                @id, @title, @description, @content, @story_id, @type_id,
+                @year, @subtick, @original_subtick, @end_year, @end_subtick, @original_end_subtick,
+                @book_title, @chapter, @page,
                 @creation_granularity
             )
         `);
@@ -491,9 +538,13 @@ class DatabaseManager {
             description: item.description,
             content: item.content,
             story_id: storyId,
+            type_id: typeId,
             year: item.year,
             subtick: item.subtick,
-            original_subtick: item.subtick, // Set original_subtick to the same value as subtick
+            original_subtick: item.subtick,
+            end_year: item.end_year || item.year,
+            end_subtick: item.end_subtick || item.subtick,
+            original_end_subtick: item.original_end_subtick || item.subtick,
             book_title: item.book_title,
             chapter: item.chapter,
             page: item.page,
@@ -521,11 +572,13 @@ class DatabaseManager {
     getItem(id) {
         const stmt = this.db.prepare(`
             SELECT i.*, 
-                   GROUP_CONCAT(DISTINCT t.name) as tags,
+                   t.name as type_name,
+                   GROUP_CONCAT(DISTINCT tg.name) as tags,
                    GROUP_CONCAT(DISTINCT s.id || ':' || s.title) as story_refs
             FROM items i
+            LEFT JOIN item_types t ON i.type_id = t.id
             LEFT JOIN item_tags it ON i.id = it.item_id
-            LEFT JOIN tags t ON it.tag_id = t.id
+            LEFT JOIN tags tg ON it.tag_id = tg.id
             LEFT JOIN item_story_refs isr ON i.id = isr.item_id
             LEFT JOIN stories s ON isr.story_id = s.id
             WHERE i.id = ?
@@ -545,9 +598,13 @@ class DatabaseManager {
             description: item.description,
             content: item.content,
             'story-id': item.story_id,
+            type: item.type_name,
             year: item.year,
             subtick: item.subtick,
             original_subtick: item.original_subtick,
+            end_year: item.end_year || item.year,
+            end_subtick: item.end_subtick || item.subtick,
+            original_end_subtick: item.original_end_subtick || item.original_subtick,
             creation_granularity: item.creation_granularity,
             book_title: item.book_title,
             chapter: item.chapter,
@@ -563,9 +620,11 @@ class DatabaseManager {
 
     getAllItems() {
         const stmt = this.db.prepare(`
-            SELECT i.*, s.title as story_title, s.id as story_id, s.description as story_description
+            SELECT i.*, s.title as story_title, s.id as story_id, s.description as story_description,
+                   t.name as type
             FROM items i 
             LEFT JOIN stories s ON i.story_id = s.id 
+            LEFT JOIN item_types t ON i.type_id = t.id
             ORDER BY i.year, i.subtick
         `);
         const items = stmt.all();
@@ -584,6 +643,17 @@ class DatabaseManager {
 
         // Check if subtick has changed
         const subtickChanged = item.subtick !== existingItem.subtick;
+        const endSubtickChanged = item.end_subtick !== existingItem.end_subtick;
+
+        // Get type_id from type name if provided
+        let typeId = existingItem.type_id;
+        if (item.type) {
+            const typeStmt = this.db.prepare('SELECT id FROM item_types WHERE name = ?');
+            const typeResult = typeStmt.get(item.type);
+            if (typeResult) {
+                typeId = typeResult.id;
+            }
+        }
 
         const stmt = this.db.prepare(`
             UPDATE items SET
@@ -591,11 +661,18 @@ class DatabaseManager {
                 description = @description,
                 content = @content,
                 story_id = @story_id,
+                type_id = @type_id,
                 year = @year,
                 subtick = @subtick,
                 original_subtick = CASE 
                     WHEN @subtick_changed = 1 THEN @subtick 
                     ELSE original_subtick 
+                END,
+                end_year = @end_year,
+                end_subtick = @end_subtick,
+                original_end_subtick = CASE 
+                    WHEN @end_subtick_changed = 1 THEN @end_subtick 
+                    ELSE original_end_subtick 
                 END,
                 book_title = @book_title,
                 chapter = @chapter,
@@ -609,9 +686,13 @@ class DatabaseManager {
             description: item.description,
             content: item.content,
             story_id: item['story-id'],
+            type_id: typeId,
             year: item.year,
             subtick: item.subtick,
             subtick_changed: subtickChanged ? 1 : 0,
+            end_year: item.end_year || item.year,
+            end_subtick: item.end_subtick || item.subtick,
+            end_subtick_changed: endSubtickChanged ? 1 : 0,
             book_title: item.book_title,
             chapter: item.chapter,
             page: item.page

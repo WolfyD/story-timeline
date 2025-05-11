@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Add Timeline Item with Range</title>
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="addItemWithRange.css">
+</head>
+<body>
+    <div class="top-header-container">
+        <h1 class="title">Add Timeline Item with Range</h1>
+        <div class="header-container">
+            <header class="header-row">
+                <span class="header-field" id="header-year"><span class="header-field-item header-field-label">Year</span> <span class="header-field-item header-field-value" id="header-year-value"> #1990</span></span>
+                <span class="header-field" id="header-subtick"><span class="header-field-item header-field-label">Subyear</span> <span class="header-field-item header-field-value" id="header-subtick-value"> #36</span></span>
+            </header>
+        </div>
+    </div>
+    <form id="addItemForm">
+        <div class="form-group">
+            <div id="year-subtick-container">
+                <div class="form-line">
+                    <label>Start Date:</label>
+                    <div class="form-line-2">
+                        <label for="year">Year:</label>
+                        <input type="number" id="yearInput" name="year" class="input-text" required>
+                    </div>
+                    <div class="form-line-2">
+                        <label for="subtick">Subyear:</label>
+                        <input type="number" id="subtickInput" name="subtick" class="input-text" required min="0">
+                    </div>
+                </div>
+                <div class="form-line">
+                    <label>End Date:</label>
+                    <div class="form-line-2">
+                        <label for="endYear">Year:</label>
+                        <input type="number" id="endYearInput" name="endYear" class="input-text" required>
+                    </div>
+                    <div class="form-line-2">
+                        <label for="endSubtick">Subyear:</label>
+                        <input type="number" id="endSubtickInput" name="endSubtick" class="input-text" required min="0">
+                    </div>
+                </div>
+            </div>
+            <div class="form-line">
+                <label for="title">Title:</label>
+                <input type="text" id="title" name="title" class="input-text" required>
+            </div>
+            
+            <div class="form-line">
+                <label for="description">Description:</label>
+                <textarea id="description" name="description" class="input-textarea"></textarea>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="form-line">
+                <label for="content">Content:</label>
+                <textarea id="content" name="content" class="input-textarea"></textarea>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="form-line">
+                <label for="tags">Tags:</label>
+                <input type="text" id="tagInput" class="input-text" placeholder="Type a tag and press Enter">
+            </div>
+            <div id="tagContainer" class="tag-container"></div>
+        </div>
+
+        <div class="form-group">
+            <div class="form-line">
+                <label>Images:</label>
+                <div class="image-upload-container">
+                    <div class="add-image-btn" id="addImageBtn">
+                        <span>+ Add Image</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="form-line">
+                <label for="bookTitle">Book Title:</label>
+                <input type="text" id="bookTitle" name="bookTitle" class="input-text">
+            </div>
+            <div class="form-line">
+                <label for="chapter">Chapter:</label>
+                <input type="text" id="chapter" name="chapter" class="input-text">
+            </div>
+            <div class="form-line">
+                <label for="page">Page:</label>
+                <input type="text" id="page" name="page" class="input-text">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <div class="form-line">
+                <label>Story References:</label>
+                <div id="storyRefsContainer">
+                    <!-- Story reference rows will be added here -->
+                </div>
+                <button type="button" id="addStoryRefBtn" class="button-debug" style="margin-top:8px;">+ Add Story Reference</button>
+            </div>
+        </div>
+
+        <div class="button-group">
+            <button type="submit" class="button-submit">Add Item</button>
+            <button type="button" id="testFillBtn" class="button-debug">Test Fill</button>
+        </div>
+    </form>
+
+    <script>
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                window.close();
+            }
+        });
+    </script>   
+
+    <script src="addItemWithRange.js"></script>
+</body>
+</html> 

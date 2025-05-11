@@ -266,4 +266,51 @@
     border-color: #4b2e2e transparent transparent transparent;
 }
 
+/* Age Timeline Item Styles */
+.timeline-age-item {
+    position: absolute;
+    height: 6px;
+    background-color: #4CAF50; /* Leaf green color */
+    border-radius: 3px;
+    z-index: 1;
+    cursor: pointer;
+    transition: height 0.2s ease;
+}
+
+.timeline-age-item:hover {
+    height: 8px;
+}
+
+.timeline-age-item .age-hover-bubble {
+    position: fixed;
+    background: #4b2e2e;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    transform: translateX(-50%);
+    margin-top: -40px;
+    white-space: nowrap;
+    z-index: 1000;
+}
+
+.timeline-age-item:hover .age-hover-bubble {
+    opacity: 1;
+}
+
+.timeline-age-item .age-hover-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 40%;
+    transform: translateX(-50%);
+    border-width: 0 8px 8px 8px;
+    border-style: solid;
+    border-color: transparent transparent #4b2e2e transparent;
+    rotate: 180deg;
+}
+
 

@@ -318,9 +318,82 @@ function renderTimeline() {
     const abovePlaced = [];
     const belowPlaced = [];
 
+    // Remove existing age items before rendering new ones
+    const existingAgeItems = container.querySelectorAll('.timeline-age-item');
+    existingAgeItems.forEach(item => item.remove());
+
     timelineState.items.forEach((item, idx) => {
         if(!item){ return; }
-        // Calculate x position
+
+        // Handle age items differently
+        if (item.type === 'Age') {
+            // Calculate start and end positions
+            const startYear = parseFloat(item.year || item.date || 0);
+            const startSubtick = parseFloat(item.subtick || 0);
+            const endYear = parseFloat(item.end_year || item.year || 0);
+            const endSubtick = parseFloat(item.end_subtick || item.subtick || 0);
+            
+            // Calculate positions relative to the timeline's center
+            const containerRect = container.getBoundingClientRect();
+            const centerX = containerRect.width / 2;
+            const startPosition = centerX + (startYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (startSubtick / granularity) * pixelsPerSubtick * granularity;
+            const endPosition = centerX + (endYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (endSubtick / granularity) * pixelsPerSubtick * granularity;
+            
+            // Calculate the actual start and end positions relative to the container
+            const actualStartPosition = Math.max(0, startPosition);
+            const actualEndPosition = Math.min(containerRect.width, endPosition);
+            
+            // Only render if there's a visible portion
+            if (actualEndPosition > actualStartPosition) {
+                // Create the age item element
+                const ageItem = document.createElement('div');
+                ageItem.className = 'timeline-age-item';
+                ageItem.style.left = `${actualStartPosition}px`;
+                ageItem.style.width = `${actualEndPosition - actualStartPosition}px`;
+                ageItem.style.top = `${timelineY - 3}px`; // Center vertically on the timeline
+                ageItem.setAttribute('data-id', item.id);
+                ageItem.setAttribute('data-year', item.year);
+                ageItem.setAttribute('data-end-year', item.end_year);
+                
+                // Add hover bubble
+                const hoverBubble = document.createElement('div');
+                hoverBubble.className = 'age-hover-bubble';
+                hoverBubble.textContent = item.title;
+                ageItem.appendChild(hoverBubble);
+
+                // Add mousemove event listener to update bubble position
+                ageItem.addEventListener('mousemove', (e) => {
+                    const bubble = ageItem.querySelector('.age-hover-bubble');
+                    if (bubble) {
+                        // Keep bubble within screen bounds
+                        const bubbleWidth = bubble.offsetWidth;
+                        const screenWidth = window.innerWidth;
+                        let left = e.clientX;
+                        
+                        // Adjust position if bubble would go off screen
+                        if (left + bubbleWidth/2 > screenWidth) {
+                            left = screenWidth - bubbleWidth/2;
+                        } else if (left - bubbleWidth/2 < 0) {
+                            left = bubbleWidth/2;
+                        }
+                        
+                        bubble.style.left = `${left}px`;
+                    }
+                });
+                
+                // Add click handler for item viewer
+                if (window.openItemViewer) {
+                    ageItem.addEventListener('click', () => {
+                        window.openItemViewer(item.id);
+                    });
+                }
+                
+                container.appendChild(ageItem);
+            }
+            return;
+        }
+
+        // Regular item handling (existing code)
         const itemYear = parseFloat(item.year || item.date || 0);
         const itemSubtick = parseInt(item.subtick || 0);
         const itemX = centerX + (itemYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (itemSubtick / granularity) * pixelsPerSubtick * granularity;
@@ -890,8 +963,12 @@ function handleSelectorClick(e) {
     // Close the item selector
     closeItemSelector();
 
-    // Open the appropriate add item window
-    openAddItemWindow(year, subtick, type);
+    // Open the appropriate add item window based on type
+    if (type === 'event' || type === 'bookmark') {
+        window.api.send('open-add-item-window', year, subtick, timelineState.granularity, type);
+    } else {
+        window.api.send('open-add-item-with-range-window', year, subtick, timelineState.granularity, type);
+    }
 }
 
 // ===== Initialization =====
