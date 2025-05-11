@@ -286,8 +286,17 @@ function renderTimeline() {
     const startSubtick = Math.floor(leftYear * granularity) - bufferSubticks;
     const endSubtick = Math.ceil(rightYear * granularity) + bufferSubticks;
 
+    // Clear existing timeline elements
     timeline.innerHTML = "";
 
+    // Remove existing age and period items
+    const existingAgeItems = container.querySelectorAll('.timeline-age-item');
+    existingAgeItems.forEach(item => item.remove());
+    
+    const existingPeriodItems = container.querySelectorAll('.timeline-period-item');
+    existingPeriodItems.forEach(item => item.remove());
+
+    // Render ticks
     for (let i = startSubtick; i <= endSubtick; i++) {
         const year = i / granularity;
         const x = centerX + (year - focusYear) * pixelsPerSubtick * granularity + offsetPx;
@@ -310,22 +319,14 @@ function renderTimeline() {
         timeline.appendChild(el);
     }
 
-    // Render items as boxes with lines
-    const itemBoxes = [];
-    const itemBoxHeight = 28; // px, matches the new design
-    const itemBoxMargin = 3; // px, gap between stacked boxes
-    const timelineY = containerRect.height / 2; // y position of the timeline (center)
-    const abovePlaced = [];
-    const belowPlaced = [];
+    // Track positions of items for stacking
+    const itemPositions = new Map(); // For regular items
+    const periodPositions = []; // For period items
 
-    // Remove existing age items before rendering new ones
-    const existingAgeItems = container.querySelectorAll('.timeline-age-item');
-    existingAgeItems.forEach(item => item.remove());
-
+    // First pass: render all items to calculate positions
     timelineState.items.forEach((item, idx) => {
         if(!item){ return; }
 
-        // Handle age items differently
         if (item.type === 'Age') {
             // Calculate start and end positions
             const startYear = parseFloat(item.year || item.date || 0);
@@ -350,10 +351,15 @@ function renderTimeline() {
                 ageItem.className = 'timeline-age-item';
                 ageItem.style.left = `${actualStartPosition}px`;
                 ageItem.style.width = `${actualEndPosition - actualStartPosition}px`;
-                ageItem.style.top = `${timelineY - 3}px`; // Center vertically on the timeline
+                ageItem.style.top = "calc(50% + 1px)"; //`${containerRect.height / 2}px`; // Center vertically on the timeline
                 ageItem.setAttribute('data-id', item.id);
                 ageItem.setAttribute('data-year', item.year);
                 ageItem.setAttribute('data-end-year', item.end_year);
+                
+                // Set the background color from the database
+                if (item.color) {
+                    ageItem.style.backgroundColor = item.color;
+                }
                 
                 // Add hover bubble
                 const hoverBubble = document.createElement('div');
@@ -390,146 +396,222 @@ function renderTimeline() {
                 
                 container.appendChild(ageItem);
             }
-            return;
-        }
-
-        // Regular item handling (existing code)
-        const itemYear = parseFloat(item.year || item.date || 0);
-        const itemSubtick = parseInt(item.subtick || 0);
-        const itemX = centerX + (itemYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (itemSubtick / granularity) * pixelsPerSubtick * granularity;
-
-        // Alternate above/below
-        const isAbove = idx % 2 === 0;
-        let y;
-        let placedItems = isAbove ? abovePlaced : belowPlaced;
-        // Start at furthest position from timeline
-        if (isAbove) {
-            y = 0; // top of container
+        } else if (item.type === 'Period') {
+            // Calculate start and end positions
+            const startYear = parseFloat(item.year || item.date || 0);
+            const startSubtick = parseFloat(item.subtick || 0);
+            const endYear = parseFloat(item.end_year || item.year || 0);
+            const endSubtick = parseFloat(item.end_subtick || item.subtick || 0);
+            
+            // Calculate positions relative to the timeline's center
+            const containerRect = container.getBoundingClientRect();
+            const centerX = containerRect.width / 2;
+            const startPosition = centerX + (startYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (startSubtick / granularity) * pixelsPerSubtick * granularity;
+            const endPosition = centerX + (endYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (endSubtick / granularity) * pixelsPerSubtick * granularity;
+            
+            // Calculate the actual start and end positions relative to the container
+            const actualStartPosition = Math.max(0, startPosition);
+            const actualEndPosition = Math.min(containerRect.width, endPosition);
+            
+            // Only render if there's a visible portion
+            if (actualEndPosition > actualStartPosition) {
+                // Find the stack level by checking overlaps with existing periods
+                let stackLevel = 0;
+                
+                // Check for overlaps with existing periods
+                for (const existingPeriod of periodPositions) {
+                    // If periods overlap and are on the same side of the timeline
+                    if (!(actualEndPosition < existingPeriod.start || actualStartPosition > existingPeriod.end) && 
+                        existingPeriod.isAbove === (idx % 2 === 0)) {
+                        stackLevel = Math.max(stackLevel, existingPeriod.stackLevel + 1);
+                    }
+                }
+                
+                // Add this period to the tracking array
+                periodPositions.push({
+                    start: actualStartPosition,
+                    end: actualEndPosition,
+                    stackLevel: stackLevel,
+                    isAbove: idx % 2 === 0
+                });
+                
+                // Create the period item element
+                const periodItem = document.createElement('div');
+                periodItem.className = 'timeline-period-item';
+                periodItem.style.left = `${actualStartPosition}px`;
+                periodItem.style.width = `${actualEndPosition - actualStartPosition}px`;
+                
+                // Calculate vertical position
+                const isAbove = idx % 2 === 0;
+                const baseOffset = 10; // Base offset from timeline
+                const stackOffset = stackLevel * 10; // 15px gap between stacked periods
+                const totalOffset = baseOffset + stackOffset;
+                
+                periodItem.style.top = `${containerRect.height / 2 + (isAbove ? ((totalOffset * -1) - 4) : totalOffset)}px`;
+                
+                // Set the color from the database
+                if (item.color) {
+                    periodItem.style.backgroundColor = item.color;
+                }
+                
+                periodItem.setAttribute('data-id', item.id);
+                periodItem.setAttribute('data-year', item.year);
+                periodItem.setAttribute('data-end-year', item.end_year);
+                
+                // Add hover bubble
+                const hoverBubble = document.createElement('div');
+                hoverBubble.className = 'period-hover-bubble';
+                hoverBubble.textContent = item.title;
+                periodItem.appendChild(hoverBubble);
+                
+                // Add click handler for item viewer
+                if (window.openItemViewer) {
+                    periodItem.addEventListener('click', () => {
+                        window.openItemViewer(item.id);
+                    });
+                }
+                
+                container.appendChild(periodItem);
+            }
         } else {
-            y = containerRect.height - itemBoxHeight; // start at bottom of container
-        }
-        // Cascade down (for above) or up (for below) if overlapping
-        let foundOverlap = true;
-        while (foundOverlap) {
-            foundOverlap = false;
-            for (const placed of placedItems) {
-                // Check horizontal overlap
-                if (Math.abs(placed.x - itemX) < 150) {
-                    // Check vertical overlap
-                    if (isAbove) {
-                        if (y + itemBoxHeight > placed.y && y < placed.y + itemBoxHeight) {
-                            y = placed.y + itemBoxHeight + itemBoxMargin;
-                            foundOverlap = true;
-                        }
-                    } else {
-                        if (y < placed.y + itemBoxHeight && y + itemBoxHeight > placed.y) {
-                            y = placed.y - itemBoxHeight - itemBoxMargin;
-                            foundOverlap = true;
+            // Regular item handling (existing code)
+            const itemYear = parseFloat(item.year || item.date || 0);
+            const itemSubtick = parseInt(item.subtick || 0);
+            const itemX = centerX + (itemYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (itemSubtick / granularity) * pixelsPerSubtick * granularity;
+
+            // Alternate above/below
+            const isAbove = idx % 2 === 0;
+            let y;
+            let placedItems = isAbove ? abovePlaced : belowPlaced;
+            // Start at furthest position from timeline
+            if (isAbove) {
+                y = 0; // top of container
+            } else {
+                y = containerRect.height - itemBoxHeight; // start at bottom of container
+            }
+            // Cascade down (for above) or up (for below) if overlapping
+            let foundOverlap = true;
+            while (foundOverlap) {
+                foundOverlap = false;
+                for (const placed of placedItems) {
+                    // Check horizontal overlap
+                    if (Math.abs(placed.x - itemX) < 150) {
+                        // Check vertical overlap
+                        if (isAbove) {
+                            if (y + itemBoxHeight > placed.y && y < placed.y + itemBoxHeight) {
+                                y = placed.y + itemBoxHeight + itemBoxMargin;
+                                foundOverlap = true;
+                            }
+                        } else {
+                            if (y < placed.y + itemBoxHeight && y + itemBoxHeight > placed.y) {
+                                y = placed.y - itemBoxHeight - itemBoxMargin;
+                                foundOverlap = true;
+                            }
                         }
                     }
                 }
             }
-        }
-        placedItems.push({ x: itemX, y });
-        if (isAbove) {
-            y = y; // already at the correct position
-        } else {
-            // For below, y is already correct
-        }
-
-        // Adjust y so the connector line connects closer to the edge nearest the timeline center
-        const verticalOffset = 10; // px
-        let boxTop = y;
-        if (isAbove) {
-            boxTop = y + verticalOffset;
-        } else {
-            boxTop = y - verticalOffset;
-        }
-
-        const boxWidth = 150;
-        const isRightOfCenter = itemX >= centerX;
-        const leftMargin = 10; // px, for left side
-        const rightMargin = 10; // px, for right side
-        let boxLeft;
-        if (isRightOfCenter) {
-            // Box's right edge is at itemX - rightMargin
-            boxLeft = itemX - rightMargin;
-        } else {
-            // Box's left edge is at itemX + leftMargin
-            boxLeft = itemX + leftMargin - boxWidth;
-        }
-
-        // Create the line (always vertical at itemX)
-        const line = document.createElement('div');
-        line.className = 'timeline-item-line';
-        line.style.position = 'absolute';
-        line.style.left = `${itemX}px`;
-        // Give the line a unique id for linking
-        const lineId = `timeline-line-${idx}`;
-        line.setAttribute('data-line-id', lineId);
-        line.id = lineId;
-        if (isAbove) {
-            line.style.top = `${boxTop + itemBoxHeight}px`;
-            line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
-        } else {
-            line.style.top = `${timelineY}px`;
-            line.style.height = `${boxTop - timelineY}px`;
-        }
-        timeline.appendChild(line);
-
-        // Create the box
-        const box = document.createElement('div');
-        box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
-        box.style.position = 'absolute';
-        box.style.left = `${boxLeft}px`;
-        box.style.top = `${boxTop}px`;
-        box.setAttribute('data-id', item.id || item['story-id'] || idx);
-        box.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
-        box.setAttribute('data-line-id', lineId);
-        // Only show the title in the box
-        const titleStr = item.title || '(No Title)';
-        box.innerHTML = `<span style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;display:inline-block;\">${titleStr}</span>`;
-        box.addEventListener('click', function(e) {
-            e.stopPropagation();
-            window.openItemViewer && window.openItemViewer(box.getAttribute('data-id'));
-        });
-        // Highlight on hover
-        box.addEventListener('mouseenter', function() {
-            box.classList.add('highlighted');
-            const lineElem = document.getElementById(lineId);
-            if (lineElem) lineElem.classList.add('highlighted-line');
-            
-            // Show hover bubble
-            let hoverBubble = document.querySelector('.timeline-hover-bubble');
-            if (!hoverBubble) {
-                hoverBubble = document.createElement('div');
-                hoverBubble.className = 'timeline-hover-bubble';
-                document.body.appendChild(hoverBubble);
+            placedItems.push({ x: itemX, y });
+            if (isAbove) {
+                y = y; // already at the correct position
+            } else {
+                // For below, y is already correct
             }
-            
-            // Get the year and subtick from the data attributes
-            const year = box.getAttribute('data-year');
-            hoverBubble.textContent = year;
-            
-            // Calculate position relative to the viewport
-            const boxRect = box.getBoundingClientRect();
-            hoverBubble.style.left = `${boxRect.left + boxRect.width/2}px`;
-            hoverBubble.style.top = `${boxRect.top - 25}px`;
-            hoverBubble.classList.add('visible');
-        });
-        box.addEventListener('mouseleave', function() {
-            box.classList.remove('highlighted');
-            const lineElem = document.getElementById(lineId);
-            if (lineElem) lineElem.classList.remove('highlighted-line');
-            
-            // Hide hover bubble
-            const hoverBubble = document.querySelector('.timeline-hover-bubble');
-            if (hoverBubble) {
-                hoverBubble.classList.remove('visible');
+
+            // Adjust y so the connector line connects closer to the edge nearest the timeline center
+            const verticalOffset = 10; // px
+            let boxTop = y;
+            if (isAbove) {
+                boxTop = y + verticalOffset;
+            } else {
+                boxTop = y - verticalOffset;
             }
-        });
-        timeline.appendChild(box);
-        itemBoxes.push(box);
+
+            const boxWidth = 150;
+            const isRightOfCenter = itemX >= centerX;
+            const leftMargin = 10; // px, for left side
+            const rightMargin = 10; // px, for right side
+            let boxLeft;
+            if (isRightOfCenter) {
+                // Box's right edge is at itemX - rightMargin
+                boxLeft = itemX - rightMargin;
+            } else {
+                // Box's left edge is at itemX + leftMargin
+                boxLeft = itemX + leftMargin - boxWidth;
+            }
+
+            // Create the line (always vertical at itemX)
+            const line = document.createElement('div');
+            line.className = 'timeline-item-line';
+            line.style.position = 'absolute';
+            line.style.left = `${itemX}px`;
+            // Give the line a unique id for linking
+            const lineId = `timeline-line-${idx}`;
+            line.setAttribute('data-line-id', lineId);
+            line.id = lineId;
+            if (isAbove) {
+                line.style.top = `${boxTop + itemBoxHeight}px`;
+                line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
+            } else {
+                line.style.top = `${timelineY}px`;
+                line.style.height = `${boxTop - timelineY}px`;
+            }
+            timeline.appendChild(line);
+
+            // Create the box
+            const box = document.createElement('div');
+            box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
+            box.style.position = 'absolute';
+            box.style.left = `${boxLeft}px`;
+            box.style.top = `${boxTop}px`;
+            box.setAttribute('data-id', item.id || item['story-id'] || idx);
+            box.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
+            box.setAttribute('data-line-id', lineId);
+            // Only show the title in the box
+            const titleStr = item.title || '(No Title)';
+            box.innerHTML = `<span style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;display:inline-block;\">${titleStr}</span>`;
+            box.addEventListener('click', function(e) {
+                e.stopPropagation();
+                window.openItemViewer && window.openItemViewer(box.getAttribute('data-id'));
+            });
+            // Highlight on hover
+            box.addEventListener('mouseenter', function() {
+                box.classList.add('highlighted');
+                const lineElem = document.getElementById(lineId);
+                if (lineElem) lineElem.classList.add('highlighted-line');
+                
+                // Show hover bubble
+                let hoverBubble = document.querySelector('.timeline-hover-bubble');
+                if (!hoverBubble) {
+                    hoverBubble = document.createElement('div');
+                    hoverBubble.className = 'timeline-hover-bubble';
+                    document.body.appendChild(hoverBubble);
+                }
+                
+                // Get the year and subtick from the data attributes
+                const year = box.getAttribute('data-year');
+                hoverBubble.textContent = year;
+                
+                // Calculate position relative to the viewport
+                const boxRect = box.getBoundingClientRect();
+                hoverBubble.style.left = `${boxRect.left + boxRect.width/2}px`;
+                hoverBubble.style.top = `${boxRect.top - 25}px`;
+                hoverBubble.classList.add('visible');
+            });
+            box.addEventListener('mouseleave', function() {
+                box.classList.remove('highlighted');
+                const lineElem = document.getElementById(lineId);
+                if (lineElem) lineElem.classList.remove('highlighted-line');
+                
+                // Hide hover bubble
+                const hoverBubble = document.querySelector('.timeline-hover-bubble');
+                if (hoverBubble) {
+                    hoverBubble.classList.remove('visible');
+                }
+            });
+            timeline.appendChild(box);
+            itemBoxes.push(box);
+        }
     });
 }
 
@@ -906,6 +988,23 @@ function openAddItemWindow(year, subtick, granularity){
 }
 
 /**
+ * Generates a random pastel color
+ * @returns {string} Hex color code
+ */
+function generatePastelColor() {
+    // Generate random RGB values between 128 and 255 for pastel effect
+    const r = Math.floor(Math.random() * 128) + 128;
+    const g = Math.floor(Math.random() * 128) + 128;
+    const b = Math.floor(Math.random() * 128) + 128;
+    
+    // Convert to hex
+    return '#' + [r, g, b].map(x => {
+        const hex = x.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+}
+
+/**
  * Jumps to a specific date (year and subtick)
  * 
  * How it works:
@@ -967,7 +1066,8 @@ function handleSelectorClick(e) {
     if (type === 'event' || type === 'bookmark') {
         window.api.send('open-add-item-window', year, subtick, timelineState.granularity, type);
     } else {
-        window.api.send('open-add-item-with-range-window', year, subtick, timelineState.granularity, type);
+        const randomColor = generatePastelColor();
+        window.api.send('open-add-item-with-range-window', year, subtick, timelineState.granularity, type, randomColor);
     }
 }
 
@@ -1007,8 +1107,28 @@ container.addEventListener('click', function(e) {
 
     const rect = container.getBoundingClientRect();
     const x = e.clientX - rect.left;
-    const year = Math.floor(x / timelineState.pixelsPerSubtick);
-    const subtick = Math.floor((x % timelineState.pixelsPerSubtick) / (timelineState.pixelsPerSubtick / timelineState.granularity));
+    
+    // Calculate year and subtick using the same logic as the hover marker
+    const floatYear = calculateYearFromPosition(x);
+    const step = 1 / timelineState.granularity;
+    const snapped = Math.round(floatYear / step) * step;
+
+    let year, subtick;
+    if (snapped >= 0) {
+        year = Math.floor(snapped);
+        subtick = Math.round((snapped - year) * timelineState.granularity);
+    } else {
+        year = Math.ceil(snapped);
+        subtick = Math.round((snapped - year) * timelineState.granularity);
+    }
+
+    subtick = Math.abs(subtick);
+
+    // Clamp subtick to [0, granularity-1]
+    if (subtick >= timelineState.granularity) {
+        year += (snapped >= 0 ? 1 : -1);
+        subtick = 0;
+    }
 
     // Position the selector
     selector.style.left = `${e.clientX}px`;

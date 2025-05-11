@@ -114,6 +114,7 @@ class DatabaseManager {
                 book_title TEXT,
                 chapter TEXT,
                 page TEXT,
+                color TEXT,
                 creation_granularity INTEGER,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -416,7 +417,7 @@ class DatabaseManager {
             custom_scale: parseFloat(settings.customScale || 1.0)
         };
 
-        console.log("\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\nXXXXX---SETTINGS---XXXXX",settings,"\r\n|------|\r\n",dbSettings);
+        console.log("\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\nXXXXX---SETTINGS---XXXXX",settings,"\r\n|------|\r\n",dbSettings);
 
         const stmt = this.db.prepare(`
             INSERT OR REPLACE INTO settings (
@@ -518,12 +519,12 @@ class DatabaseManager {
             INSERT INTO items (
                 id, title, description, content, story_id, type_id,
                 year, subtick, original_subtick, end_year, end_subtick, original_end_subtick,
-                book_title, chapter, page,
+                book_title, chapter, page, color,
                 creation_granularity
             ) VALUES (
                 @id, @title, @description, @content, @story_id, @type_id,
                 @year, @subtick, @original_subtick, @end_year, @end_subtick, @original_end_subtick,
-                @book_title, @chapter, @page,
+                @book_title, @chapter, @page, @color,
                 @creation_granularity
             )
         `);
@@ -548,6 +549,7 @@ class DatabaseManager {
             book_title: item.book_title,
             chapter: item.chapter,
             page: item.page,
+            color: item.color,
             creation_granularity: currentGranularity
         });
 
@@ -676,7 +678,8 @@ class DatabaseManager {
                 END,
                 book_title = @book_title,
                 chapter = @chapter,
-                page = @page
+                page = @page,
+                color = @color
             WHERE id = @id
         `);
 
@@ -695,7 +698,8 @@ class DatabaseManager {
             end_subtick_changed: endSubtickChanged ? 1 : 0,
             book_title: item.book_title,
             chapter: item.chapter,
-            page: item.page
+            page: item.page,
+            color: item.color
         });
 
         // Update tags if present

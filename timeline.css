@@ -268,17 +268,27 @@
 
 /* Age Timeline Item Styles */
 .timeline-age-item {
-    position: absolute;
+    /* position: absolute;
     height: 6px;
-    background-color: #4CAF50; /* Leaf green color */
+    background-color: #4CAF50; 
     border-radius: 3px;
     z-index: 1;
     cursor: pointer;
+    transition: height 0.2s ease; */
+    transition-duration: 0.2s;
+
+    position: absolute;
+    height: 8px;
+    /* border-radius: 3px; */
+    z-index: 1;
+    cursor: pointer;
     transition: height 0.2s ease;
+    transform: translateY(-50%);
 }
 
 .timeline-age-item:hover {
-    height: 8px;
+    transition-duration: 0.2s;
+    height: 10px;
 }
 
 .timeline-age-item .age-hover-bubble {
@@ -311,6 +321,52 @@
     border-style: solid;
     border-color: transparent transparent #4b2e2e transparent;
     rotate: 180deg;
+}
+
+/* Period Timeline Item Styles */
+.timeline-period-item {
+    position: absolute;
+    height: 5px;
+    background-color: #4CAF50; /* Default color, will be overridden by item color */
+    border-radius: 2px;
+    z-index: 1;
+    cursor: pointer;
+    transition: height 0.2s ease;
+}
+
+.timeline-period-item:hover {
+    height: 8px;
+}
+
+.timeline-period-item .period-hover-bubble {
+    position: fixed;
+    background: #4b2e2e;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s;
+    transform: translateX(-50%);
+    margin-top: -25px;
+    white-space: nowrap;
+    z-index: 1000;
+}
+
+.timeline-period-item:hover .period-hover-bubble {
+    opacity: 1;
+}
+
+.timeline-period-item .period-hover-bubble::after {
+    content: '';
+    position: absolute;
+    bottom: -4px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 4px 4px 0 4px;
+    border-style: solid;
+    border-color: #4b2e2e transparent transparent transparent;
 }
 
 

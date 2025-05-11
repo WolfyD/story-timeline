@@ -15,12 +15,17 @@ const urlParams = new URLSearchParams(window.location.search);
 const year = urlParams.get('year');
 const subtick = urlParams.get('subtick');
 const granularity = urlParams.get('granularity');
+const color = urlParams.get('color');
 
 if (year !== null && subtick !== null) {
     document.getElementById('yearInput').value = year;
     document.getElementById('subtickInput').value = subtick;
     document.getElementById('endYearInput').value = year;
     document.getElementById('endSubtickInput').value = subtick;
+}
+
+if (color !== null) {
+    document.getElementById('colorInput').value = color;
 }
 
 // Handle tag input
@@ -207,7 +212,8 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         story_refs: collectStoryRefs(),
         story: '',
         'story-id': '',
-        type: (urlParams.get('type') || 'period').charAt(0).toUpperCase() + (urlParams.get('type') || 'period').slice(1)
+        type: (urlParams.get('type') || 'period').charAt(0).toUpperCase() + (urlParams.get('type') || 'period').slice(1),
+        color: document.getElementById('colorInput').value || null
     };
 
     try {
@@ -233,6 +239,7 @@ document.getElementById('testFillBtn').addEventListener('click', function() {
     document.getElementById('bookTitle').value = 'Test Book';
     document.getElementById('chapter').value = 'Test Chapter';
     document.getElementById('page').value = '42';
+    document.getElementById('colorInput').value = '#37F2AE';
 
     // Add a sample tag
     tags.add('test-tag');

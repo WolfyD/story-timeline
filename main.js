@@ -332,8 +332,9 @@ function createEditItemWindow(item) {
  * @param {number} subtick - Subtick position
  * @param {number} granularity - Granularity of the timeline
  * @param {string} type - Type of the item
+ * @param {string} color - Color for the item
  */
-function createAddItemWithRangeWindow(year, subtick, granularity, type) {
+function createAddItemWithRangeWindow(year, subtick, granularity, type, color) {
   let newItemWindow = new BrowserWindow({
     width: 500,
     height: 400,
@@ -364,7 +365,8 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type) {
       year: year,
       subtick: subtick,
       granularity: granularity,
-      type: type
+      type: type,
+      color: color
     }
   });
   
@@ -645,9 +647,9 @@ function setupIpcHandlers() {
     createAddItemWindow(year, subtick, granularity, type);
   });
 
-  ipcMain.on('open-add-item-with-range-window', (event, year, subtick, granularity, type) => {
-    console.log('[main.js] opening add item with range window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity, 'and type:', type);
-    createAddItemWithRangeWindow(year, subtick, granularity, type);
+  ipcMain.on('open-add-item-with-range-window', (event, year, subtick, granularity, type, color) => {
+    console.log('[main.js] opening add item with range window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity, 'and type:', type, 'and color:', color);
+    createAddItemWithRangeWindow(year, subtick, granularity, type, color);
   });
 
   ipcMain.on('getStorySuggestions', (event) => {
