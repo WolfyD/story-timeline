@@ -277,6 +277,55 @@ function renderTimeline() {
     const nowDiv = document.getElementById('timeline-info-now');
     if (nowDiv) nowDiv.textContent = centerInfo;
 
+    // Find age item under center arrow and display its picture
+    const mainContentLeft = document.querySelector('.main-content-left');
+    if (mainContentLeft) {
+        // Clear existing content
+        mainContentLeft.innerHTML = '';
+        
+        // Find age items that contain the center point
+        const centerAgeItems = timelineState.items.filter(item => {
+            if (item.type !== 'Age') return false;
+            
+            const startYear = parseFloat(item.year || item.date || 0);
+            const endYear = parseFloat(item.end_year || item.year || 0);
+            
+            return centerYear >= startYear && centerYear <= endYear;
+        });
+        
+        // If we found an age item with pictures, display the first picture
+        if (centerAgeItems.length > 0) {
+            const ageItem = centerAgeItems[0]; // Take the first matching age item
+            if (ageItem.pictures && ageItem.pictures.length > 0) {
+                const img = document.createElement('img');
+                img.src = ageItem.pictures[0].picture;
+                img.style.maxWidth = '100%';
+                img.style.height = 'auto';
+                img.style.display = 'block';
+                img.style.margin = '0 auto';
+                
+                // Add title if available
+                if (ageItem.title) {
+                    const title = document.createElement('h3');
+                    title.textContent = ageItem.title;
+                    title.style.textAlign = 'center';
+                    title.style.marginBottom = '10px';
+                    mainContentLeft.appendChild(title);
+                }
+                
+                mainContentLeft.appendChild(img);
+                
+                // Add description if available
+                if (ageItem.description) {
+                    const desc = document.createElement('p');
+                    desc.textContent = ageItem.description;
+                    desc.style.marginTop = '10px';
+                    mainContentLeft.appendChild(desc);
+                }
+            }
+        }
+    }
+
     // Calculate the leftmost and rightmost visible years based on current offset and size
     const leftYear = focusYear - ((centerX + offsetPx) / (granularity * pixelsPerSubtick));
     const rightYear = focusYear + ((containerRect.width - centerX - offsetPx) / (granularity * pixelsPerSubtick));
