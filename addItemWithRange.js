@@ -65,34 +65,61 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
-    input.onchange = function(e) {
+    input.onchange = async function(e) {
         const file = e.target.files[0];
         if (file) {
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                addImagePreview(e.target.result);
+            try {
+                // Create a temporary file path
+                const tempPath = await window.api.invoke('save-temp-file', {
+                    name: file.name,
+                    type: file.type,
+                    data: await file.arrayBuffer()
+                });
+
+                // Get the item ID from the form
+                const itemId = document.getElementById('addItemForm').dataset.itemId || null;
+
+                // Send file to main process to save it and get metadata
+                window.api.send('save-new-image', {
+                    file_path: tempPath,
+                    file_name: file.name,
+                    file_size: file.size,
+                    file_type: file.type,
+                    item_id: itemId
+                });
+            } catch (error) {
+                console.error('Error saving temporary file:', error);
+                alert('Error preparing image for upload. Please try again.');
             }
-            reader.readAsDataURL(file);
         }
     };
     input.click();
 });
 
-function addImagePreview(dataUrl) {
+// Handle response from main process with saved image info
+window.api.receive('new-image-saved', (imageInfo) => {
+    if (imageInfo.error) {
+        alert('Error saving image: ' + imageInfo.error);
+        return;
+    }
+    addImagePreview(imageInfo);
+    images.push(imageInfo);
+});
+
+function addImagePreview(imageInfo) {
     const container = document.querySelector('.image-upload-container');
     const preview = document.createElement('div');
     preview.className = 'image-preview';
     preview.innerHTML = `
-        <img src="${dataUrl}">
-        <button class="remove-image" onclick="removeImage(this, '${dataUrl}')">&times;</button>
+        <img src="file://${imageInfo.file_path}">
+        <button class="remove-image" onclick="removeImage(this, '${imageInfo.file_path}')">&times;</button>
     `;
     container.insertBefore(preview, document.getElementById('addImageBtn'));
-    images.push(dataUrl);
 }
 
-function removeImage(button, dataUrl) {
+function removeImage(button, filePath) {
     button.parentElement.remove();
-    const index = images.indexOf(dataUrl);
+    const index = images.findIndex(img => img.file_path === filePath);
     if (index > -1) {
         images.splice(index, 1);
     }
@@ -197,10 +224,16 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         description: document.getElementById('description').value,
         content: document.getElementById('content').value,
         tags: Array.from(tags),
-        pictures: images.map((dataUrl, index) => ({
-            picture: dataUrl,
-            title: `Image ${index + 1}`,
-            description: ''
+        pictures: images.map((imageInfo, index) => ({
+            id: imageInfo.id,
+            file_path: imageInfo.file_path,
+            file_name: imageInfo.file_name,
+            file_size: imageInfo.file_size,
+            file_type: imageInfo.file_type,
+            width: imageInfo.width,
+            height: imageInfo.height,
+            title: imageInfo.title || `Image ${index + 1}`,
+            description: imageInfo.description || ''
         })),
         bookTitle: document.getElementById('bookTitle').value,
         chapter: document.getElementById('chapter').value,
@@ -248,4 +281,82 @@ document.getElementById('testFillBtn').addEventListener('click', function() {
     // Add a sample image
     const sampleImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjAwIiBoZWlnaHQ9IjIwMCIgZmlsbD0iI2NjYyIvPjx0ZXh0IHg9IjUwJSIgeT0iNTAlIiBmb250LWZhbWlseT0iQXJpYWwiIGZvbnQtc2l6ZT0iMjAiIHRleHQtYW5jaG9yPSJtaWRkbGUiIGR5PSIuM2VtIiBmaWxsPSIjNjY2Ij5TYW1wbGUgSW1hZ2U8L3RleHQ+PC9zdmc+';
     addImagePreview(sampleImage);
+});
+
+window.api.receive('itemData', (item) => {
+    if (item) {
+        // Set the item ID on the form
+        document.getElementById('addItemForm').dataset.itemId = item.id;
+
+        // Set form values
+        document.getElementById('title').value = item.title || '';
+        document.getElementById('description').value = item.description || '';
+        document.getElementById('content').value = item.content || '';
+        document.getElementById('yearInput').value = item.year || '';
+        document.getElementById('subtickInput').value = item.subtick || '';
+        document.getElementById('endYearInput').value = item.end_year || item.year || '';
+        document.getElementById('endSubtickInput').value = item.end_subtick || item.subtick || '';
+        document.getElementById('bookTitle').value = item.book_title || '';
+        document.getElementById('chapter').value = item.chapter || '';
+        document.getElementById('page').value = item.page || '';
+        if (item.color) {
+            document.getElementById('colorInput').value = item.color;
+        }
+
+        // Clear existing tags and images
+        tags.clear();
+        images.length = 0;
+        document.getElementById('tagsContainer').innerHTML = '';
+        document.getElementById('imagesContainer').innerHTML = '';
+
+        // Add existing tags
+        if (item.tags) {
+            item.tags.forEach(tag => {
+                tags.add(tag);
+                addTagToUI(tag);
+            });
+        }
+
+        // Add existing images
+        if (item.pictures) {
+            item.pictures.forEach(pic => {
+                addImagePreview(pic);
+                images.push(pic);
+            });
+        }
+
+        // Update form submission handler for editing
+        document.getElementById('addItemForm').onsubmit = function(e) {
+            e.preventDefault();
+            const formData = {
+                id: item.id, // Keep the same ID
+                title: document.getElementById('title').value,
+                description: document.getElementById('description').value,
+                content: document.getElementById('content').value,
+                tags: Array.from(tags),
+                pictures: images.map((imageInfo, index) => ({
+                    id: imageInfo.id,
+                    file_path: imageInfo.file_path,
+                    file_name: imageInfo.file_name,
+                    file_size: imageInfo.file_size,
+                    file_type: imageInfo.file_type,
+                    width: imageInfo.width,
+                    height: imageInfo.height,
+                    title: imageInfo.title || `Image ${index + 1}`,
+                    description: imageInfo.description || ''
+                })),
+                book_title: document.getElementById('bookTitle').value,
+                chapter: document.getElementById('chapter').value,
+                page: document.getElementById('page').value,
+                year: document.getElementById('yearInput').value,
+                subtick: document.getElementById('subtickInput').value,
+                end_year: document.getElementById('endYearInput').value,
+                end_subtick: document.getElementById('endSubtickInput').value,
+                story_refs: collectStoryRefs()
+            };
+            // Send update request
+            window.api.send('updateTimelineItem', formData);
+            window.close();
+        };
+    }
 }); 

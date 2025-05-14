@@ -151,16 +151,18 @@ window.openItemViewer = function(itemId) {
                 const pictureElement = document.createElement('div');
                 pictureElement.className = 'image-container';
                 pictureElement.innerHTML = `
-                    <img src="${pic.picture}" alt="${pic.title || ''}">
-                    ${pic.title ? `<div class="image-title">${pic.title}</div>` : ''}
+                    <img src="${pic.file_path}" alt="${pic.title || ''}">
+                    <div class="image-info">
+                        <div class="image-title">${pic.title || 'Untitled'}</div>
+                        <div class="image-description">${pic.description || ''}</div>
+                    </div>
                 `;
                 picturesContainer.appendChild(pictureElement);
             });
         } else {
-            // Add empty state
             const emptyState = document.createElement('div');
-            emptyState.className = 'image-container empty';
-            emptyState.textContent = 'No images';
+            emptyState.className = 'empty-state';
+            emptyState.textContent = 'No images available';
             picturesContainer.appendChild(emptyState);
         }
     }
@@ -406,6 +408,7 @@ function toggleGuides(show) {
  */
 function dataSetup(data) {
     if(!data) return;
+
     
     let title = document.querySelector('#title');
     title.value = data.title || "";
@@ -1037,3 +1040,116 @@ function updateCustomScale(value) {
         window.api.send('set-window-scale', parseFloat(value));
     }
 }
+
+// Handle timeline data
+window.api.receive('timeline-data', (data) => {
+    console.log('Received timeline data:', data);
+    
+    // Update timeline state
+    timelineState.focusYear = data.start_year;
+    timelineState.granularity = data.granularity;
+    
+    // Update UI elements with timeline data
+    const title = document.querySelector('#title');
+    if (title) title.value = data.title || "";
+    
+    const author = document.querySelector('#author');
+    if (author) author.value = data.author || "";
+    
+    const description = document.querySelector('#description');
+    if (description) description.value = data.description || "";
+    
+    const start = document.querySelector('#start');
+    if (start) start.value = data.start_year || 0;
+    
+    const granularity = document.querySelector('#granularity');
+    if (granularity) granularity.value = data.granularity || 4;
+    
+    const mainTitle = document.querySelector('#main_title');
+    if (mainTitle) mainTitle.textContent = data.title || "";
+    
+    const mainSubtitle = document.querySelector('#main_subtitle');
+    if (mainSubtitle) mainSubtitle.textContent = data.author || "";
+    
+    // Update loaded data
+    loadedData = {
+        ...loadedData,
+        title: data.title,
+        author: data.author,
+        description: data.description,
+        start: data.start_year,
+        granularity: data.granularity
+    };
+    
+    // Apply settings if available
+    if (data.settings) {
+        // Apply font settings
+        document.body.style.fontFamily = data.settings.font;
+        document.body.style.fontSize = `${data.settings.fontSizeScale}em`;
+
+        // Apply custom CSS if enabled
+        if (data.settings.useTimelineCSS && data.settings.customCSS) {
+            const style = document.createElement('style');
+            style.textContent = data.settings.customCSS;
+            document.head.appendChild(style);
+        }
+
+        // Apply window scaling if enabled
+        if (data.settings.useCustomScaling) {
+            window.api.send('set-window-scale', data.settings.customScale);
+        }
+
+        // Update UI elements with settings
+        const fontSelect = document.querySelector('#font-select');
+        if (fontSelect) fontSelect.value = data.settings.font;
+        
+        const fontSizeScale = document.querySelector('#font-size-scale-input');
+        if (fontSizeScale) fontSizeScale.value = data.settings.fontSizeScale;
+        
+        const pixelsPerSubtick = document.querySelector('#pixels-per-subtick');
+        if (pixelsPerSubtick) pixelsPerSubtick.value = data.settings.pixelsPerSubtick;
+        
+        const customCSS = document.querySelector('#custom-css');
+        if (customCSS) customCSS.value = data.settings.customCSS;
+        
+        const customMainCSS = document.querySelector('#custom-main-css');
+        if (customMainCSS) customMainCSS.value = data.settings.customMainCSS;
+        
+        const customItemsCSS = document.querySelector('#custom-items-css');
+        if (customItemsCSS) customItemsCSS.value = data.settings.customItemsCSS;
+        
+        const useTimelineCSS = document.querySelector('#use-timeline-css');
+        if (useTimelineCSS) useTimelineCSS.checked = data.settings.useTimelineCSS;
+        
+        const useMainCSS = document.querySelector('#use-main-css');
+        if (useMainCSS) useMainCSS.checked = data.settings.useMainCSS;
+        
+        const useItemsCSS = document.querySelector('#use-items-css');
+        if (useItemsCSS) useItemsCSS.checked = data.settings.useItemsCSS;
+        
+        const showGuides = document.querySelector('#show-guides');
+        if (showGuides) showGuides.checked = data.settings.showGuides;
+        
+        const useCustomScaling = document.querySelector('#use-custom-scaling');
+        if (useCustomScaling) useCustomScaling.checked = data.settings.useCustomScaling;
+        
+        const customScale = document.querySelector('#custom-scale');
+        if (customScale) customScale.value = data.settings.customScale;
+
+        // Update timeline state with settings
+        timelineState.pixelsPerSubtick = data.settings.pixelsPerSubtick;
+        
+        // Update loaded settings
+        loadedSettings = data.settings;
+    }
+
+    // Update timeline display
+    renderTimeline();
+});
+
+// Handle items data
+window.api.receive('items', (newItems) => {
+    console.log('Received items:', newItems);
+    timelineState.items = newItems;
+    renderTimeline();
+});

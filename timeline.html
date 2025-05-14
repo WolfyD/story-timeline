@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Timeline</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="timeline.css">
+    <script src="preload.js"></script>
+</head>
+<body>
+    <div id="app">
+        <div id="timeline-container">
+            <div id="timeline-header">
+                <h1 id="timeline-title"></h1>
+                <p id="timeline-author"></p>
+                <p id="timeline-description"></p>
+            </div>
+            <div id="timeline-content">
+                <div id="timeline-items"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Handle timeline data from main process
+        window.api.receive('timeline-data', (data) => {
+            console.log('Received timeline data:', data);
+            
+            // Update header information
+            document.getElementById('timeline-title').textContent = data.title;
+            document.getElementById('timeline-author').textContent = `by ${data.author || 'Unknown'}`;
+            document.getElementById('timeline-description').textContent = data.description || '';
+
+            // Apply settings
+            if (data.settings) {
+                // Apply font settings
+                document.body.style.fontFamily = data.settings.font;
+                document.body.style.fontSize = `${data.settings.font_size_scale}em`;
+
+                // Apply custom CSS if enabled
+                if (data.settings.use_timeline_css && data.settings.custom_css) {
+                    const style = document.createElement('style');
+                    style.textContent = data.settings.custom_css;
+                    document.head.appendChild(style);
+                }
+
+                // Apply window scaling if enabled
+                if (data.settings.use_custom_scaling) {
+                    window.api.send('set-window-scale', data.settings.custom_scale);
+                }
+            }
+
+            // Load items for this timeline
+            window.api.send('get-all-items');
+        });
+
+        // Handle items data
+        window.api.receive('items', (items) => {
+            const itemsContainer = document.getElementById('timeline-items');
+            itemsContainer.innerHTML = '';
+
+            items.forEach(item => {
+                const itemElement = createItemElement(item);
+                itemsContainer.appendChild(itemElement);
+            });
+        });
+
+        // Create item element
+        function createItemElement(item) {
+            const div = document.createElement('div');
+            div.className = 'timeline-item';
+            div.innerHTML = `
+                <h3>${item.title}</h3>
+                <p>${item.description || ''}</p>
+                <p class="item-year">${item.year}</p>
+            `;
+            return div;
+        }
+
+        // Handle errors
+        window.api.receive('error', (message) => {
+            console.error('Error:', message);
+            alert(message);
+        });
+    </script>
+</body>
+</html>

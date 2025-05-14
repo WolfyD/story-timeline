@@ -1,6 +1,8 @@
 const path = require('path');
 const { app } = require('electron');
 const { v4: uuidv4 } = require('uuid');
+const fs = require('fs');
+const sharp = require('sharp');
 
 class DatabaseManager {
     constructor() {
@@ -16,24 +18,28 @@ class DatabaseManager {
     }
 
     initializeTables() {
-        // Universe/Project data table
+        // Create timelines table (replacing universe_data)
         this.db.exec(`
-            CREATE TABLE IF NOT EXISTS universe_data (
+            CREATE TABLE IF NOT EXISTS timelines (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 title TEXT NOT NULL,
-                author TEXT,
+                author TEXT NOT NULL,
                 description TEXT,
                 start_year INTEGER DEFAULT 0,
                 granularity INTEGER DEFAULT 4,
+                settings_id INTEGER,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(title, author),
+                FOREIGN KEY (settings_id) REFERENCES settings(id)
             )
         `);
 
-        // Settings table
+        // Settings table (modified to support multiple timelines)
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS settings (
                 id INTEGER PRIMARY KEY,
+                timeline_id INTEGER,
                 font TEXT DEFAULT 'Arial',
                 font_size_scale REAL DEFAULT 1.0,
                 pixels_per_subtick INTEGER DEFAULT 20,
@@ -51,7 +57,8 @@ class DatabaseManager {
                 window_position_y INTEGER DEFAULT 100,
                 use_custom_scaling INTEGER DEFAULT 0,
                 custom_scale REAL DEFAULT 1.0,
-                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
             )
         `);
 
@@ -116,10 +123,12 @@ class DatabaseManager {
                 page TEXT,
                 color TEXT,
                 creation_granularity INTEGER,
+                timeline_id INTEGER,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (story_id) REFERENCES stories(id),
-                FOREIGN KEY (type_id) REFERENCES item_types(id)
+                FOREIGN KEY (type_id) REFERENCES item_types(id),
+                FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
             )
         `);
 
@@ -143,12 +152,17 @@ class DatabaseManager {
             )
         `);
 
-        // Pictures table
+        // Pictures table (modified to store file information)
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS pictures (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 item_id TEXT,
-                picture TEXT,
+                file_path TEXT NOT NULL,
+                file_name TEXT NOT NULL,
+                file_size INTEGER,
+                file_type TEXT,
+                width INTEGER,
+                height INTEGER,
                 title TEXT,
                 description TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -260,20 +274,23 @@ class DatabaseManager {
                     @use_custom_scaling, @custom_scale
                 )
             `);
-            insertStmt.run(defaultSettings);
+            //insertStmt.run(defaultSettings);
         }
 
-        // Check if we have universe data
-        const universeData = this.getUniverseData();
-        if (!universeData) {
-            const defaultUniverseData = {
+        // Check if we have any timelines
+        const timelineStmt = this.db.prepare('SELECT COUNT(*) as count FROM timelines');
+        const timelineResult = timelineStmt.get();
+        
+        if (timelineResult.count === 0) {
+            // Create a default timeline
+            const defaultTimeline = {
                 title: 'New Timeline',
                 author: '',
                 description: '',
                 start_year: 0,
                 granularity: 4
             };
-            this.updateUniverseData(defaultUniverseData);
+            this.addTimeline(defaultTimeline);
         }
     }
 
@@ -317,56 +334,77 @@ class DatabaseManager {
 
     // Universe data operations
     getUniverseData() {
-        const stmt = this.db.prepare('SELECT * FROM universe_data ORDER BY id DESC LIMIT 1');
+        // Get the first timeline instead of universe_data
+        const stmt = this.db.prepare('SELECT * FROM timelines ORDER BY id DESC LIMIT 1');
         const data = stmt.get();
         
         if (!data) {
             return null;
         }
 
+        // Get settings for this timeline
+        const settings = this.getTimelineSettings(data.id);
+
         // Convert database field names to frontend field names
         return {
+            id: data.id,
             title: data.title,
             author: data.author,
             description: data.description,
             start: data.start_year,
-            granularity: data.granularity
+            granularity: data.granularity,
+            settings: settings
         };
     }
 
     updateUniverseData(data) {
-        // Get current universe data to check if granularity is changing
+        // Get current timeline data to check if granularity is changing
         const currentData = this.getUniverseData();
         const granularityChanged = currentData && currentData.granularity !== data.granularity;
 
-        // Convert frontend field names to database field names
-        const dbData = {
-            title: data.title,
-            author: data.author,
-            description: data.description,
-            start_year: data.start || data.start_year,
-            granularity: data.granularity
-        };
+        // Get the current timeline ID from the data state
+        const timelineId = data.timeline_id;
+        if (!timelineId) {
+            console.error('No timeline ID found in data state');
+            return null;
+        }
 
-        const stmt = this.db.prepare(`
-            INSERT INTO universe_data (title, author, description, start_year, granularity)
-            VALUES (@title, @author, @description, @start_year, @granularity)
+        // Update the existing timeline
+        const updateStmt = this.db.prepare(`
+            UPDATE timelines 
+            SET title = @title,
+                author = @author,
+                description = @description,
+                start_year = @start_year,
+                granularity = @granularity,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = @timeline_id
         `);
-        const result = stmt.run(dbData);
+
+        const result = updateStmt.run({
+            title: data.title || 'New Timeline',
+            author: data.author || '',
+            description: data.description || '',
+            start_year: parseInt(data.start || data.start_year || 0),
+            granularity: parseInt(data.granularity || 4),
+            timeline_id: timelineId
+        });
 
         // If granularity changed, update all items' subticks
         if (granularityChanged) {
             this.updateItemsForGranularityChange(data.granularity);
         }
 
-        return result;
+        return timelineId;
     }
 
     // Settings operations
     getSettings() {
-        const stmt = this.db.prepare('SELECT * FROM settings WHERE id = 1');
-        const settings = stmt.get();
-        
+        // Get the first timeline's settings
+        const timeline = this.getUniverseData();
+        if (!timeline) return null;
+
+        const settings = this.getTimelineSettings(timeline.id);
         if (!settings) return null;
 
         // Convert database snake_case to camelCase for frontend
@@ -396,6 +434,12 @@ class DatabaseManager {
     }
 
     updateSettings(settings) {
+        const timelineId = settings.timeline_id;
+        if (!timelineId) {
+            console.error('No timeline ID found in settings');
+            return;
+        }
+
         // Convert frontend camelCase to database snake_case
         const dbSettings = {
             font: settings.font || 'Arial',
@@ -409,32 +453,42 @@ class DatabaseManager {
             use_items_css: settings.useItemsCSS ? 1 : 0,
             is_fullscreen: settings.isFullscreen ? 1 : 0,
             show_guides: settings.showGuides ? 1 : 0,
-            window_size_x: parseInt((settings.size && settings.size.x) || 800),
-            window_size_y: parseInt((settings.size && settings.size.y) || 600),
-            window_position_x: parseInt((settings.position && settings.position.x) || 100),
-            window_position_y: parseInt((settings.position && settings.position.y) || 100),
+            window_size_x: parseInt(settings.windowSizeX || 800),
+            window_size_y: parseInt(settings.windowSizeY || 600),
+            window_position_x: parseInt(settings.windowPositionX || 100),
+            window_position_y: parseInt(settings.windowPositionY || 100),
             use_custom_scaling: settings.useCustomScaling ? 1 : 0,
             custom_scale: parseFloat(settings.customScale || 1.0)
         };
 
-        console.log("\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\n\r\nXXXXX---SETTINGS---XXXXX",settings,"\r\n|------|\r\n",dbSettings);
-
+        // Update settings for the timeline
         const stmt = this.db.prepare(`
-            INSERT OR REPLACE INTO settings (
-                id, font, font_size_scale, pixels_per_subtick, custom_css, 
-                custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
-                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
-                use_custom_scaling, custom_scale
-            )
-            VALUES (
-                1, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
-                @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
-                @use_custom_scaling, @custom_scale
-            )
+            UPDATE settings SET
+                font = @font,
+                font_size_scale = @font_size_scale,
+                pixels_per_subtick = @pixels_per_subtick,
+                custom_css = @custom_css,
+                custom_main_css = @custom_main_css,
+                custom_items_css = @custom_items_css,
+                use_timeline_css = @use_timeline_css,
+                use_main_css = @use_main_css,
+                use_items_css = @use_items_css,
+                is_fullscreen = @is_fullscreen,
+                show_guides = @show_guides,
+                window_size_x = @window_size_x,
+                window_size_y = @window_size_y,
+                window_position_x = @window_position_x,
+                window_position_y = @window_position_y,
+                use_custom_scaling = @use_custom_scaling,
+                custom_scale = @custom_scale,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE timeline_id = @timeline_id
         `);
 
-        stmt.run(dbSettings);
+        return stmt.run({
+            ...dbSettings,
+            timeline_id: timelineId
+        });
     }
 
     // Helper: get or create a story by title and id
@@ -490,85 +544,79 @@ class DatabaseManager {
     }
 
     addItem(item) {
-        // Ensure item has an ID
-        if (!item.id) {
-            throw new Error('Item must have an ID');
-        }
+        try {
+            // Start a transaction
+            this.db.prepare('BEGIN').run();
 
-        // Handle story relationship
-        let storyId = null;
-        if (item['story-id']) {
-            // Ensure story exists and get its ID
-            const story = this.getOrCreateStory(item.story || '', item['story-id']);
-            if (story) {
-                storyId = story.id;
-            }
-        }
-
-        // Get type_id from type name if provided
-        let typeId = 1; // Default to Event type
-        if (item.type) {
+            // Get type_id from type name
             const typeStmt = this.db.prepare('SELECT id FROM item_types WHERE name = ?');
-            const typeResult = typeStmt.get(item.type);
-            if (typeResult) {
-                typeId = typeResult.id;
+            const typeResult = typeStmt.get(item.type || 'Event');
+            const typeId = typeResult ? typeResult.id : 1; // Default to Event (id: 1) if type not found
+
+            // Insert the item
+            const stmt = this.db.prepare(`
+                INSERT INTO items (
+                    id, title, description, content, year, subtick,
+                    book_title, chapter, page, type_id, color, timeline_id
+                ) VALUES (
+                    @id, @title, @description, @content, @year, @subtick,
+                    @book_title, @chapter, @page, @type_id, @color, @timeline_id
+                )
+            `);
+
+            const result = stmt.run({
+                id: item.id,
+                title: item.title,
+                description: item.description || '',
+                content: item.content || '',
+                year: item.year,
+                subtick: item.subtick,
+                book_title: item.book_title || '',
+                chapter: item.chapter || '',
+                page: item.page || '',
+                type_id: typeId,
+                color: item.color || null,
+                timeline_id: this.getUniverseData().id
+            });
+
+            // Add tags if any
+            if (item.tags && item.tags.length > 0) {
+                this.addTagsToItem(item.id, item.tags);
             }
+
+            // Add story references if any
+            if (item.story_refs && item.story_refs.length > 0) {
+                this.addStoryReferencesToItem(item.id, item.story_refs);
+            }
+
+            // Add pictures if any
+            if (item.pictures && item.pictures.length > 0) {
+                // First, update any pictures that were uploaded before the item was created
+                const pictureIds = item.pictures
+                    .filter(pic => pic.id) // Only include pictures that have an ID (were already saved)
+                    .map(pic => pic.id);
+                
+                if (pictureIds.length > 0) {
+                    this.updatePicturesItemId(pictureIds, item.id);
+                }
+
+                // Then add any new pictures
+                const newPictures = item.pictures.filter(pic => !pic.id);
+                if (newPictures.length > 0) {
+                    this.addPicturesToItem(item.id, newPictures);
+                }
+            }
+
+            // Commit the transaction
+            this.db.prepare('COMMIT').run();
+
+            return result.lastInsertRowid;
+        } catch (error) {
+            // Rollback on error
+            this.db.prepare('ROLLBACK').run();
+            console.error('Error adding item:', error);
+            throw error;
         }
-
-        const stmt = this.db.prepare(`
-            INSERT INTO items (
-                id, title, description, content, story_id, type_id,
-                year, subtick, original_subtick, end_year, end_subtick, original_end_subtick,
-                book_title, chapter, page, color,
-                creation_granularity
-            ) VALUES (
-                @id, @title, @description, @content, @story_id, @type_id,
-                @year, @subtick, @original_subtick, @end_year, @end_subtick, @original_end_subtick,
-                @book_title, @chapter, @page, @color,
-                @creation_granularity
-            )
-        `);
-
-        // Get current granularity from universe data
-        const universeData = this.getUniverseData();
-        const currentGranularity = universeData ? universeData.granularity : 4;
-
-        const result = stmt.run({
-            id: item.id,
-            title: item.title,
-            description: item.description,
-            content: item.content,
-            story_id: storyId,
-            type_id: typeId,
-            year: item.year,
-            subtick: item.subtick,
-            original_subtick: item.subtick,
-            end_year: item.end_year || item.year,
-            end_subtick: item.end_subtick || item.subtick,
-            original_end_subtick: item.original_end_subtick || item.subtick,
-            book_title: item.book_title,
-            chapter: item.chapter,
-            page: item.page,
-            color: item.color,
-            creation_granularity: currentGranularity
-        });
-
-        // Add tags if present
-        if (item.tags && item.tags.length > 0) {
-            this.addTagsToItem(item.id, item.tags);
-        }
-
-        // Add pictures if present
-        if (item.pictures && item.pictures.length > 0) {
-            this.addPicturesToItem(item.id, item.pictures);
-        }
-
-        // Add story references if present
-        if (item.story_refs && item.story_refs.length > 0) {
-            this.addStoryReferencesToItem(item.id, item.story_refs);
-        }
-
-        return result;
     }
 
     getItem(id) {
@@ -621,15 +669,19 @@ class DatabaseManager {
     }
 
     getAllItems() {
+        const timeline = this.getUniverseData();
+        if (!timeline) return [];
+
         const stmt = this.db.prepare(`
             SELECT i.*, s.title as story_title, s.id as story_id, s.description as story_description,
                    t.name as type
             FROM items i 
             LEFT JOIN stories s ON i.story_id = s.id 
             LEFT JOIN item_types t ON i.type_id = t.id
+            WHERE i.timeline_id = ?
             ORDER BY i.year, i.subtick
         `);
-        const items = stmt.all();
+        const items = stmt.all(timeline.id);
         return items.map(item => ({
             ...item,
             tags: this.getItemTags(item.id),
@@ -760,14 +812,19 @@ class DatabaseManager {
     // Picture operations
     addPicturesToItem(itemId, pictures) {
         const stmt = this.db.prepare(`
-            INSERT INTO pictures (item_id, picture, title, description)
-            VALUES (@item_id, @picture, @title, @description)
+            INSERT INTO pictures (item_id, file_path, file_name, file_size, file_type, width, height, title, description)
+            VALUES (@item_id, @file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
         `);
 
         for (const pic of pictures) {
             stmt.run({
                 item_id: itemId,
-                picture: pic.picture,
+                file_path: pic.file_path,
+                file_name: pic.file_name,
+                file_size: pic.file_size,
+                file_type: pic.file_type,
+                width: pic.width,
+                height: pic.height,
                 title: pic.title,
                 description: pic.description
             });
@@ -785,14 +842,19 @@ class DatabaseManager {
 
         // Add new pictures
         const stmt = this.db.prepare(`
-            INSERT INTO pictures (item_id, picture, title, description)
-            VALUES (@item_id, @picture, @title, @description)
+            INSERT INTO pictures (item_id, file_path, file_name, file_size, file_type, width, height, title, description)
+            VALUES (@item_id, @file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
         `);
 
         for (const pic of pictures) {
             stmt.run({
                 item_id: itemId,
-                picture: pic.picture,
+                file_path: pic.file_path,
+                file_name: pic.file_name,
+                file_size: pic.file_size,
+                file_type: pic.file_type,
+                width: pic.width,
+                height: pic.height,
                 title: pic.title,
                 description: pic.description
             });
@@ -889,6 +951,560 @@ class DatabaseManager {
             const tagId = getTagId.get(tag).id;
             addItemTag.run(itemId, tagId);
         }
+    }
+
+    // Timeline operations
+    getTimeline(title, author) {
+        const stmt = this.db.prepare('SELECT * FROM timelines WHERE title = ? AND author = ?');
+        return stmt.get(title, author);
+    }
+
+    getAllTimelines() {
+        const stmt = this.db.prepare(`
+            WITH timeline_years AS (
+                SELECT 
+                    t.id,
+                    t.title,
+                    t.author,
+                    t.description,
+                    t.start_year,
+                    t.granularity,
+                    t.settings_id,
+                    t.created_at,
+                    t.updated_at,
+                    MIN(i.year) as min_year,
+                    MAX(i.year) as max_year,
+                    COUNT(i.id) as item_count
+                FROM timelines t
+                LEFT JOIN items i ON i.timeline_id = t.id
+                GROUP BY t.id, t.title, t.author, t.description, t.start_year, t.granularity, t.settings_id, t.created_at, t.updated_at
+            )
+            SELECT 
+                id,
+                title,
+                author,
+                description,
+                start_year,
+                granularity,
+                settings_id,
+                created_at,
+                updated_at,
+                CASE 
+                    WHEN item_count = 0 THEN -2147483648
+                    WHEN item_count = 1 THEN min_year
+                    ELSE min_year
+                END as start_year,
+                CASE 
+                    WHEN item_count = 0 THEN 2147483647
+                    WHEN item_count = 1 THEN max_year
+                    ELSE max_year
+                END as end_year
+            FROM timeline_years
+            ORDER BY title, author
+        `);
+        return stmt.all();
+    }
+
+    createTimeline(timeline) {
+        // First create settings for this timeline
+        const settingsStmt = this.db.prepare(`
+            INSERT INTO settings (
+                font, font_size_scale, pixels_per_subtick, custom_css,
+                custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                use_custom_scaling, custom_scale
+            ) VALUES (
+                @font, @font_size_scale, @pixels_per_subtick, @custom_css,
+                @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
+                @use_custom_scaling, @custom_scale
+            )
+        `);
+
+        const defaultSettings = {
+            font: 'Arial',
+            font_size_scale: 1.0,
+            pixels_per_subtick: 20,
+            custom_css: '',
+            custom_main_css: '',
+            custom_items_css: '',
+            use_timeline_css: 0,
+            use_main_css: 0,
+            use_items_css: 0,
+            is_fullscreen: 0,
+            show_guides: 1,
+            window_size_x: 800,
+            window_size_y: 600,
+            window_position_x: 100,
+            window_position_y: 100,
+            use_custom_scaling: 0,
+            custom_scale: 1.0
+        };
+
+        const settingsResult = settingsStmt.run(defaultSettings);
+        const settingsId = settingsResult.lastInsertRowid;
+
+        // Then create the timeline
+        const timelineStmt = this.db.prepare(`
+            INSERT INTO timelines (
+                title, author, description, start_year, granularity, settings_id
+            ) VALUES (
+                @title, @author, @description, @start_year, @granularity, @settings_id
+            )
+        `);
+
+        const timelineData = {
+            title: timeline.title,
+            author: timeline.author,
+            description: timeline.description || '',
+            start_year: timeline.start_year || 0,
+            granularity: timeline.granularity || 4,
+            settings_id: settingsId
+        };
+
+        const timelineResult = timelineStmt.run(timelineData);
+        const timelineId = timelineResult.lastInsertRowid;
+
+        // Update settings with timeline_id if the column exists
+        try {
+            const updateSettingsStmt = this.db.prepare(`
+                UPDATE settings 
+                SET timeline_id = @timeline_id 
+                WHERE id = @settings_id
+            `);
+            updateSettingsStmt.run({
+                timeline_id: timelineId,
+                settings_id: settingsId
+            });
+        } catch (error) {
+            // If the timeline_id column doesn't exist, ignore the error
+            console.log('Settings table does not have timeline_id column');
+        }
+
+        return timelineResult;
+    }
+
+    updateTimeline(timeline) {
+        const stmt = this.db.prepare(`
+            UPDATE timelines SET
+                description = @description,
+                start_year = @start_year,
+                granularity = @granularity
+            WHERE id = @id
+        `);
+
+        return stmt.run({
+            id: timeline.id,
+            description: timeline.description,
+            start_year: timeline.start_year,
+            granularity: timeline.granularity
+        });
+    }
+
+    deleteTimeline(timelineId) {
+        // Start a transaction
+        this.db.prepare('BEGIN').run();
+
+        try {
+            // First delete item-related records
+            this.db.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
+            this.db.prepare('DELETE FROM pictures WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
+            this.db.prepare('DELETE FROM item_story_refs WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
+            
+            // Then delete the items themselves
+            this.db.prepare('DELETE FROM items WHERE timeline_id = ?').run(timelineId);
+            
+            // Delete the timeline itself
+            this.db.prepare('DELETE FROM timelines WHERE id = ?').run(timelineId);
+            
+            // Settings will be automatically deleted due to ON DELETE CASCADE
+
+            // Commit the transaction
+            this.db.prepare('COMMIT').run();
+            return true;
+        } catch (error) {
+            // Rollback on error
+            this.db.prepare('ROLLBACK').run();
+            console.error('Error deleting timeline:', error);
+            throw error;
+        }
+    }
+
+    getTimelineSettings(timelineId) {
+        const stmt = this.db.prepare(`
+            SELECT * FROM settings 
+            WHERE timeline_id = @timeline_id
+        `);
+        const settings = stmt.get({ timeline_id: timelineId });
+        
+        if (!settings) {
+            // If no settings exist, create default settings for this timeline
+            const defaultSettings = {
+                font: 'Arial',
+                font_size_scale: 1.0,
+                pixels_per_subtick: 20,
+                custom_css: '',
+                custom_main_css: '',
+                custom_items_css: '',
+                use_timeline_css: 0,
+                use_main_css: 0,
+                use_items_css: 0,
+                is_fullscreen: 0,
+                show_guides: 1,
+                window_size_x: 800,
+                window_size_y: 600,
+                window_position_x: 100,
+                window_position_y: 100,
+                use_custom_scaling: 0,
+                custom_scale: 1.0
+            };
+
+            const insertStmt = this.db.prepare(`
+                INSERT INTO settings (
+                    timeline_id, font, font_size_scale, pixels_per_subtick, custom_css,
+                    custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                    is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                    use_custom_scaling, custom_scale
+                ) VALUES (
+                    @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
+                    @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                    @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
+                    @use_custom_scaling, @custom_scale
+                )
+            `);
+            const result = insertStmt.run({ ...defaultSettings, timeline_id: timelineId });
+            return { ...defaultSettings, id: result.lastInsertRowid, timeline_id: timelineId };
+        }
+
+        return settings;
+    }
+
+    // Add a new method to get timeline with its settings
+    getTimelineWithSettings(timelineId) {
+        const timelineStmt = this.db.prepare('SELECT * FROM timelines WHERE id = ?');
+        const timeline = timelineStmt.get(timelineId);
+        
+        if (!timeline) {
+            return null;
+        }
+
+        const settings = this.getTimelineSettings(timelineId);
+        
+        // Convert database snake_case to frontend camelCase
+        return {
+            id: timeline.id,
+            title: timeline.title,
+            author: timeline.author,
+            description: timeline.description,
+            start_year: timeline.start_year,
+            granularity: timeline.granularity,
+            settings: {
+                font: settings.font,
+                fontSizeScale: settings.font_size_scale,
+                pixelsPerSubtick: settings.pixels_per_subtick,
+                customCSS: settings.custom_css,
+                customMainCSS: settings.custom_main_css,
+                customItemsCSS: settings.custom_items_css,
+                useTimelineCSS: settings.use_timeline_css === 1,
+                useMainCSS: settings.use_main_css === 1,
+                useItemsCSS: settings.use_items_css === 1,
+                isFullscreen: settings.is_fullscreen === 1,
+                showGuides: settings.show_guides === 1,
+                size: {
+                    x: settings.window_size_x,
+                    y: settings.window_size_y
+                },
+                position: {
+                    x: settings.window_position_x,
+                    y: settings.window_position_y
+                },
+                useCustomScaling: settings.use_custom_scaling === 1,
+                customScale: settings.custom_scale
+            }
+        };
+    }
+
+    updateTimelineSettings(timelineId, settings) {
+        const stmt = this.db.prepare(`
+            UPDATE settings SET
+                font = @font,
+                font_size_scale = @font_size_scale,
+                pixels_per_subtick = @pixels_per_subtick,
+                custom_css = @custom_css,
+                custom_main_css = @custom_main_css,
+                custom_items_css = @custom_items_css,
+                use_timeline_css = @use_timeline_css,
+                use_main_css = @use_main_css,
+                use_items_css = @use_items_css,
+                is_fullscreen = @is_fullscreen,
+                show_guides = @show_guides,
+                window_size_x = @window_size_x,
+                window_size_y = @window_size_y,
+                window_position_x = @window_position_x,
+                window_position_y = @window_position_y,
+                use_custom_scaling = @use_custom_scaling,
+                custom_scale = @custom_scale
+            WHERE timeline_id = @timeline_id
+        `);
+
+        return stmt.run({
+            ...settings,
+            timeline_id: timelineId
+        });
+    }
+
+    // Helper function to save image file and return file info
+    async saveImageFile(base64Data, itemId) {
+        const fs = require('fs');
+        const path = require('path');
+        const { app } = require('electron');
+
+        // Get the timeline ID for this item
+        const item = this.getItem(itemId);
+        const timelineId = item.timeline_id;
+
+        // Create media directory if it doesn't exist
+        const mediaDir = path.join(app.getPath('userData'), 'media', 'pictures', timelineId);
+        if (!fs.existsSync(mediaDir)) {
+            fs.mkdirSync(mediaDir, { recursive: true });
+        }
+
+        // Generate unique filename
+        const timestamp = Date.now();
+        const randomStr = Math.random().toString(36).substring(7);
+        const fileName = `img_${timestamp}_${randomStr}.png`;
+        const filePath = path.join(mediaDir, fileName);
+
+        // Convert base64 to buffer and save
+        const base64Image = base64Data.replace(/^data:image\/\w+;base64,/, '');
+        const buffer = Buffer.from(base64Image, 'base64');
+        await fs.promises.writeFile(filePath, buffer);
+
+        // Get image dimensions
+        const size = buffer.length;
+        const dimensions = await new Promise((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve({ width: img.width, height: img.height });
+            img.src = base64Data;
+        });
+
+        return {
+            file_path: filePath,
+            file_name: fileName,
+            file_size: size,
+            file_type: 'image/png',
+            width: dimensions.width,
+            height: dimensions.height
+        };
+    }
+
+    // Modified addPicturesToItem to handle file storage
+    async addPicturesToItem(itemId, pictures) {
+        for (const pic of pictures) {
+            if (pic.picture) {
+                const fileInfo = await this.saveImageFile(pic.picture, itemId);
+                const stmt = this.db.prepare(`
+                    INSERT INTO pictures (
+                        item_id, file_path, file_name, file_size, file_type,
+                        width, height, title, description
+                    ) VALUES (
+                        @item_id, @file_path, @file_name, @file_size, @file_type,
+                        @width, @height, @title, @description
+                    )
+                `);
+
+                stmt.run({
+                    item_id: itemId,
+                    ...fileInfo,
+                    title: pic.title || 'Untitled',
+                    description: pic.description || ''
+                });
+            }
+        }
+    }
+
+    // Modified getItemPictures to return file paths instead of base64
+    getItemPictures(itemId) {
+        const stmt = this.db.prepare('SELECT * FROM pictures WHERE item_id = ?');
+        return stmt.all(itemId);
+    }
+
+    // Add a new timeline
+    addTimeline(timeline) {
+        // First create default settings
+        const settingsStmt = this.db.prepare(`
+            INSERT INTO settings (
+                font, font_size_scale, pixels_per_subtick, custom_css,
+                custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                use_custom_scaling, custom_scale
+            ) VALUES (
+                @font, @font_size_scale, @pixels_per_subtick, @custom_css,
+                @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
+                @use_custom_scaling, @custom_scale
+            )
+        `);
+
+        const defaultSettings = {
+            font: 'Arial',
+            font_size_scale: 1.0,
+            pixels_per_subtick: 20,
+            custom_css: '',
+            custom_main_css: '',
+            custom_items_css: '',
+            use_timeline_css: 0,
+            use_main_css: 0,
+            use_items_css: 0,
+            is_fullscreen: 0,
+            show_guides: 1,
+            window_size_x: 800,
+            window_size_y: 600,
+            window_position_x: 100,
+            window_position_y: 100,
+            use_custom_scaling: 0,
+            custom_scale: 1.0
+        };
+
+        const settingsResult = settingsStmt.run(defaultSettings);
+        const settingsId = settingsResult.lastInsertRowid;
+
+        // Then create the timeline with the settings_id
+        const timelineStmt = this.db.prepare(`
+            INSERT INTO timelines (
+                title, author, description, start_year, granularity, settings_id
+            ) VALUES (
+                @title, @author, @description, @start_year, @granularity, @settings_id
+            )
+        `);
+        
+        const timelineData = {
+            title: timeline.title || 'New Timeline',
+            author: timeline.author || '',
+            description: timeline.description || '',
+            start_year: timeline.start_year || 0,
+            granularity: timeline.granularity || 4,
+            settings_id: settingsId
+        };
+
+        const timelineResult = timelineStmt.run(timelineData);
+        const timelineId = timelineResult.lastInsertRowid;
+
+        // Update settings with timeline_id
+        const updateSettingsStmt = this.db.prepare(`
+            UPDATE settings 
+            SET timeline_id = @timeline_id 
+            WHERE id = @settings_id
+        `);
+        updateSettingsStmt.run({
+            timeline_id: timelineId,
+            settings_id: settingsId
+        });
+        
+        return timelineId;
+    }
+
+    /**
+     * Gets all items for a specific timeline
+     * @param {string} timelineId - The ID of the timeline
+     * @returns {Array} Array of items for the timeline
+     */
+    getItemsByTimeline(timelineId) {
+        const stmt = this.db.prepare(`
+            SELECT * FROM items 
+            WHERE timeline_id = @timelineId
+            ORDER BY year ASC, subtick ASC
+        `);
+        
+        return stmt.all({ timelineId });
+    }
+
+    async saveNewImage(fileInfo) {
+        const { app } = require('electron');
+        const path = require('path');
+        const fs = require('fs');
+
+        try {
+            // Get the current timeline ID
+            const timeline = this.getUniverseData();
+            if (!timeline || !timeline.id) {
+                throw new Error('No active timeline found or timeline ID is missing');
+            }
+
+            // Create media directory if it doesn't exist
+            const timelineMediaDir = path.join(app.getPath('userData'), 'media', 'pictures', timeline.id.toString());
+            if (!fs.existsSync(timelineMediaDir)) {
+                fs.mkdirSync(timelineMediaDir, { recursive: true });
+            }
+
+            // Generate unique filename
+            const timestamp = Date.now();
+            const randomStr = Math.random().toString(36).substring(7);
+            const fileName = `img_${timestamp}_${randomStr}${path.extname(fileInfo.file_name)}`;
+            const filePath = path.join(timelineMediaDir, fileName);
+
+            // If we have a full file path, copy the file
+            if (fileInfo.file_path && fileInfo.file_path !== fileInfo.file_name) {
+                await fs.promises.copyFile(fileInfo.file_path, filePath);
+            } else {
+                // If we only have a filename, create an empty file
+                await fs.promises.writeFile(filePath, '');
+            }
+
+            // Get image dimensions using sharp
+            const metadata = await sharp(filePath).metadata();
+
+            // Create the file info object
+            const fileInfoObj = {
+                file_path: filePath,
+                file_name: fileName,
+                file_size: fileInfo.file_size,
+                file_type: fileInfo.file_type,
+                width: metadata.width,
+                height: metadata.height,
+                title: path.parse(fileInfo.file_name).name,
+                description: ''
+            };
+
+            // Insert into pictures table
+            const stmt = this.db.prepare(`
+                INSERT INTO pictures (
+                    item_id, file_path, file_name, file_size, file_type,
+                    width, height, title, description
+                ) VALUES (
+                    @item_id, @file_path, @file_name, @file_size, @file_type,
+                    @width, @height, @title, @description
+                )
+            `);
+
+            const result = stmt.run({
+                item_id: fileInfo.item_id || null,  // Allow null for standalone images
+                ...fileInfoObj
+            });
+
+            // Add the picture ID to the returned object
+            fileInfoObj.id = result.lastInsertRowid;
+
+            return fileInfoObj;
+        } catch (error) {
+            console.error('Error saving new image:', error);
+            throw error;
+        }
+    }
+
+    // Add a new method to update item_id for pictures after item creation
+    updatePicturesItemId(pictureIds, itemId) {
+        if (!Array.isArray(pictureIds) || pictureIds.length === 0 || !itemId) {
+            return;
+        }
+
+        const stmt = this.db.prepare(`
+            UPDATE pictures 
+            SET item_id = @item_id 
+            WHERE id IN (${pictureIds.map(() => '?').join(',')})
+        `);
+
+        return stmt.run({ item_id: itemId }, ...pictureIds);
     }
 }
 

@@ -10,7 +10,7 @@
   </head>
   <body>
     <button class="settings-button open-settings-button no-select" onclick="openSettings()">Settings</button>
-    <div id="version-display" class="version-display no-select">v0.1.3</div>
+    <div id="version-display" class="version-display no-select">v0.2.1</div>
 
     <!-- Header Area -->
     <div class="title-container">
@@ -337,7 +337,7 @@
         <div id="position_guide">0:0</div>
         <div id="scale_guide">1</div>
       </div>
-      <input type="number" id="jump-to-date" onmousewheel="" class="jump-to-date-input" min="-99999999" max="99999999" value="0" step="1">
+      <input type="number" id="jump-to-date" onmousewheel="" class="jump-to-date-input" min="-99999999" max="99999999" value="0" step="1" onkeydown="if(event.key === 'Enter') jumpToDate()">
       <button id="jump-to-date-button" onclick="jumpToDate()">Jump</button>
 
       <div class="timeline-info-container">
@@ -356,7 +356,7 @@
 
       // Add File menu
       menubar.addMenu('File', [
-        { label: 'New Timeline', action: () => console.log('New Timeline') },
+        { label: 'New Timeline', action: () => window.api.send('new-timeline') },
         { label: 'Import...', action: () => importTimelineData() },
         { label: 'Export...', action: () => exportTimelineData() },
         { separator: true },
@@ -367,7 +367,12 @@
 
       // Add Edit menu
       menubar.addMenu('Edit', [
-        { label: 'Add Item', action: () => openAddItemWindow(0, 0, 4) },
+        { label: 'Add Item', action: () => {
+          const centerX = document.getElementById('timeline-container').offsetWidth / 2;
+          const year = calculateYearFromPosition(centerX);
+          const subtick = calculateSubtickFromPosition(centerX);
+          openAddItemWindow(year, subtick, timelineState.granularity);
+        }},
         { label: 'Settings', action: () => openSettings() }
       ]);
 
@@ -379,7 +384,22 @@
 
       // Add Help menu
       menubar.addMenu('Help', [
-        { label: 'About', action: () => alert('Story Timeline v' + document.getElementById('version-display').textContent) }
+        { label: 'About', action: () => {
+          const version = document.getElementById('version-display').textContent;
+          const aboutText = `Story Timeline
+Version ${version}
+
+A powerful timeline visualization tool for writers and storytellers, allowing you to create, manage, and visualize complex story timelines with ease.
+
+Developed by WolfyD @WolfPaw Co.
+Contact: info@wolfyden.nl
+
+This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.`;
+
+          alert(aboutText);
+        }}
       ]);
     </script>
   </body>

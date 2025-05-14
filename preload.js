@@ -19,7 +19,16 @@ contextBridge.exposeInMainWorld('api', {
             'updateTimelineItem',
             'getItem',
             'open-edit-item-window',
-            'confirm-import-timeline-data'
+            'confirm-import-timeline-data',
+            'new-timeline',
+            'quit-app',
+            'get-all-timelines',
+            'open-timeline',
+            'delete-timeline',
+            'get-timeline-info',
+            'call-load-data', 
+            'open-timeline-images',
+            'save-new-image'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -29,7 +38,8 @@ contextBridge.exposeInMainWorld('api', {
         console.log("preload.js: invoke called with channel:", channel, "and args:", args);
         const validChannels = [
             'export-timeline-data',
-            'import-timeline-data'
+            'import-timeline-data',
+            'save-temp-file'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
@@ -58,7 +68,14 @@ contextBridge.exposeInMainWorld('api', {
             'export-timeline-data-error',
             'import-timeline-data-confirm',
             'import-timeline-data-success',
-            'import-timeline-data-error'
+            'import-timeline-data-error',
+            'new-timeline',
+            'quit-app',
+            'timelines-list',
+            'timeline-deleted',
+            'timeline-delete-error',
+            'timeline-info',
+            'new-image-saved'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

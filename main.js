@@ -37,6 +37,7 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const dbManager = require('./dbManager');
+const { migrate } = require('./migrate');
 
 // ===== Constants =====
 /**
@@ -72,7 +73,7 @@ const DEFAULT_SETTINGS = {
  * @type {Object} settings - Current application settings
  * @type {Object} data - Current timeline data
  */
-let mainWindow;
+let mainWindow = null;
 let addItemWindow;
 let editItemWindow;
 let settings = DEFAULT_SETTINGS;
@@ -89,6 +90,8 @@ let data = {
     }
 };
 
+let splashWindow = null;
+
 // ===== Window Management =====
 /**
  * Creates the main application window
@@ -102,113 +105,62 @@ let data = {
  * - Window creation failure
  * - File load failure
  */
+function createSplashWindow() {
+    splashWindow = new BrowserWindow({
+        width: 900,
+        height: 700,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        },
+        show: false,
+        backgroundColor: '#f5f0e6'
+    });
+
+    splashWindow.webContents.on("before-input-event", (event, input) => {
+      if (input.key === "F12") {
+        splashWindow.webContents.openDevTools();
+      }
+    });
+
+    splashWindow.loadFile('splash.html');
+    splashWindow.once('ready-to-show', () => {
+        splashWindow.show();
+    });
+
+    splashWindow.on('closed', () => {
+        splashWindow = null;
+    });
+}
+
 function createWindow() {
-  mainWindow = new BrowserWindow({
-    show: false,
-    width: data.size.x,
-    height: data.size.y,
-    webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
-      contextIsolation: true,
-      enableRemoteModule: false,
-      nodeIntegration: false,
-      defaultEncoding: 'utf-8',
-      webgl: true
-    }
-  });
+    mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js')
+        },
+        show: false,
+        backgroundColor: '#f5f0e6'
+    });
 
-  mainWindow.setMenuBarVisibility(false);
-  
-  mainWindow.loadFile('index.html');
+    mainWindow.loadFile('index.html');
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+    });
 
-  mainWindow.webContents.on("before-input-event", (event, input) => {
-    if (input.key === "F12") {
-      mainWindow.webContents.openDevTools();
-    }
-  });
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
 
-  mainWindow.on("resize", () => {
-    mainWindow.webContents.send("window-resized", mainWindow.getSize(), mainWindow.isMaximized());
-  });
-
-  mainWindow.on("move", () => {
-    let displays = screen.getAllDisplays();
-    try {
-      let display = displays.find(display => display.bounds.x <= mainWindow.getPosition()[0] + 30 && display.bounds.x + display.bounds.width >= mainWindow.getPosition()[0] - 30);
-      mainWindow.webContents.send("window-moved", mainWindow.getPosition(), display.scaleFactor);
-    } catch (error) {
-      mainWindow.webContents.send("window-moved", mainWindow.getPosition());
-    }
-  });
-  
-  mainWindow.on("ready-to-show", () => {
-    // Load settings from database
-    const settings = dbManager.getSettings();
-    const universeData = dbManager.getUniverseData();
-    
-    // Always show the window first
-    mainWindow.show();
-
-    // Send app version to renderer
-    mainWindow.webContents.send('app-version', app.getVersion());
-
-    if (settings) {
-      mainWindow.webContents.send("window-resized", mainWindow.getSize());
-      
-      // Handle custom CSS
-      if (!settings.customCSS || settings.customCSS === "") {
-        console.log("No custom CSS found, loading template");
-        settings.customCSS = fs.readFileSync(path.join(__dirname, 'customCSSTemplate.txt'), 'utf8');
+    mainWindow.webContents.on("before-input-event", (event, input) => {
+      if (input.key === "F12") {
+        mainWindow.webContents.openDevTools();
       }
-      
-      // Send settings to renderer
-      mainWindow.webContents.send('call-load-settings', settings);
-
-      // Set window position and size if they exist
-      if (settings.position && settings.size) {
-        mainWindow.setPosition(settings.position.x, settings.position.y);
-        mainWindow.setSize(settings.size.x, settings.size.y);
-        
-        // Update data size
-        data.size = {
-          x: settings.size.x,
-          y: settings.size.y
-        };
-        
-        if (settings.isFullscreen) {
-          mainWindow.maximize();
-        }
-
-        if (settings.useCustomScaling) {
-          mainWindow.webContents.setZoomFactor(settings.customScale);
-        }
-      }
-    } else {
-      // Send default settings to renderer
-      mainWindow.webContents.send('call-load-settings', false);
-    }
-
-    // Load and send data
-    const items = dbManager.getAllItems();
-    const updatedData = {
-      ...(universeData || {
-        title: 'New Timeline',
-        author: '',
-        description: '',
-        start: 0,
-        granularity: 4
-      }),
-      items: items || []
-    };
-    
-    // Update our data state
-    data = {
-      ...data,
-      ...updatedData
-    };
-    
-    mainWindow.webContents.send('call-load-data', data);
-  });
+    });
 }
 
 /**
@@ -478,7 +430,8 @@ function saveSettings(newSettings) {
     windowPositionX: parseInt(mainWindow.getPosition()[0] + 2),
     windowPositionY: parseInt(mainWindow.getPosition()[1] + 1),
     useCustomScaling: newSettings.useCustomScaling ? 1 : 0,
-    customScale: parseFloat(newSettings.customScale || 1.0)
+    customScale: parseFloat(newSettings.customScale || 1.0),
+    timeline_id: data.timeline_id
   };
   
   dbManager.updateSettings(dbSettings);
@@ -546,6 +499,9 @@ function loadData() {
       ...savedData,
       items: dbManager.getAllItems() || []
     };
+
+    console.log("loadData", data);
+
     mainWindow.webContents.send('call-load-data', data);
   }
 }
@@ -600,33 +556,62 @@ function saveData(newData) {
  * - IPC setup failure
  */
 function setupIpcHandlers() {
-  ipcMain.on('save-settings', (event, settings, newData) => {
-    console.log("Received new data:", newData);
-    
-    // Update our data state with the new data
+  ipcMain.on('save-settings', (event, newSettings, newData) => {
+    // Merge new settings with current settings
+    const updatedSettings = {
+      ...data.settings,
+      ...newSettings
+    };
+
+    // Update the data state
     data = {
       ...data,
-      title: newData.title || data.title,
-      author: newData.author || data.author,
-      description: newData.description || data.description,
-      start: parseInt(newData.start || data.start || 0),
-      granularity: parseInt(newData.granularity || data.granularity || 4),
-      items: newData.items || data.items || []
+      settings: updatedSettings,
+      title: newData.title,
+      author: newData.author,
+      description: newData.description,
+      start: newData.start,
+      granularity: newData.granularity
     };
-    
-    console.log("Updated data state:", data);
-    
-    if (saveSettings(settings)) {
-      // Get all items from database to ensure we have the latest data
-      const allItems = dbManager.getAllItems();
-      data.items = allItems;
-      
-      // Send the updated data to renderer
-      mainWindow.webContents.send('call-load-data', data);
-      event.sender.send('settings-saved', true);
-    } else {
-      event.sender.send('settings-saved', false);
-    }
+
+    // Save settings to database
+    const dbSettings = {
+      font: updatedSettings.font || 'Arial',
+      fontSizeScale: parseFloat(updatedSettings.fontSizeScale || 1.0),
+      pixelsPerSubtick: parseInt(updatedSettings.pixelsPerSubtick || 20),
+      customCSS: updatedSettings.customCSS || '',
+      customMainCSS: updatedSettings.customMainCSS || '',
+      customItemsCSS: updatedSettings.customItemsCSS || '',
+      useTimelineCSS: updatedSettings.useTimelineCSS ? 1 : 0,
+      useMainCSS: updatedSettings.useMainCSS ? 1 : 0,
+      useItemsCSS: updatedSettings.useItemsCSS ? 1 : 0,
+      isFullscreen: updatedSettings.isFullscreen ? 1 : 0,
+      showGuides: updatedSettings.showGuides ? 1 : 0,
+      windowSizeX: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
+      windowSizeY: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
+      windowPositionX: parseInt(mainWindow.getPosition()[0] + 2),
+      windowPositionY: parseInt(mainWindow.getPosition()[1] + 1),
+      useCustomScaling: updatedSettings.useCustomScaling ? 1 : 0,
+      customScale: parseFloat(updatedSettings.customScale || 1.0),
+      timeline_id: data.timeline_id
+    };
+
+    // Update settings in database
+    dbManager.updateSettings(dbSettings);
+
+    // Save timeline data
+    const timelineData = {
+      timeline_id: data.timeline_id,
+      title: newData.title,
+      author: newData.author,
+      description: newData.description,
+      start: newData.start,
+      granularity: newData.granularity
+    };
+    dbManager.updateUniverseData(timelineData);
+
+    // Send updated settings back to renderer
+    mainWindow.webContents.send('call-load-settings', updatedSettings);
   });
 
   ipcMain.on('set-window-scale', (event, scale) => {
@@ -876,39 +861,251 @@ function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // Handle getting all timelines
+  ipcMain.on('get-all-timelines', (event) => {
+    const timelines = dbManager.getAllTimelines();
+    event.reply('timelines-list', timelines);
+  });
+
+  // Handle opening a timeline
+  ipcMain.on('open-timeline', (event, timelineId) => {
+    const timeline = dbManager.getTimelineWithSettings(timelineId);
+    if (!timeline) {
+        event.reply('error', 'Timeline not found');
+        return;
+    }
+
+    // Update the data state with the timeline ID
+    data = {
+        ...data,
+        timeline_id: timelineId,
+        title: timeline.title,
+        author: timeline.author,
+        description: timeline.description,
+        start: timeline.start_year,
+        granularity: timeline.granularity,
+        settings: timeline.settings
+    };
+
+    // If main window doesn't exist, create it
+    if (!mainWindow) {
+        createWindow();
+        mainWindow.webContents.on('did-finish-load', () => {
+            // Send the timeline data to the main window
+            mainWindow.webContents.send('timeline-data', {
+                id: timeline.id,
+                title: timeline.title,
+                author: timeline.author,
+                description: timeline.description,
+                start_year: timeline.start_year,
+                granularity: timeline.granularity,
+                settings: timeline.settings
+            });
+
+            // Send the data to load
+            mainWindow.webContents.send('call-load-data', {
+                title: timeline.title,
+                author: timeline.author,
+                description: timeline.description,
+                start: timeline.start_year,
+                granularity: timeline.granularity,
+                items: dbManager.getItemsByTimeline(timelineId)
+            });
+
+            // Load all items for this timeline
+            const items = dbManager.getItemsByTimeline(timelineId);
+            mainWindow.webContents.send('items', items);
+
+            // Apply window settings
+            if (timeline.settings) {
+                // Set window size
+                mainWindow.setSize(
+                    timeline.settings.size.x || 800,
+                    timeline.settings.size.y || 600
+                );
+
+                // Set window position
+                mainWindow.setPosition(
+                    timeline.settings.position.x || 100,
+                    timeline.settings.position.y || 100
+                );
+
+                // Apply custom scaling if enabled
+                if (timeline.settings.useCustomScaling) {
+                    mainWindow.webContents.setZoomFactor(timeline.settings.customScale || 1.0);
+                } else {
+                    mainWindow.webContents.setZoomFactor(1.0);
+                }
+
+                // Send settings to renderer
+                mainWindow.webContents.send('call-load-settings', timeline.settings);
+            }
+        });
+    } else {
+        // Main window exists, send data directly
+        mainWindow.webContents.send('timeline-data', {
+            id: timeline.id,
+            title: timeline.title,
+            author: timeline.author,
+            description: timeline.description,
+            start_year: timeline.start_year,
+            granularity: timeline.granularity,
+            settings: timeline.settings
+        });
+
+        // Send the data to load
+        mainWindow.webContents.send('call-load-data', {
+            title: timeline.title,
+            author: timeline.author,
+            description: timeline.description,
+            start: timeline.start_year,
+            granularity: timeline.granularity,
+            items: dbManager.getItemsByTimeline(timelineId)
+        });
+
+        // Load all items for this timeline
+        const items = dbManager.getItemsByTimeline(timelineId);
+        mainWindow.webContents.send('items', items);
+
+        // Apply window settings
+        if (timeline.settings) {
+            // Set window size
+            mainWindow.setSize(
+                timeline.settings.size.x || 800,
+                timeline.settings.size.y || 600
+            );
+
+            // Set window position
+            mainWindow.setPosition(
+                timeline.settings.position.x || 100,
+                timeline.settings.position.y || 100
+            );
+
+            // Apply custom scaling if enabled
+            if (timeline.settings.useCustomScaling) {
+                mainWindow.webContents.setZoomFactor(timeline.settings.customScale || 1.0);
+            } else {
+                mainWindow.webContents.setZoomFactor(1.0);
+            }
+
+            // Send settings to renderer
+            mainWindow.webContents.send('call-load-settings', timeline.settings);
+        }
+    }
+
+    // Close splash window if it exists
+    if (splashWindow) {
+        splashWindow.close();
+    }
+  });
+
+  // Handle getting timeline info before deletion
+  ipcMain.on('get-timeline-info', (event, timelineId) => {
+    try {
+      console.log('Getting timeline info for ID:', timelineId);
+      const timeline = dbManager.getTimelineWithSettings(timelineId);
+      if (!timeline) {
+        console.error('Timeline not found:', timelineId);
+        event.reply('timeline-info', { error: 'Timeline not found' });
+        return;
+      }
+
+      const items = dbManager.getItemsByTimeline(timelineId);
+      console.log('Found timeline:', timeline.title, 'with', items.length, 'items');
+      
+      event.reply('timeline-info', {
+        title: timeline.title,
+        item_count: items.length
+      });
+    } catch (error) {
+      console.error('Error getting timeline info:', error);
+      event.reply('timeline-info', { error: error.message });
+    }
+  });
+
+  // Handle deleting a timeline
+  ipcMain.on('delete-timeline', (event, timelineId) => {
+    try {
+      dbManager.deleteTimeline(timelineId);
+      event.reply('timeline-deleted', timelineId);
+      // Refresh the timelines list
+      const timelines = dbManager.getAllTimelines();
+      event.reply('timelines-list', timelines);
+    } catch (error) {
+      console.error('Error deleting timeline:', error);
+      event.reply('timeline-delete-error', error.message);
+    }
+  });
+
+  // Handle new timeline creation
+  ipcMain.on('new-timeline', (event) => {
+    // Create a new timeline ID
+    const timelineId = uuidv4();
+    
+    // Create a dedicated folder for this timeline's images
+    const timelineMediaDir = path.join(app.getPath('userData'), 'media', 'pictures', timelineId);
+    if (!fs.existsSync(timelineMediaDir)) {
+      fs.mkdirSync(timelineMediaDir, { recursive: true });
+    }
+
+    if (mainWindow) {
+      mainWindow.loadFile('index.html').then(() => {
+        mainWindow.webContents.send('new-timeline', timelineId);
+      });
+    } else {
+      createWindow();
+      mainWindow.webContents.on('did-finish-load', () => {
+        mainWindow.webContents.send('new-timeline', timelineId);
+      });
+    }
+    if (splashWindow) {
+      splashWindow.close();
+    }
+  });
+
+  // Handle opening timeline images directory
+  ipcMain.on('open-timeline-images', (event, timelineId) => {
+    const timelineMediaDir = path.join(app.getPath('userData'), 'media', 'pictures', timelineId);
+    // Create the directory if it doesn't exist
+    if (!fs.existsSync(timelineMediaDir)) {
+      fs.mkdirSync(timelineMediaDir, { recursive: true });
+    }
+    require('electron').shell.openPath(timelineMediaDir);
+  });
+
+  // Handle new image uploads
+  ipcMain.on('save-new-image', async (event, fileInfo) => {
+    try {
+        const result = await dbManager.saveNewImage(fileInfo);
+        event.reply('new-image-saved', result);
+    } catch (error) {
+        event.reply('new-image-saved', { error: error.message });
+    }
+  });
+
+  // Handle saving temporary files
+  ipcMain.handle('save-temp-file', async (event, fileInfo) => {
+    try {
+        const tempDir = path.join(app.getPath('temp'), 'story-timeline');
+        if (!fs.existsSync(tempDir)) {
+            fs.mkdirSync(tempDir, { recursive: true });
+        }
+
+        const tempPath = path.join(tempDir, `${Date.now()}-${fileInfo.name}`);
+        await fs.promises.writeFile(tempPath, Buffer.from(fileInfo.data));
+        return tempPath;
+    } catch (error) {
+        console.error('Error saving temporary file:', error);
+        throw error;
+    }
+  });
 }
 
 // ===== Application Lifecycle =====
 app.whenReady().then(() => {
-  // Initialize data first
-  data = {
-    title: '',
-    author: '',
-    description: '',
-    start: 0,
-    granularity: 4,
-    items: [],
-    size: {
-      x: 800,
-      y: 600
-    }
-  };
-
-  // Create window first
-  createWindow();
-  
-  // Then load settings and data
-  loadSettings();
-  loadData();
-  
-  // Finally set up IPC handlers
+  createSplashWindow();
   setupIpcHandlers();
-
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
-    }
-  });
 });
 
 app.on('window-all-closed', () => {
