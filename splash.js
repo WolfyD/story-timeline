@@ -25,31 +25,44 @@ function openTimeline(timelineId) {
     window.api.send('open-timeline', timelineId);
 }
 
+// Track the timeline being deleted
+let pendingDeleteTimelineId = null;
+
 // Function to delete a timeline
 function deleteTimeline(timelineId) {
     // First get the timeline info to show in the warning
     window.api.send('get-timeline-info', timelineId);
-    
-    // Set up the response handler
-    window.api.receive('timeline-info', (info) => {
-        if (info.error) {
-            console.error('Error getting timeline info:', info.error);
-            alert('Error getting timeline information: ' + info.error);
-            return;
-        }
-
-        const message = `Are you sure you want to delete the timeline "${info.title}"?\n\n` +
-            `This will also delete:\n` +
-            `- ${info.item_count} timeline items\n` +
-            `- All associated images\n` +
-            `- All associated tags and story references\n\n` +
-            `This action cannot be undone.`;
-            
-        if (confirm(message)) {
-            window.api.send('delete-timeline', timelineId);
-        }
-    });
+    pendingDeleteTimelineId = timelineId;
 }
+
+// Listen for timeline info response
+window.api.receive('timeline-info', (info) => {
+    if (!pendingDeleteTimelineId) return;
+
+    if (info.error) {
+        console.error('Error getting timeline info:', info.error);
+        alert('Error getting timeline information: ' + info.error);
+        pendingDeleteTimelineId = null;
+        return;
+    }
+
+    const message = `Are you sure you want to delete the timeline "${info.title}"?\n\n` +
+        `This will also delete:\n` +
+        `- ${info.item_count} timeline items\n` +
+        `- All associated images\n` +
+        `- All associated tags and story references\n\n` +
+        `This action cannot be undone.`;
+        
+    if (confirm(message)) {
+        window.api.send('delete-timeline', pendingDeleteTimelineId);
+    }
+    pendingDeleteTimelineId = null;
+});
+
+// Listen for timeline deletion confirmation
+window.api.receive('timeline-deleted', (timelineId) => {
+    loadTimelines(); // Refresh the list
+});
 
 // Function to open timeline images directory
 function openTimelineImages(timelineId) {
@@ -100,9 +113,4 @@ function renderTimelines(timelines) {
 // Listen for timeline list updates
 window.api.receive('timelines-list', (timelines) => {
     renderTimelines(timelines);
-});
-
-// Listen for timeline deletion confirmation
-window.api.receive('timeline-deleted', (timelineId) => {
-    loadTimelines(); // Refresh the list
 }); 

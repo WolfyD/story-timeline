@@ -477,7 +477,8 @@ function loadData(data) {
     let title = document.querySelector('#title');
     title.value = data.title || "";
     let main_subtitle = document.querySelector('#main_subtitle');
-    main_subtitle.textContent = "by " + data.author || "";
+    
+    main_subtitle.textContent = data.author ? `by ${data.author}` : "by Unknown Author";
     let description = document.querySelector('#description');
     description.value = data.description || "";
 }
@@ -591,10 +592,27 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         timelineState.granularity = parseInt(data.granularity);
         timelineState.pixelsPerSubtick = parseInt(settings.pixelsPerSubtick);
         timelineState.offsetPx = 0; // Reset offset when changing start year
+
+        if(document.querySelector('#title').value !== '') {
+            loadedData.title = data.title;
+            document.querySelector('#main_title').textContent = loadedData.title;
+        }
+
+        if(document.querySelector('#author').value !== '') {
+            loadedData.author = data.author;
+            document.querySelector('#main_subtitle').textContent = "by " + loadedData.author;
+        }
+
+        if(document.querySelector('#description').value !== '') {
+            loadedData.description = data.description;
+        }
         
         // Update loaded data to maintain state
         loadedData = {
             ...loadedData,
+            title: data.title,
+            author: data.author,
+            description: data.description,
             start: newStartYear,
             granularity: parseInt(data.granularity)
         };
@@ -1043,11 +1061,13 @@ function updateCustomScale(value) {
 
 // Handle timeline data
 window.api.receive('timeline-data', (data) => {
-    console.log('Received timeline data:', data);
     
     // Update timeline state
-    timelineState.focusYear = data.start_year;
-    timelineState.granularity = data.granularity;
+    if (timelineState) {
+        timelineState.focusYear = data.start_year;
+        timelineState.granularity = data.granularity;
+        timelineState.offsetPx = 0; // Reset offset when data changes
+    }
     
     // Update UI elements with timeline data
     const title = document.querySelector('#title');
@@ -1065,11 +1085,18 @@ window.api.receive('timeline-data', (data) => {
     const granularity = document.querySelector('#granularity');
     if (granularity) granularity.value = data.granularity || 4;
     
+    // Update main title and subtitle
     const mainTitle = document.querySelector('#main_title');
-    if (mainTitle) mainTitle.textContent = data.title || "";
+    if (mainTitle) {
+        mainTitle.textContent = data.title || "";
+        mainTitle.style.display = data.title ? 'block' : 'none';
+    }
     
     const mainSubtitle = document.querySelector('#main_subtitle');
-    if (mainSubtitle) mainSubtitle.textContent = data.author || "";
+    if (mainSubtitle) {
+        mainSubtitle.textContent = data.author ? `by ${data.author}` : "";
+        mainSubtitle.style.display = data.author ? 'block' : 'none';
+    }
     
     // Update loaded data
     loadedData = {
@@ -1080,71 +1107,11 @@ window.api.receive('timeline-data', (data) => {
         start: data.start_year,
         granularity: data.granularity
     };
-    
-    // Apply settings if available
-    if (data.settings) {
-        // Apply font settings
-        document.body.style.fontFamily = data.settings.font;
-        document.body.style.fontSize = `${data.settings.fontSizeScale}em`;
 
-        // Apply custom CSS if enabled
-        if (data.settings.useTimelineCSS && data.settings.customCSS) {
-            const style = document.createElement('style');
-            style.textContent = data.settings.customCSS;
-            document.head.appendChild(style);
-        }
-
-        // Apply window scaling if enabled
-        if (data.settings.useCustomScaling) {
-            window.api.send('set-window-scale', data.settings.customScale);
-        }
-
-        // Update UI elements with settings
-        const fontSelect = document.querySelector('#font-select');
-        if (fontSelect) fontSelect.value = data.settings.font;
-        
-        const fontSizeScale = document.querySelector('#font-size-scale-input');
-        if (fontSizeScale) fontSizeScale.value = data.settings.fontSizeScale;
-        
-        const pixelsPerSubtick = document.querySelector('#pixels-per-subtick');
-        if (pixelsPerSubtick) pixelsPerSubtick.value = data.settings.pixelsPerSubtick;
-        
-        const customCSS = document.querySelector('#custom-css');
-        if (customCSS) customCSS.value = data.settings.customCSS;
-        
-        const customMainCSS = document.querySelector('#custom-main-css');
-        if (customMainCSS) customMainCSS.value = data.settings.customMainCSS;
-        
-        const customItemsCSS = document.querySelector('#custom-items-css');
-        if (customItemsCSS) customItemsCSS.value = data.settings.customItemsCSS;
-        
-        const useTimelineCSS = document.querySelector('#use-timeline-css');
-        if (useTimelineCSS) useTimelineCSS.checked = data.settings.useTimelineCSS;
-        
-        const useMainCSS = document.querySelector('#use-main-css');
-        if (useMainCSS) useMainCSS.checked = data.settings.useMainCSS;
-        
-        const useItemsCSS = document.querySelector('#use-items-css');
-        if (useItemsCSS) useItemsCSS.checked = data.settings.useItemsCSS;
-        
-        const showGuides = document.querySelector('#show-guides');
-        if (showGuides) showGuides.checked = data.settings.showGuides;
-        
-        const useCustomScaling = document.querySelector('#use-custom-scaling');
-        if (useCustomScaling) useCustomScaling.checked = data.settings.useCustomScaling;
-        
-        const customScale = document.querySelector('#custom-scale');
-        if (customScale) customScale.value = data.settings.customScale;
-
-        // Update timeline state with settings
-        timelineState.pixelsPerSubtick = data.settings.pixelsPerSubtick;
-        
-        // Update loaded settings
-        loadedSettings = data.settings;
+    // Force a re-render of the timeline with the new data
+    if (timelineState) {
+        renderTimeline(timelineState.focusYear, timelineState.granularity, window.innerWidth);
     }
-
-    // Update timeline display
-    renderTimeline();
 });
 
 // Handle items data

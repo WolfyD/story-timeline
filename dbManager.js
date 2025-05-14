@@ -5,6 +5,27 @@ const fs = require('fs');
 const sharp = require('sharp');
 
 class DatabaseManager {
+    // Epic title generation
+    static EPIC_ADJECTIVES = [
+        'Ancient', 'Mystical', 'Eternal', 'Forgotten', 'Legendary', 'Mythical',
+        'Enchanted', 'Celestial', 'Cosmic', 'Divine', 'Sacred', 'Primal',
+        'Arcane', 'Ethereal', 'Mysterious', 'Timeless', 'Infinite', 'Boundless',
+        'Majestic', 'Noble', 'Radiant', 'Splendid', 'Glorious', 'Magnificent'
+    ];
+
+    static EPIC_NOUNS = [
+        'Chronicles', 'Saga', 'Legacy', 'Destiny', 'Odyssey', 'Voyage',
+        'Journey', 'Quest', 'Tale', 'Epic', 'Legend', 'Myth',
+        'Realm', 'Domain', 'Empire', 'Kingdom', 'Dynasty', 'Era',
+        'Epoch', 'Age', 'Time', 'World', 'Universe', 'Cosmos'
+    ];
+
+    static generateEpicTitle() {
+        const adjective = DatabaseManager.EPIC_ADJECTIVES[Math.floor(Math.random() * DatabaseManager.EPIC_ADJECTIVES.length)];
+        const noun = DatabaseManager.EPIC_NOUNS[Math.floor(Math.random() * DatabaseManager.EPIC_NOUNS.length)];
+        return `The ${adjective} ${noun}`;
+    }
+
     constructor() {
         // Get the user data path from Electron
         const userDataPath = app.getPath('userData');
@@ -51,9 +72,9 @@ class DatabaseManager {
                 use_items_css INTEGER DEFAULT 0,
                 is_fullscreen INTEGER DEFAULT 0,
                 show_guides INTEGER DEFAULT 1,
-                window_size_x INTEGER DEFAULT 800,
-                window_size_y INTEGER DEFAULT 600,
-                window_position_x INTEGER DEFAULT 100,
+                window_size_x INTEGER DEFAULT 1000,
+                window_size_y INTEGER DEFAULT 700,
+                window_position_x INTEGER DEFAULT 300,
                 window_position_y INTEGER DEFAULT 100,
                 use_custom_scaling INTEGER DEFAULT 0,
                 custom_scale REAL DEFAULT 1.0,
@@ -229,33 +250,26 @@ class DatabaseManager {
 
     initializeDefaultData() {
         // Initialize default settings if none exist
-        const stmt = this.db.prepare('SELECT COUNT(*) as count FROM settings');
-        const result = stmt.get();
+        const settingsStmt = this.db.prepare('SELECT COUNT(*) as count FROM settings');
+        const settingsResult = settingsStmt.get();
         
-        if (result.count === 0) {
-            // Load template files
-            const fs = require('fs');
-            const path = require('path');
-            const customCSSTemplate = fs.readFileSync(path.join(__dirname, 'customCSSTemplate.txt'), 'utf8');
-            const customMainCSSTemplate = fs.readFileSync(path.join(__dirname, 'customMainCSSTemplate.txt'), 'utf8');
-            const customItemsCSSTemplate = fs.readFileSync(path.join(__dirname, 'customItemsCSSTemplate.txt'), 'utf8');
-
+        if (settingsResult.count === 0) {
             const defaultSettings = {
                 id: 1,
                 font: 'Arial',
                 font_size_scale: 1.0,
                 pixels_per_subtick: 20,
-                custom_css: customCSSTemplate,
-                custom_main_css: customMainCSSTemplate,
-                custom_items_css: customItemsCSSTemplate,
+                custom_css: '',
+                custom_main_css: '',
+                custom_items_css: '',
                 use_timeline_css: 0,
                 use_main_css: 0,
                 use_items_css: 0,
                 is_fullscreen: 0,
                 show_guides: 1,
-                window_size_x: 800,
-                window_size_y: 600,
-                window_position_x: 100,
+                window_size_x: 1000,
+                window_size_y: 700,
+                window_position_x: 300,
                 window_position_y: 100,
                 use_custom_scaling: 0,
                 custom_scale: 1.0
@@ -282,9 +296,9 @@ class DatabaseManager {
         const timelineResult = timelineStmt.get();
         
         if (timelineResult.count === 0) {
-            // Create a default timeline
+            // Create a default timeline with an epic title
             const defaultTimeline = {
-                title: 'New Timeline',
+                title: DatabaseManager.generateEpicTitle(),
                 author: '',
                 description: '',
                 start_year: 0,
@@ -453,9 +467,9 @@ class DatabaseManager {
             use_items_css: settings.useItemsCSS ? 1 : 0,
             is_fullscreen: settings.isFullscreen ? 1 : 0,
             show_guides: settings.showGuides ? 1 : 0,
-            window_size_x: parseInt(settings.windowSizeX || 800),
-            window_size_y: parseInt(settings.windowSizeY || 600),
-            window_position_x: parseInt(settings.windowPositionX || 100),
+            window_size_x: parseInt(settings.windowSizeX || 1000),
+            window_size_y: parseInt(settings.windowSizeY || 700),
+            window_position_x: parseInt(settings.windowPositionX || 300),
             window_position_y: parseInt(settings.windowPositionY || 100),
             use_custom_scaling: settings.useCustomScaling ? 1 : 0,
             custom_scale: parseFloat(settings.customScale || 1.0)
@@ -1022,6 +1036,7 @@ class DatabaseManager {
         `);
 
         const defaultSettings = {
+            id: 1,
             font: 'Arial',
             font_size_scale: 1.0,
             pixels_per_subtick: 20,
@@ -1033,9 +1048,9 @@ class DatabaseManager {
             use_items_css: 0,
             is_fullscreen: 0,
             show_guides: 1,
-            window_size_x: 800,
-            window_size_y: 600,
-            window_position_x: 100,
+            window_size_x: 1000,
+            window_size_y: 700,
+            window_position_x: 300,
             window_position_y: 100,
             use_custom_scaling: 0,
             custom_scale: 1.0
@@ -1140,6 +1155,7 @@ class DatabaseManager {
         if (!settings) {
             // If no settings exist, create default settings for this timeline
             const defaultSettings = {
+                id: 1,
                 font: 'Arial',
                 font_size_scale: 1.0,
                 pixels_per_subtick: 20,
@@ -1151,9 +1167,9 @@ class DatabaseManager {
                 use_items_css: 0,
                 is_fullscreen: 0,
                 show_guides: 1,
-                window_size_x: 800,
-                window_size_y: 600,
-                window_position_x: 100,
+                window_size_x: 1000,
+                window_size_y: 700,
+                window_position_x: 300,
                 window_position_y: 100,
                 use_custom_scaling: 0,
                 custom_scale: 1.0
@@ -1347,6 +1363,7 @@ class DatabaseManager {
         `);
 
         const defaultSettings = {
+            id: 1,
             font: 'Arial',
             font_size_scale: 1.0,
             pixels_per_subtick: 20,
@@ -1358,9 +1375,9 @@ class DatabaseManager {
             use_items_css: 0,
             is_fullscreen: 0,
             show_guides: 1,
-            window_size_x: 800,
-            window_size_y: 600,
-            window_position_x: 100,
+            window_size_x: 1000,
+            window_size_y: 700,
+            window_position_x: 300,
             window_position_y: 100,
             use_custom_scaling: 0,
             custom_scale: 1.0

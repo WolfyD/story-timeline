@@ -64,6 +64,27 @@ const DEFAULT_SETTINGS = {
     customScale: 1.0
 };
 
+// Epic title generation
+const EPIC_ADJECTIVES = [
+    'Ancient', 'Mystical', 'Eternal', 'Forgotten', 'Legendary', 'Mythical',
+    'Enchanted', 'Celestial', 'Cosmic', 'Divine', 'Sacred', 'Primal',
+    'Arcane', 'Ethereal', 'Mysterious', 'Timeless', 'Infinite', 'Boundless',
+    'Majestic', 'Noble', 'Radiant', 'Splendid', 'Glorious', 'Magnificent'
+];
+
+const EPIC_NOUNS = [
+    'Chronicles', 'Saga', 'Legacy', 'Destiny', 'Odyssey', 'Voyage',
+    'Journey', 'Quest', 'Tale', 'Epic', 'Legend', 'Myth',
+    'Realm', 'Domain', 'Empire', 'Kingdom', 'Dynasty', 'Era',
+    'Epoch', 'Age', 'Time', 'World', 'Universe', 'Cosmos'
+];
+
+function generateEpicTitle() {
+    const adjective = EPIC_ADJECTIVES[Math.floor(Math.random() * EPIC_ADJECTIVES.length)];
+    const noun = EPIC_NOUNS[Math.floor(Math.random() * EPIC_NOUNS.length)];
+    return `The ${adjective} ${noun}`;
+}
+
 // ===== State Management =====
 /**
  * Application state
@@ -85,8 +106,8 @@ let data = {
     granularity: 4,
     items: [],
     size: {
-        x: 800,
-        y: 600
+        x: 1000,
+        y: 700
     }
 };
 
@@ -131,13 +152,16 @@ function createSplashWindow() {
 
     splashWindow.on('closed', () => {
         splashWindow = null;
+        // Close the app when splash screen is closed
+        //app.quit();
     });
 }
 
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
+        width: 1000,
+        height: 700,
+        x: 300,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -154,6 +178,8 @@ function createWindow() {
 
     mainWindow.on('closed', () => {
         mainWindow = null;
+        // Reopen splash screen when main window is closed
+        createSplashWindow();
     });
 
     mainWindow.webContents.on("before-input-event", (event, input) => {
@@ -577,22 +603,22 @@ function setupIpcHandlers() {
     // Save settings to database
     const dbSettings = {
       font: updatedSettings.font || 'Arial',
-      fontSizeScale: parseFloat(updatedSettings.fontSizeScale || 1.0),
-      pixelsPerSubtick: parseInt(updatedSettings.pixelsPerSubtick || 20),
-      customCSS: updatedSettings.customCSS || '',
-      customMainCSS: updatedSettings.customMainCSS || '',
-      customItemsCSS: updatedSettings.customItemsCSS || '',
-      useTimelineCSS: updatedSettings.useTimelineCSS ? 1 : 0,
-      useMainCSS: updatedSettings.useMainCSS ? 1 : 0,
-      useItemsCSS: updatedSettings.useItemsCSS ? 1 : 0,
-      isFullscreen: updatedSettings.isFullscreen ? 1 : 0,
-      showGuides: updatedSettings.showGuides ? 1 : 0,
-      windowSizeX: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
-      windowSizeY: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
-      windowPositionX: parseInt(mainWindow.getPosition()[0] + 2),
-      windowPositionY: parseInt(mainWindow.getPosition()[1] + 1),
-      useCustomScaling: updatedSettings.useCustomScaling ? 1 : 0,
-      customScale: parseFloat(updatedSettings.customScale || 1.0),
+      font_size_scale: parseFloat(updatedSettings.font_size_scale || 1.0),
+      pixels_per_subtick: parseInt(updatedSettings.pixels_per_subtick || 20),
+      custom_css: updatedSettings.customCSS || '',
+      custom_main_css: updatedSettings.customMainCSS || '',
+      custom_items_css: updatedSettings.customItemsCSS || '',
+      use_timeline_css: updatedSettings.useTimelineCSS ? 1 : 0,
+      use_main_css: updatedSettings.useMainCSS ? 1 : 0,
+      use_items_css: updatedSettings.useItemsCSS ? 1 : 0,
+      is_fullscreen: updatedSettings.isFullscreen ? 1 : 0,
+      show_guides: updatedSettings.showGuides ? 1 : 0,
+      window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
+      window_size_y: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
+      window_position_x: parseInt(mainWindow.getPosition()[0] + 2),
+      window_position_y: parseInt(mainWindow.getPosition()[1] + 1),
+      use_custom_scaling: updatedSettings.useCustomScaling ? 1 : 0,
+      custom_scale: parseFloat(updatedSettings.customScale || 1.0),
       timeline_id: data.timeline_id
     };
 
@@ -612,6 +638,16 @@ function setupIpcHandlers() {
 
     // Send updated settings back to renderer
     mainWindow.webContents.send('call-load-settings', updatedSettings);
+    
+    // Send updated timeline data to renderer
+    mainWindow.webContents.send('timeline-data', {
+      id: data.timeline_id,
+      title: newData.title,
+      author: newData.author,
+      description: newData.description,
+      start_year: newData.start,
+      granularity: newData.granularity
+    });
   });
 
   ipcMain.on('set-window-scale', (event, scale) => {
@@ -848,6 +884,7 @@ function setupIpcHandlers() {
 
   ipcMain.on('quit-app', () => {
     app.quit();
+    //app.exit(0);  // Use exit(0) instead of quit() to ensure immediate closure
   });
 
   // Add handler for reading template files
@@ -921,13 +958,13 @@ function setupIpcHandlers() {
             if (timeline.settings) {
                 // Set window size
                 mainWindow.setSize(
-                    timeline.settings.size.x || 800,
-                    timeline.settings.size.y || 600
+                    timeline.settings.size.x || 1000,
+                    timeline.settings.size.y || 700
                 );
 
                 // Set window position
                 mainWindow.setPosition(
-                    timeline.settings.position.x || 100,
+                    timeline.settings.position.x || 300,
                     timeline.settings.position.y || 100
                 );
 
@@ -972,13 +1009,13 @@ function setupIpcHandlers() {
         if (timeline.settings) {
             // Set window size
             mainWindow.setSize(
-                timeline.settings.size.x || 800,
-                timeline.settings.size.y || 600
+                timeline.settings.size.x || 1000,
+                timeline.settings.size.y || 700
             );
 
             // Set window position
             mainWindow.setPosition(
-                timeline.settings.position.x || 100,
+                timeline.settings.position.x || 300,
                 timeline.settings.position.y || 100
             );
 
@@ -1040,27 +1077,124 @@ function setupIpcHandlers() {
 
   // Handle new timeline creation
   ipcMain.on('new-timeline', (event) => {
-    // Create a new timeline ID
-    const timelineId = uuidv4();
+    // Create the timeline in the database
+    const timeline = {
+        title: dbManager.constructor.generateEpicTitle(),
+        author: '',
+        description: '',
+        start_year: 0,
+        granularity: 4
+    };
+    const newTimelineId = dbManager.addTimeline(timeline);
     
     // Create a dedicated folder for this timeline's images
-    const timelineMediaDir = path.join(app.getPath('userData'), 'media', 'pictures', timelineId);
+    const timelineMediaDir = path.join(app.getPath('userData'), 'media', 'pictures', newTimelineId.toString());
     if (!fs.existsSync(timelineMediaDir)) {
-      fs.mkdirSync(timelineMediaDir, { recursive: true });
+        fs.mkdirSync(timelineMediaDir, { recursive: true });
     }
 
+    // Get the default settings for this timeline
+    const defaultSettings = {
+        font: 'Arial',
+        fontSizeScale: 1.0,
+        pixelsPerSubtick: 20,
+        customCSS: '',
+        customMainCSS: '',
+        customItemsCSS: '',
+        useTimelineCSS: false,
+        useMainCSS: false,
+        useItemsCSS: false,
+        isFullscreen: false,
+        showGuides: true,
+        size: {
+            x: 1000,
+            y: 700
+        },
+        position: {
+            x: 300,
+            y: 100
+        },
+        useCustomScaling: false,
+        customScale: 1.0
+    };
+
+    // Update the data state with the new timeline ID and settings
+    data = {
+        ...data,
+        timeline_id: newTimelineId,
+        title: timeline.title,
+        author: timeline.author,
+        description: timeline.description,
+        start: timeline.start_year,
+        granularity: timeline.granularity,
+        items: [],
+        settings: defaultSettings
+    };
+
     if (mainWindow) {
-      mainWindow.loadFile('index.html').then(() => {
-        mainWindow.webContents.send('new-timeline', timelineId);
-      });
+        mainWindow.loadFile('index.html').then(() => {
+            // Send the timeline data to the main window
+            mainWindow.webContents.send('timeline-data', {
+                id: newTimelineId,
+                title: timeline.title,
+                author: timeline.author,
+                description: timeline.description,
+                start_year: timeline.start_year,
+                granularity: timeline.granularity
+            });
+
+            // Send the data to load
+            mainWindow.webContents.send('call-load-data', {
+                title: timeline.title,
+                author: timeline.author,
+                description: timeline.description,
+                start: timeline.start_year,
+                granularity: timeline.granularity,
+                items: []
+            });
+
+            // Send the default settings to the renderer
+            mainWindow.webContents.send('call-load-settings', defaultSettings);
+
+            // Apply window settings
+            mainWindow.setSize(defaultSettings.size.x, defaultSettings.size.y);
+            mainWindow.setPosition(defaultSettings.position.x, defaultSettings.position.y);
+            mainWindow.webContents.setZoomFactor(1.0);
+        });
     } else {
-      createWindow();
-      mainWindow.webContents.on('did-finish-load', () => {
-        mainWindow.webContents.send('new-timeline', timelineId);
-      });
+        createWindow();
+        mainWindow.webContents.on('did-finish-load', () => {
+            // Send the timeline data to the main window
+            mainWindow.webContents.send('timeline-data', {
+                id: newTimelineId,
+                title: timeline.title,
+                author: timeline.author,
+                description: timeline.description,
+                start_year: timeline.start_year,
+                granularity: timeline.granularity
+            });
+
+            // Send the data to load
+            mainWindow.webContents.send('call-load-data', {
+                title: timeline.title,
+                author: timeline.author,
+                description: timeline.description,
+                start: timeline.start_year,
+                granularity: timeline.granularity,
+                items: []
+            });
+
+            // Send the default settings to the renderer
+            mainWindow.webContents.send('call-load-settings', defaultSettings);
+
+            // Apply window settings
+            mainWindow.setSize(defaultSettings.size.x, defaultSettings.size.y);
+            mainWindow.setPosition(defaultSettings.position.x, defaultSettings.position.y);
+            mainWindow.webContents.setZoomFactor(1.0);
+        });
     }
     if (splashWindow) {
-      splashWindow.close();
+        splashWindow.close();
     }
   });
 

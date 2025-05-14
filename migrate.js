@@ -71,7 +71,7 @@ class DatabaseMigration {
         // Create new settings table
         this.db.prepare(`
             CREATE TABLE IF NOT EXISTS settings (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id INTEGER PRIMARY KEY,
                 timeline_id INTEGER,
                 font TEXT DEFAULT 'Arial',
                 font_size_scale REAL DEFAULT 1.0,
@@ -84,9 +84,9 @@ class DatabaseMigration {
                 use_items_css INTEGER DEFAULT 0,
                 is_fullscreen INTEGER DEFAULT 0,
                 show_guides INTEGER DEFAULT 1,
-                window_size_x INTEGER DEFAULT 800,
-                window_size_y INTEGER DEFAULT 600,
-                window_position_x INTEGER DEFAULT 100,
+                window_size_x INTEGER DEFAULT 1000,
+                window_size_y INTEGER DEFAULT 700,
+                window_position_x INTEGER DEFAULT 300,
                 window_position_y INTEGER DEFAULT 100,
                 use_custom_scaling INTEGER DEFAULT 0,
                 custom_scale REAL DEFAULT 1.0,
