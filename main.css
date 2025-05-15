@@ -519,6 +519,53 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     height: 28px;
     margin-bottom: 2px;
 }
+
+/* Picture type styles */
+.timeline-picture-box {
+    background: #fff;
+    border: 2px solid #333;
+    border-radius: 3px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    z-index: 2;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+    width: 100px;
+    height: 100px;
+    margin-bottom: 2px;
+    overflow: hidden;
+    position: absolute;
+}
+
+.timeline-picture-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.timeline-picture-box:hover {
+    box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+    border-color: #0074d9;
+}
+
+.timeline-picture-box:hover img {
+    transform: scale(1.1);
+}
+
+.timeline-picture-box.highlighted {
+    background: #eaf4ff;
+    border-color: #3399ff;
+    box-shadow: 0 4px 16px rgba(51,153,255,0.12);
+}
+
+.timeline-picture-box.above {
+    bottom: 70px; /* Position above the 70px stem */
+}
+
+.timeline-picture-box.below {
+    top: 70px; /* Position below the 70px stem */
+}
+
 .timeline-item-box.above {}
 .timeline-item-box.below {}
 .timeline-item-box:hover {

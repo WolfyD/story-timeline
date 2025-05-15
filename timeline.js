@@ -440,10 +440,16 @@ function renderTimeline() {
                 ageItem.addEventListener('mousemove', (e) => {
                     const bubble = ageItem.querySelector('.age-hover-bubble');
                     if (bubble) {
+                        // Get the device pixel ratio and scale
+                        const scale = window.devicePixelRatio;
+                        
+                        // Calculate scaled position (multiply by scale to offset the scaling)
+                        const scaledX = e.clientX * scale;
+                        
                         // Keep bubble within screen bounds
                         const bubbleWidth = bubble.offsetWidth;
-                        const screenWidth = window.innerWidth;
-                        let left = e.clientX;
+                        const screenWidth = window.innerWidth * scale;
+                        let left = scaledX;
                         
                         // Adjust position if bubble would go off screen
                         if (left + bubbleWidth/2 > screenWidth) {
@@ -453,6 +459,7 @@ function renderTimeline() {
                         }
                         
                         bubble.style.left = `${left}px`;
+                        bubble.style.transform = 'none';
                     }
                 });
                 
@@ -513,7 +520,7 @@ function renderTimeline() {
                 // Calculate vertical position
                 const isAbove = idx % 2 === 0;
                 const baseOffset = 10; // Base offset from timeline
-                const stackOffset = stackLevel * 10; // 10px gap between stacked periods
+                const stackOffset = stackLevel * 13; // Increased from 10px to 13px for more gap between stacked periods
                 const totalOffset = baseOffset + stackOffset;
                 
                 periodItem.style.top = `${containerRect.height / 2 + (isAbove ? ((totalOffset * -1) - 4) : totalOffset)}px`;
@@ -532,6 +539,27 @@ function renderTimeline() {
                 hoverBubble.className = 'period-hover-bubble';
                 hoverBubble.textContent = item.title;
                 periodItem.appendChild(hoverBubble);
+
+                // Add mousemove event listener to update bubble position
+                periodItem.addEventListener('mousemove', (e) => {
+                    const bubble = periodItem.querySelector('.period-hover-bubble');
+                    if (bubble) {
+                        // Keep bubble within screen bounds
+                        const bubbleWidth = bubble.offsetWidth;
+                        const screenWidth = window.innerWidth;
+                        let left = e.clientX;
+                        
+                        // Adjust position if bubble would go off screen
+                        if (left + bubbleWidth/2 > screenWidth) {
+                            left = screenWidth - bubbleWidth/2;
+                        } else if (left - bubbleWidth/2 < 0) {
+                            left = bubbleWidth/2;
+                        }
+                        
+                        bubble.style.left = `${left}px`;
+                        bubble.style.transform = 'none';
+                    }
+                });
                 
                 // Add click handler for item viewer
                 if (window.openItemViewer) {
@@ -618,31 +646,64 @@ function renderTimeline() {
             const lineId = `timeline-line-${idx}`;
             line.setAttribute('data-line-id', lineId);
             line.id = lineId;
+
             if (isAbove) {
-                line.style.top = `${boxTop + itemBoxHeight}px`;
-                line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
+                if (item.type === 'picture') {
+                    line.style.top = `${timelineY - 70}px`; // Start 70px above timeline
+                    line.style.height = '70px';
+                    boxTop = timelineY - 70 - 100; // Position box above the stem
+                } else {
+                    line.style.top = `${boxTop + itemBoxHeight}px`;
+                    line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
+                }
             } else {
-                line.style.top = `${timelineY}px`;
-                line.style.height = `${boxTop - timelineY}px`;
+                if (item.type === 'picture') {
+                    line.style.top = `${timelineY}px`;
+                    line.style.height = '70px';
+                    boxTop = timelineY + 70; // Position box below the stem
+                } else {
+                    line.style.top = `${timelineY}px`;
+                    line.style.height = `${boxTop - timelineY}px`;
+                }
             }
             timeline.appendChild(line);
 
             // Create the box
             const box = document.createElement('div');
-            box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
-            box.style.position = 'absolute';
-            box.style.left = `${boxLeft}px`;
-            box.style.top = `${boxTop}px`;
+            if (item.type === 'picture' || (item.pictures && item.pictures.length > 0)) {
+                box.className = 'timeline-picture-box' + (isAbove ? ' above' : ' below');
+                const img = document.createElement('img');
+                img.src = 'file://' + item.pictures[0].file_path.replace(/\\/g, '/');
+                img.alt = item.title || 'Timeline Image';
+                box.appendChild(img);
+                box.style.position = 'absolute';
+                box.style.left = `${itemX - 50}px`; // Center the box on the line
+                box.style.top = isAbove ? `${timelineY - 170}px` : `${timelineY + 70}px`; // Position above/below the stem
+            } else {
+                box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
+                // Only show the title in the box
+                const titleStr = item.title || '(No Title)';
+                box.innerHTML = `<span style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;display:inline-block;\">${titleStr}</span>`;
+                box.style.position = 'absolute';
+                box.style.left = `${boxLeft}px`;
+                box.style.top = `${boxTop}px`;
+            }
             box.setAttribute('data-id', item.id || item['story-id'] || idx);
             box.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
             box.setAttribute('data-line-id', lineId);
-            // Only show the title in the box
-            const titleStr = item.title || '(No Title)';
-            box.innerHTML = `<span style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;display:inline-block;\">${titleStr}</span>`;
+
+            // Add click handler
             box.addEventListener('click', function(e) {
                 e.stopPropagation();
-                window.openItemViewer && window.openItemViewer(box.getAttribute('data-id'));
+                if (item.type === 'picture') {
+                    // Open add item window for picture type
+                    window.api.send('open-add-item-window', itemYear, itemSubtick, timelineState.granularity);
+                } else {
+                    // Open item viewer for other types
+                    window.openItemViewer && window.openItemViewer(box.getAttribute('data-id'));
+                }
             });
+
             // Highlight on hover
             box.addEventListener('mouseenter', function() {
                 box.classList.add('highlighted');
@@ -1131,7 +1192,7 @@ function handleSelectorClick(e) {
     closeItemSelector();
 
     // Open the appropriate add item window based on type
-    if (type === 'event' || type === 'bookmark') {
+    if (type === 'event' || type === 'bookmark' || type === 'picture') {
         window.api.send('open-add-item-window', year, subtick, timelineState.granularity, type);
     } else {
         const randomColor = generatePastelColor();
@@ -1150,7 +1211,7 @@ renderTimeline();
 // Add click handler for the timeline
 container.addEventListener('click', function(e) {
     // Don't show selector if clicking on an existing item
-    if (e.target.closest('.timeline-item-box')) {
+    if (e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item')) {
         return;
     }
 

@@ -367,10 +367,10 @@
     pointer-events: none;
     opacity: 0;
     transition: opacity 0.2s;
-    transform: translateX(-50%);
-    margin-top: -40px;
     white-space: nowrap;
     z-index: 1000;
+    margin-top: -40px;
+    transform: none !important;
 }
 
 .timeline-age-item:hover .age-hover-bubble {
@@ -381,7 +381,7 @@
     content: '';
     position: absolute;
     bottom: -4px;
-    left: 40%;
+    left: 5%;
     transform: translateX(-50%);
     border-width: 0 8px 8px 8px;
     border-style: solid;
@@ -392,16 +392,17 @@
 /* Period Timeline Item Styles */
 .timeline-period-item {
     position: absolute;
-    height: 5px;
-    background-color: #4CAF50; /* Default color, will be overridden by item color */
-    border-radius: 2px;
+    height: 8px;
+    background-color: #4CAF50;
+    border-radius: 4px;
     z-index: 1;
     cursor: pointer;
-    transition: height 0.2s ease;
+    transition: height 0.2s ease, box-shadow 0.2s ease;
 }
 
 .timeline-period-item:hover {
-    height: 8px;
+    height: 12px;
+    box-shadow: 0 0 8px 2px rgba(76, 175, 80, 0.3); /* Green glow effect */
 }
 
 .timeline-period-item .period-hover-bubble {
