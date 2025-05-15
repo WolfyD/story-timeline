@@ -166,6 +166,7 @@ class DatabaseManager {
                 color TEXT,
                 creation_granularity INTEGER,
                 timeline_id INTEGER,
+                item_index INTEGER,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (story_id) REFERENCES stories(id),
@@ -645,16 +646,21 @@ class DatabaseManager {
             const typeResult = typeStmt.get(item.type || 'Event');
             const typeId = typeResult ? typeResult.id : 1; // Default to Event (id: 1) if type not found
 
+            // Get the next index for this timeline
+            const getMaxIndex = this.db.prepare('SELECT MAX(item_index) as max_index FROM items WHERE timeline_id = ?');
+            const maxIndexResult = getMaxIndex.get(this.getUniverseData().id);
+            const nextIndex = (maxIndexResult.max_index || 0) + 1;
+
             // Insert the item
             const stmt = this.db.prepare(`
                 INSERT INTO items (
                     id, title, description, content, year, subtick,
                     original_subtick, end_year, end_subtick, original_end_subtick,
-                    creation_granularity, book_title, chapter, page, type_id, color, timeline_id
+                    creation_granularity, book_title, chapter, page, type_id, color, timeline_id, item_index
                 ) VALUES (
                     @id, @title, @description, @content, @year, @subtick,
                     @original_subtick, @end_year, @end_subtick, @original_end_subtick,
-                    @creation_granularity, @book_title, @chapter, @page, @type_id, @color, @timeline_id
+                    @creation_granularity, @book_title, @chapter, @page, @type_id, @color, @timeline_id, @item_index
                 )
             `);
 
@@ -675,7 +681,8 @@ class DatabaseManager {
                 page: item.page || '',
                 type_id: typeId,
                 color: item.color || null,
-                timeline_id: this.getUniverseData().id
+                timeline_id: this.getUniverseData().id,
+                item_index: nextIndex
             });
 
             // Add tags if any
@@ -778,7 +785,7 @@ class DatabaseManager {
             LEFT JOIN stories s ON i.story_id = s.id 
             LEFT JOIN item_types t ON i.type_id = t.id
             WHERE i.timeline_id = ?
-            ORDER BY i.year, i.subtick
+            ORDER BY i.year, i.subtick, i.item_index
         `);
         const items = stmt.all(timeline.id);
         return items.map(item => ({
@@ -1507,10 +1514,16 @@ class DatabaseManager {
             FROM items i
             LEFT JOIN item_types t ON i.type_id = t.id
             WHERE i.timeline_id = @timelineId
-            ORDER BY i.year ASC, i.subtick ASC
+            ORDER BY i.year ASC, i.subtick ASC, i.item_index ASC
         `);
         
-        return stmt.all({ timelineId });
+        const items = stmt.all({ timelineId });
+        return items.map(item => ({
+            ...item,
+            tags: this.getItemTags(item.id),
+            pictures: this.getItemPictures(item.id),
+            story_refs: this.getItemStoryReferences(item.id)
+        }));
     }
 
     async saveNewImage(fileInfo) {

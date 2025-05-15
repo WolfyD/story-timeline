@@ -281,24 +281,63 @@ function renderTimeline() {
     const centerYear = calculateYearFromPosition(centerX + containerRect.left);
     const centerYearInt = Math.floor(centerYear);
     const centerSubtick = Math.round((centerYear - centerYearInt) * granularity);
-    const centerInfo = `${centerYearInt} .${centerSubtick.toString().padStart(2, '0')}`;
-    const nowDiv = document.getElementById('timeline-info-now');
+    const centerInfo = `Year: ${centerYear}, Subtick: ${centerSubtick}`;
+    const nowDiv = document.getElementById('now');
     if (nowDiv) nowDiv.textContent = centerInfo;
 
-    // Find age item under center arrow and display its picture
-    const ageItem = timelineState.items.find(item => 
-        item.type === 'Age' && 
-        item.year === centerYearInt && 
-        item.subtick === centerSubtick
-    );
+    // Find all items that overlap with the current center position
+    const overlappingItems = timelineState.items.filter(item => {
+        const itemStartYear = parseFloat(item.year || item.date || 0);
+        const itemEndYear = parseFloat(item.end_year || item.year || 0);
+        return centerYear >= itemStartYear && centerYear <= itemEndYear;
+    });
 
-    // If we found an age item with pictures, display the first picture
-    if (ageItem && ageItem.pictures && ageItem.pictures.length > 0) {
-        const img = document.getElementById('age-picture');
-        if (img) {
-            img.src = ageItem.pictures[0].file_path;
+    // Sort items by priority: Age items first, then by item_index
+    overlappingItems.sort((a, b) => {
+        if (a.type === 'Age' && b.type !== 'Age') return -1;
+        if (a.type !== 'Age' && b.type === 'Age') return 1;
+        return (a.item_index || 0) - (b.item_index || 0);
+    });
+
+    // Get the image container
+    const imageContainer = document.getElementById('image-container');
+    if (!imageContainer) return;
+
+    // Clear existing images
+    imageContainer.innerHTML = '';
+
+    // Add images for items with pictures
+    overlappingItems.forEach((item, index) => {
+        if (item.pictures && item.pictures.length > 0) {
+            const picture = item.pictures[0];
+            if (picture.file_path) {
+                const img = document.createElement('img');
+                img.className = 'cascading-image';
+                
+                // Assign class based on position
+                if (index === 0) {
+                    img.className += ' main';
+                } else if (index <= 2) {
+                    img.className += ' secondary';
+                    img.className += index % 2 === 0 ? ' even' : ' odd';
+                } else if (index <= 4) {
+                    img.className += ' tertiary';
+                    img.className += index % 2 === 0 ? ' even' : ' odd';
+                } else if (index <= 6) {
+                    img.className += ' quaternary';
+                    img.className += index % 2 === 0 ? ' even' : ' odd';
+                } else if (index <= 8) {
+                    img.className += ' quinary';
+                    img.className += index % 2 === 0 ? ' even' : ' odd';
+                }
+
+                const fileUrl = 'file://' + picture.file_path.replace(/\\/g, '/');
+                img.src = fileUrl;
+                img.alt = item.title || 'Timeline Image';
+                imageContainer.appendChild(img);
+            }
         }
-    }
+    });
 
     // Calculate the leftmost and rightmost visible years based on current offset and size
     const leftYear = focusYear - ((centerX + offsetPx) / (granularity * pixelsPerSubtick));
