@@ -670,7 +670,8 @@ function renderTimeline() {
 
             // Create the box
             const box = document.createElement('div');
-            if (item.type === 'picture' || (item.pictures && item.pictures.length > 0)) {
+            
+            if (item.type === 'picture' || (item.pictures && item.pictures.length > 0 && item.type !== 'note' && item.type !== 'Note')) {
                 box.className = 'timeline-picture-box' + (isAbove ? ' above' : ' below');
                 const img = document.createElement('img');
                 img.src = 'file://' + item.pictures[0].file_path.replace(/\\/g, '/');
@@ -681,9 +682,43 @@ function renderTimeline() {
                 box.style.top = isAbove ? `${timelineY - 170}px` : `${timelineY + 70}px`; // Position above/below the stem
             } else {
                 box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
-                // Only show the title in the box
-                const titleStr = item.title || '(No Title)';
-                box.innerHTML = `<span style=\"overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:140px;display:inline-block;\">${titleStr}</span>`;
+                
+                console.log('[timeline.js] Adding note icon', item.type);
+
+                if (item.type.toLowerCase() === 'note') {
+                    console.log('[timeline.js] Adding note icon');
+                    // Add the calligraphic letter SVG
+                    const noteIcon = document.createElement('div');
+                    noteIcon.className = 'note-icon';
+                    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                    svg.setAttribute('viewBox', '0 0 260.481 370');
+                    svg.setAttribute('width', '20');
+                    svg.setAttribute('height', '20');
+                    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                    
+                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                    path.setAttribute('d', 'M25.457 355.248c11.465-9.44 30.713-7.155 47.235-7.155q32.876 0 59.176 24.783l49.567-49.566-8.093-9.104-18.208 17.702q-29.841-17.702-63.728-17.702l19.725-55.636h109.755l20.737 69.798q9.61 33.887 29.84 44.508l50.073-49.566-8.092-9.104-18.209 18.208q-10.115-4.047-14.667-12.139-1.012-2.023-3.035-6.575-1.517-4.552-3.54-11.633l-66.258-220.52q-9.104-30.347-15.173-38.945l4.552-14.668-11.127-4.552-4.552 10.621q-15.68-11.127-33.382-11.127-26.3 0-47.037 18.714-7.08 5.564-15.174 15.68-7.586 10.115-17.196 24.277l9.61 6.575q21.243-30.852 48.049-30.853 22.76 0 37.933 21.749l-19.725 51.59q-9.61-.506-14.668-.506-5.058-.506-6.07-.506-38.438 0-38.438 44.003 0 13.656 6.069 29.335l11.127-5.058q-2.529-7.587-2.529-11.633 0-23.266 20.231-23.266 6.576 0 11.633 5.058l-53.612 146.17q-34.393 4.047-57.153 26.807zm183.29-135.117h-82.948l45.52-124.928Z');
+                    path.setAttribute('style', 'fill:#4b2e2e;stroke:#4b2e2e;stroke-width:1.25561;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1');
+                    
+                    svg.appendChild(path);
+                    noteIcon.appendChild(svg);
+                    box.appendChild(noteIcon);
+                    
+                    // Add the title
+                    const titleStr = item.title || '(No Title)';
+                    const titleSpan = document.createElement('span');
+                    titleSpan.className = 'note-title';
+                    titleSpan.textContent = titleStr;
+                    box.appendChild(titleSpan);
+                } else {
+                    // For non-note items, just add the title
+                    const titleStr = item.title || '(No Title)';
+                    const titleSpan = document.createElement('span');
+                    titleSpan.textContent = titleStr;
+                    box.appendChild(titleSpan);
+                }
+                
                 box.style.position = 'absolute';
                 box.style.left = `${boxLeft}px`;
                 box.style.top = `${boxTop}px`;
@@ -691,6 +726,7 @@ function renderTimeline() {
             box.setAttribute('data-id', item.id || item['story-id'] || idx);
             box.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
             box.setAttribute('data-line-id', lineId);
+            box.setAttribute('data-type', item.type); // Add type for debugging
 
             // Add click handler
             box.addEventListener('click', function(e) {
@@ -1192,7 +1228,7 @@ function handleSelectorClick(e) {
     closeItemSelector();
 
     // Open the appropriate add item window based on type
-    if (type === 'event' || type === 'bookmark' || type === 'picture') {
+    if (type === 'event' || type === 'bookmark' || type === 'picture' || type === 'note') {
         window.api.send('open-add-item-window', year, subtick, timelineState.granularity, type);
     } else {
         const randomColor = generatePastelColor();

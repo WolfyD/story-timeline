@@ -511,3 +511,16 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('header-year-value').textContent = `${year}`;
     document.getElementById('header-subtick-value').textContent = `${subtick}`;
 });
+
+function initializeForm() {
+    const form = document.getElementById('addItemForm');
+    const typeSelect = document.getElementById('type');
+    
+    // Add note type to the type selector
+    const noteOption = document.createElement('option');
+    noteOption.value = 'note';
+    noteOption.textContent = 'Note';
+    typeSelect.appendChild(noteOption);
+    
+    // ... rest of the initialization code ...
+}

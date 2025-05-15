@@ -507,17 +507,47 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     z-index: 2;
     display: flex;
     align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    cursor: pointer;
-    transition: box-shadow 0.2s, border-color 0.2s;
     padding: 0 10px;
     line-height: 28px;
     width: 130px;
     height: 28px;
     margin-bottom: 2px;
+    cursor: pointer;
+    transition: box-shadow 0.2s, border-color 0.2s;
+}
+
+.timeline-item-box .note-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-right: 8px;
+    flex-shrink: 0;
+}
+
+.timeline-item-box .note-icon svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+}
+
+.timeline-item-box .note-icon svg path {
+    fill: #4b2e2e; /* Dark brown color to match the theme */
+    stroke: #4b2e2e;
+}
+
+.timeline-item-box .note-title {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 14px;
+}
+
+/* Remove debug styles */
+.timeline-item-box[data-type="note"] {
+    border: 2px solid #333; /* Same as normal items */
 }
 
 /* Picture type styles */
@@ -822,4 +852,31 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     font-size: 16px;
     color: #4b2e2e;
     overflow-y: auto;
+}
+
+/* Remove the old note box styles since we're not using them anymore */
+.timeline-note-box,
+.timeline-note-box:hover,
+.timeline-note-box .note-icon,
+.timeline-note-box .note-title,
+.timeline-note-box.above,
+.timeline-note-box.below {
+    display: none;
+}
+
+.note-icon {
+    display: inline-block;
+    vertical-align: middle;
+    margin-right: 8px;
+}
+
+.note-icon svg {
+    width: 24px;
+    height: 24px;
+    vertical-align: middle;
+}
+
+.note-title {
+    display: inline-block;
+    vertical-align: middle;
 }
