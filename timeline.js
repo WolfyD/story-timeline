@@ -1108,7 +1108,6 @@ function jumpToDate() {
 }
 
 function closeItemSelector() {
-    console.log('[timeline.js] closing item selector');
     const selector = document.getElementById('item-selector');
     if (!selector) return;
     
