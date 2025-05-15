@@ -533,29 +533,40 @@ class DatabaseManager {
             return;
         }
 
-        // Convert frontend camelCase to database snake_case
-        const dbSettings = {
-            font: settings.font || 'Arial',
-            font_size_scale: parseFloat(settings.fontSizeScale || 1.0),
-            pixels_per_subtick: parseInt(settings.pixelsPerSubtick || 20),
-            custom_css: settings.customCSS || '',
-            custom_main_css: settings.customMainCSS || '',
-            custom_items_css: settings.customItemsCSS || '',
-            use_timeline_css: settings.useTimelineCSS ? 1 : 0,
-            use_main_css: settings.useMainCSS ? 1 : 0,
-            use_items_css: settings.useItemsCSS ? 1 : 0,
-            is_fullscreen: settings.isFullscreen ? 1 : 0,
-            show_guides: settings.showGuides ? 1 : 0,
-            window_size_x: parseInt(settings.windowSizeX || 1000),
-            window_size_y: parseInt(settings.windowSizeY || 700),
-            window_position_x: parseInt(settings.windowPositionX || 300),
-            window_position_y: parseInt(settings.windowPositionY || 100),
-            use_custom_scaling: settings.useCustomScaling ? 1 : 0,
-            custom_scale: parseFloat(settings.customScale || 1.0)
-        };
+        console.log('Updating settings for timeline:', timelineId);
 
-        // Update settings for the timeline
-        const stmt = this.db.prepare(`
+        // First check if settings exist for this timeline
+        const checkStmt = this.db.prepare('SELECT id FROM settings WHERE timeline_id = ?');
+        const existingSettings = checkStmt.get(timelineId);
+
+        if (!existingSettings) {
+            // If no settings exist, create them
+            console.log('No existing settings found, creating new settings');
+            const insertStmt = this.db.prepare(`
+                INSERT INTO settings (
+                    timeline_id, font, font_size_scale, pixels_per_subtick,
+                    custom_css, custom_main_css, custom_items_css,
+                    use_timeline_css, use_main_css, use_items_css,
+                    is_fullscreen, show_guides,
+                    window_size_x, window_size_y,
+                    window_position_x, window_position_y,
+                    use_custom_scaling, custom_scale
+                ) VALUES (
+                    @timeline_id, @font, @font_size_scale, @pixels_per_subtick,
+                    @custom_css, @custom_main_css, @custom_items_css,
+                    @use_timeline_css, @use_main_css, @use_items_css,
+                    @is_fullscreen, @show_guides,
+                    @window_size_x, @window_size_y,
+                    @window_position_x, @window_position_y,
+                    @use_custom_scaling, @custom_scale
+                )
+            `);
+            return insertStmt.run(settings);
+        }
+
+        // Update existing settings
+        console.log('Updating existing settings');
+        const updateStmt = this.db.prepare(`
             UPDATE settings SET
                 font = @font,
                 font_size_scale = @font_size_scale,
@@ -578,10 +589,9 @@ class DatabaseManager {
             WHERE timeline_id = @timeline_id
         `);
 
-        return stmt.run({
-            ...dbSettings,
-            timeline_id: timelineId
-        });
+        const result = updateStmt.run(settings);
+        console.log('Settings update result:', result);
+        return result;
     }
 
     // Helper: get or create a story by title and id

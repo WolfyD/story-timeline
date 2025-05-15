@@ -585,6 +585,9 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         items: items
     }
 
+    // Apply settings immediately
+    settingsSetup(settings);
+
     // Update the timeline immediately with new settings
     if (timelineState) {
         const newStartYear = parseInt(data.start);

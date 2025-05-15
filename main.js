@@ -463,26 +463,28 @@ function saveSettings(newSettings) {
   // Save settings to database
   const dbSettings = {
     font: newSettings.font || 'Arial',
-    fontSizeScale: parseFloat(newSettings.fontSizeScale || 1.0),
-    pixelsPerSubtick: parseInt(newSettings.pixelsPerSubtick || 20),
-    customCSS: newSettings.customCSS || '',
-    customMainCSS: newSettings.customMainCSS || '',
-    customItemsCSS: newSettings.customItemsCSS || '',
-    useTimelineCSS: newSettings.useTimelineCSS ? 1 : 0,
-    useMainCSS: newSettings.useMainCSS ? 1 : 0,
-    useItemsCSS: newSettings.useItemsCSS ? 1 : 0,
-    isFullscreen: newSettings.isFullscreen ? 1 : 0,
-    showGuides: newSettings.showGuides ? 1 : 0,
-    windowSizeX: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
-    windowSizeY: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
-    windowPositionX: parseInt(mainWindow.getPosition()[0] + 2),
-    windowPositionY: parseInt(mainWindow.getPosition()[1] + 1),
-    useCustomScaling: newSettings.useCustomScaling ? 1 : 0,
-    customScale: parseFloat(newSettings.customScale || 1.0),
+    font_size_scale: parseFloat(newSettings.fontSizeScale || 1.0),
+    pixels_per_subtick: parseInt(newSettings.pixelsPerSubtick || 20),
+    custom_css: newSettings.customCSS || '',
+    custom_main_css: newSettings.customMainCSS || '',
+    custom_items_css: newSettings.customItemsCSS || '',
+    use_timeline_css: newSettings.useTimelineCSS ? 1 : 0,
+    use_main_css: newSettings.useMainCSS ? 1 : 0,
+    use_items_css: newSettings.useItemsCSS ? 1 : 0,
+    is_fullscreen: newSettings.isFullscreen ? 1 : 0,
+    show_guides: newSettings.showGuides ? 1 : 0,
+    window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
+    window_size_y: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
+    window_position_x: parseInt(mainWindow.getPosition()[0] + 2),
+    window_position_y: parseInt(mainWindow.getPosition()[1] + 1),
+    use_custom_scaling: newSettings.useCustomScaling ? 1 : 0,
+    custom_scale: parseFloat(newSettings.customScale || 1.0),
     timeline_id: data.timeline_id
   };
   
-  dbManager.updateSettings(dbSettings);
+  console.log("Saving settings to database:", dbSettings);
+  const result = dbManager.updateSettings(dbSettings);
+  console.log("Settings save result:", result);
 
   // Apply window scaling if enabled
   if (newSettings.useCustomScaling) {
@@ -501,7 +503,7 @@ function saveSettings(newSettings) {
   };
   
   console.log("Saving universe data:", universeData);
-  const result = dbManager.updateUniverseData(universeData);
+  const universeResult = dbManager.updateUniverseData(universeData);
   
   // Update our settings state
   settings = {
@@ -513,12 +515,11 @@ function saveSettings(newSettings) {
   mainWindow.webContents.send('call-load-settings', settings);
   
   // If items were updated due to granularity change, reload them
-  if (result.itemsUpdated) {
+  if (universeResult.itemsUpdated) {
     const items = dbManager.getAllItems();
     mainWindow.webContents.send('items', items);
   }
   
-  console.log("Settings saved:", dbSettings);
   return true;
 }
 
@@ -607,41 +608,41 @@ function setupIpcHandlers() {
   ipcMain.on('save-settings', (event, newSettings, newData) => {
     // Merge new settings with current settings
     const updatedSettings = {
-      ...data.settings,
-      ...newSettings
+        ...settings,
+        ...newSettings
     };
 
     // Update the data state
     data = {
-      ...data,
-      settings: updatedSettings,
-      title: newData.title,
-      author: newData.author,
-      description: newData.description,
-      start: newData.start,
-      granularity: newData.granularity
+        ...data,
+        settings: updatedSettings,
+        title: newData.title,
+        author: newData.author,
+        description: newData.description,
+        start: newData.start,
+        granularity: newData.granularity
     };
 
     // Save settings to database
     const dbSettings = {
-      font: updatedSettings.font || 'Arial',
-      font_size_scale: parseFloat(updatedSettings.font_size_scale || 1.0),
-      pixels_per_subtick: parseInt(updatedSettings.pixels_per_subtick || 20),
-      custom_css: updatedSettings.customCSS || '',
-      custom_main_css: updatedSettings.customMainCSS || '',
-      custom_items_css: updatedSettings.customItemsCSS || '',
-      use_timeline_css: updatedSettings.useTimelineCSS ? 1 : 0,
-      use_main_css: updatedSettings.useMainCSS ? 1 : 0,
-      use_items_css: updatedSettings.useItemsCSS ? 1 : 0,
-      is_fullscreen: updatedSettings.isFullscreen ? 1 : 0,
-      show_guides: updatedSettings.showGuides ? 1 : 0,
-      window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
-      window_size_y: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
-      window_position_x: parseInt(mainWindow.getPosition()[0] + 2),
-      window_position_y: parseInt(mainWindow.getPosition()[1] + 1),
-      use_custom_scaling: updatedSettings.useCustomScaling ? 1 : 0,
-      custom_scale: parseFloat(updatedSettings.customScale || 1.0),
-      timeline_id: data.timeline_id
+        font: updatedSettings.font || 'Arial',
+        font_size_scale: parseFloat(updatedSettings.fontSizeScale || 1.0),
+        pixels_per_subtick: parseInt(updatedSettings.pixelsPerSubtick || 20),
+        custom_css: updatedSettings.customCSS || '',
+        custom_main_css: updatedSettings.customMainCSS || '',
+        custom_items_css: updatedSettings.customItemsCSS || '',
+        use_timeline_css: updatedSettings.useTimelineCSS ? 1 : 0,
+        use_main_css: updatedSettings.useMainCSS ? 1 : 0,
+        use_items_css: updatedSettings.useItemsCSS ? 1 : 0,
+        is_fullscreen: updatedSettings.isFullscreen ? 1 : 0,
+        show_guides: updatedSettings.showGuides ? 1 : 0,
+        window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
+        window_size_y: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
+        window_position_x: parseInt(mainWindow.getPosition()[0] + 2),
+        window_position_y: parseInt(mainWindow.getPosition()[1] + 1),
+        use_custom_scaling: updatedSettings.useCustomScaling ? 1 : 0,
+        custom_scale: parseFloat(updatedSettings.customScale || 1.0),
+        timeline_id: data.timeline_id
     };
 
     // Update settings in database
@@ -649,26 +650,33 @@ function setupIpcHandlers() {
 
     // Save timeline data
     const timelineData = {
-      timeline_id: data.timeline_id,
-      title: newData.title,
-      author: newData.author,
-      description: newData.description,
-      start: newData.start,
-      granularity: newData.granularity
+        timeline_id: data.timeline_id,
+        title: newData.title,
+        author: newData.author,
+        description: newData.description,
+        start: newData.start,
+        granularity: newData.granularity
     };
     dbManager.updateUniverseData(timelineData);
+
+    // Apply window scaling if enabled
+    if (updatedSettings.useCustomScaling) {
+        mainWindow.webContents.setZoomFactor(parseFloat(updatedSettings.customScale));
+    } else {
+        mainWindow.webContents.setZoomFactor(1.0);
+    }
 
     // Send updated settings back to renderer
     mainWindow.webContents.send('call-load-settings', updatedSettings);
     
     // Send updated timeline data to renderer
     mainWindow.webContents.send('timeline-data', {
-      id: data.timeline_id,
-      title: newData.title,
-      author: newData.author,
-      description: newData.description,
-      start_year: newData.start,
-      granularity: newData.granularity
+        id: data.timeline_id,
+        title: newData.title,
+        author: newData.author,
+        description: newData.description,
+        start_year: newData.start,
+        granularity: newData.granularity
     });
   });
 

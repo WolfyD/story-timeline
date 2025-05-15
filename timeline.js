@@ -313,22 +313,29 @@ function renderTimeline() {
             if (picture.file_path) {
                 const img = document.createElement('img');
                 img.className = 'cascading-image';
+                img.setAttribute('data-item-id', item.id); // Add item ID for reference
                 
-                // Assign class based on position
-                if (index === 0) {
-                    img.className += ' main';
-                } else if (index <= 2) {
-                    img.className += ' secondary';
-                    img.className += index % 2 === 0 ? ' even' : ' odd';
-                } else if (index <= 4) {
-                    img.className += ' tertiary';
-                    img.className += index % 2 === 0 ? ' even' : ' odd';
-                } else if (index <= 6) {
-                    img.className += ' quaternary';
-                    img.className += index % 2 === 0 ? ' even' : ' odd';
-                } else if (index <= 8) {
-                    img.className += ' quinary';
-                    img.className += index % 2 === 0 ? ' even' : ' odd';
+                // Set z-index based on item type
+                if (item.type === 'Age') {
+                    img.className += ' main age-image';
+                    img.style.zIndex = '1'; // Lowest z-index for age images
+                } else {
+                    // Assign class based on position for non-age items
+                    if (index === 0) {
+                        img.className += ' main';
+                    } else if (index <= 2) {
+                        img.className += ' secondary';
+                        img.className += index % 2 === 0 ? ' even' : ' odd';
+                    } else if (index <= 4) {
+                        img.className += ' tertiary';
+                        img.className += index % 2 === 0 ? ' even' : ' odd';
+                    } else if (index <= 6) {
+                        img.className += ' quaternary';
+                        img.className += index % 2 === 0 ? ' even' : ' odd';
+                    } else if (index <= 8) {
+                        img.className += ' quinary';
+                        img.className += index % 2 === 0 ? ' even' : ' odd';
+                    }
                 }
 
                 const fileUrl = 'file://' + picture.file_path.replace(/\\/g, '/');
@@ -1143,10 +1150,6 @@ document.addEventListener("DOMContentLoaded", () => {
 renderTimeline();
 // Add click handler for the timeline
 container.addEventListener('click', function(e) {
-    
-    e.bubbles = false;
-    e.stopPropagation();
-    console.log('[timeline.js:899] timeline container clicked');
     // Don't show selector if clicking on an existing item
     if (e.target.closest('.timeline-item-box')) {
         return;
@@ -1208,15 +1211,8 @@ container.addEventListener('click', function(e) {
 
 // Close selector when clicking outside
 document.addEventListener('click', function(e) {
-    e.bubbles = false;
-    e.stopPropagation();
-    console.log('[timeline.js:935] clicking outside');
-    // if the target is the timeline container, return
-    if (e.target.closest('#timeline')) {
-        return;
-    }
-
-    if (!e.target.closest('#item-selector') && !e.target.closest('#timeline')) {
+    // Only handle clicks that are outside both the timeline and selector
+    if (!e.target.closest('#timeline-container') && !e.target.closest('#item-selector')) {
         closeItemSelector();
     }
 });
@@ -1224,4 +1220,38 @@ document.addEventListener('click', function(e) {
 // Add window resize handler
 window.addEventListener('resize', () => {
     renderTimeline();
+});
+
+// Add this near the top of the file, with other event listeners
+container.addEventListener('mouseover', (e) => {
+    const item = e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item');
+    if (!item) return;
+    
+    const itemId = item.getAttribute('data-id');
+    if (!itemId) return;
+
+    const images = document.querySelectorAll(`.cascading-image[data-item-id="${itemId}"]`);
+    images.forEach(img => {
+        img.style.zIndex = '100'; // Higher z-index on hover
+        img.style.transition = 'all 0.3s ease';
+    });
+});
+
+container.addEventListener('mouseout', (e) => {
+    const item = e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item');
+    if (!item) return;
+    
+    const itemId = item.getAttribute('data-id');
+    if (!itemId) return;
+
+    const images = document.querySelectorAll(`.cascading-image[data-item-id="${itemId}"]`);
+    images.forEach(img => {
+        // Reset z-index based on item type
+        if (img.classList.contains('age-image')) {
+            img.style.zIndex = '1'; // Reset to lowest z-index for age images
+        } else {
+            img.style.zIndex = ''; // Reset to default for other images
+        }
+        img.style.transform = '';
+    });
 });
