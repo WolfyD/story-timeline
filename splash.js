@@ -89,7 +89,7 @@ function renderTimelines(timelines) {
             <div class="splash_timeline_info">
                 <h3 class="splash_timeline_title">${timeline.title}</h3>
                 <p class="splash_timeline_author">${timeline.author || 'Unknown Author'}</p>
-                <p class="splash_timeline_years">Start Year: ${timeline.start_year}</p>
+                <p class="splash_timeline_years">${timeline.year_range}</p>
             </div>
             <div class="splash_timeline_actions">
                 <button class="splash_timeline_action_button" onclick="openTimelineImages('${timeline.id}')" title="Open Images Folder">

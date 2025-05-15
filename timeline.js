@@ -374,7 +374,7 @@ function renderTimeline() {
                 ageItem.className = 'timeline-age-item';
                 ageItem.style.left = `${actualStartPosition}px`;
                 ageItem.style.width = `${actualEndPosition - actualStartPosition}px`;
-                ageItem.style.top = "calc(50% + 1px)"; //`${containerRect.height / 2}px`; // Center vertically on the timeline
+                ageItem.style.top = "calc(50% + 1px)"; // Center vertically on the timeline
                 ageItem.setAttribute('data-id', item.id);
                 ageItem.setAttribute('data-year', item.year);
                 ageItem.setAttribute('data-end-year', item.end_year);
@@ -467,7 +467,7 @@ function renderTimeline() {
                 // Calculate vertical position
                 const isAbove = idx % 2 === 0;
                 const baseOffset = 10; // Base offset from timeline
-                const stackOffset = stackLevel * 10; // 15px gap between stacked periods
+                const stackOffset = stackLevel * 10; // 10px gap between stacked periods
                 const totalOffset = baseOffset + stackOffset;
                 
                 periodItem.style.top = `${containerRect.height / 2 + (isAbove ? ((totalOffset * -1) - 4) : totalOffset)}px`;

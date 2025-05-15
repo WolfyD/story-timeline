@@ -10,14 +10,36 @@ class DatabaseManager {
         'Ancient', 'Mystical', 'Eternal', 'Forgotten', 'Legendary', 'Mythical',
         'Enchanted', 'Celestial', 'Cosmic', 'Divine', 'Sacred', 'Primal',
         'Arcane', 'Ethereal', 'Mysterious', 'Timeless', 'Infinite', 'Boundless',
-        'Majestic', 'Noble', 'Radiant', 'Splendid', 'Glorious', 'Magnificent'
+        'Majestic', 'Noble', 'Radiant', 'Splendid', 'Glorious', 'Magnificent',
+        'Astral', 'Eldritch', 'Transcendent', 'Immortal', 'Venerable', 'Sovereign',
+        'Mystic', 'Ethereal', 'Astral', 'Cosmic', 'Celestial', 'Divine',
+        'Primal', 'Ancient', 'Eternal', 'Infinite', 'Timeless', 'Immortal',
+        'Mystical', 'Enchanted', 'Arcane', 'Sacred', 'Legendary', 'Mythical',
+        'Majestic', 'Noble', 'Radiant', 'Splendid', 'Glorious', 'Magnificent',
+        'Transcendent', 'Venerable', 'Sovereign', 'Eldritch', 'Astral', 'Ethereal',
+        'Cosmic', 'Celestial', 'Divine', 'Primal', 'Ancient', 'Eternal',
+        'Infinite', 'Timeless', 'Immortal', 'Mystical', 'Enchanted', 'Arcane',
+        'Sacred', 'Legendary', 'Mythical', 'Majestic', 'Noble', 'Radiant',
+        'Splendid', 'Glorious', 'Magnificent', 'Transcendent', 'Venerable', 'Sovereign'
     ];
 
     static EPIC_NOUNS = [
         'Chronicles', 'Saga', 'Legacy', 'Destiny', 'Odyssey', 'Voyage',
         'Journey', 'Quest', 'Tale', 'Epic', 'Legend', 'Myth',
         'Realm', 'Domain', 'Empire', 'Kingdom', 'Dynasty', 'Era',
-        'Epoch', 'Age', 'Time', 'World', 'Universe', 'Cosmos'
+        'Epoch', 'Age', 'Time', 'World', 'Universe', 'Cosmos',
+        'Nexus', 'Vortex', 'Abyss', 'Horizon', 'Voyage', 'Expedition',
+        'Pilgrimage', 'Crusade', 'Conquest', 'Ascension', 'Transcendence', 'Awakening',
+        'Genesis', 'Apocalypse', 'Revelation', 'Prophecy', 'Oracle', 'Vision',
+        'Dream', 'Nightmare', 'Fantasy', 'Reality', 'Dimension', 'Existence',
+        'Creation', 'Destruction', 'Rebirth', 'Evolution', 'Revolution', 'Transformation',
+        'Harmony', 'Chaos', 'Order', 'Balance', 'Equilibrium', 'Paradox',
+        'Mystery', 'Enigma', 'Riddle', 'Puzzle', 'Conundrum', 'Maze',
+        'Labyrinth', 'Sanctuary', 'Temple', 'Shrine', 'Altar', 'Throne',
+        'Crown', 'Scepter', 'Orb', 'Crystal', 'Gem', 'Jewel',
+        'Artifact', 'Relic', 'Talisman', 'Amulet', 'Charm', 'Token',
+        'Scroll', 'Tome', 'Grimoire', 'Codex', 'Manuscript', 'Archive',
+        'Library', 'Repository', 'Vault', 'Treasury', 'Hoard', 'Cache'
     ];
 
     static generateEpicTitle() {
@@ -35,6 +57,7 @@ class DatabaseManager {
         
         this.db = require('better-sqlite3')(dbPath);
         this.initializeTables();
+        this.migrateDatabase();
         this.initializeDefaultData();
     }
 
@@ -48,11 +71,9 @@ class DatabaseManager {
                 description TEXT,
                 start_year INTEGER DEFAULT 0,
                 granularity INTEGER DEFAULT 4,
-                settings_id INTEGER,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(title, author),
-                FOREIGN KEY (settings_id) REFERENCES settings(id)
+                UNIQUE(title, author)
             )
         `);
 
@@ -246,6 +267,63 @@ class DatabaseManager {
         //         UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
         //     END;
         // `);
+    }
+
+    migrateDatabase() {
+        // Start a transaction
+        this.db.prepare('BEGIN').run();
+
+        try {
+            // Check if settings_id column exists in timelines table
+            const tableInfo = this.db.prepare("PRAGMA table_info(timelines)").all();
+            const hasSettingsId = tableInfo.some(col => col.name === 'settings_id');
+
+            if (hasSettingsId) {
+                // Get all timelines with their settings_id
+                const timelines = this.db.prepare('SELECT id, settings_id FROM timelines').all();
+
+                // Update settings table to add timeline_id if it doesn't exist
+                const settingsInfo = this.db.prepare("PRAGMA table_info(settings)").all();
+                const hasTimelineId = settingsInfo.some(col => col.name === 'timeline_id');
+
+                if (!hasTimelineId) {
+                    this.db.prepare('ALTER TABLE settings ADD COLUMN timeline_id INTEGER').run();
+                }
+
+                // Update settings with timeline_id
+                for (const timeline of timelines) {
+                    if (timeline.settings_id) {
+                        this.db.prepare('UPDATE settings SET timeline_id = ? WHERE id = ?')
+                            .run(timeline.id, timeline.settings_id);
+                    }
+                }
+
+                // Remove settings_id column from timelines
+                this.db.prepare('CREATE TABLE timelines_new (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, author TEXT NOT NULL, description TEXT, start_year INTEGER DEFAULT 0, granularity INTEGER DEFAULT 4, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(title, author))').run();
+                this.db.prepare('INSERT INTO timelines_new SELECT id, title, author, description, start_year, granularity, created_at, updated_at FROM timelines').run();
+                this.db.prepare('DROP TABLE timelines').run();
+                this.db.prepare('ALTER TABLE timelines_new RENAME TO timelines').run();
+            }
+
+            // Add ON DELETE CASCADE to settings table if not present
+            const settingsForeignKeys = this.db.prepare("PRAGMA foreign_key_list(settings)").all();
+            const hasCascade = settingsForeignKeys.some(fk => fk.on_delete === 'CASCADE');
+
+            if (!hasCascade) {
+                this.db.prepare('CREATE TABLE settings_new (id INTEGER PRIMARY KEY, timeline_id INTEGER, font TEXT DEFAULT "Arial", font_size_scale REAL DEFAULT 1.0, pixels_per_subtick INTEGER DEFAULT 20, custom_css TEXT, custom_main_css TEXT, custom_items_css TEXT, use_timeline_css INTEGER DEFAULT 0, use_main_css INTEGER DEFAULT 0, use_items_css INTEGER DEFAULT 0, is_fullscreen INTEGER DEFAULT 0, show_guides INTEGER DEFAULT 1, window_size_x INTEGER DEFAULT 1000, window_size_y INTEGER DEFAULT 700, window_position_x INTEGER DEFAULT 300, window_position_y INTEGER DEFAULT 100, use_custom_scaling INTEGER DEFAULT 0, custom_scale REAL DEFAULT 1.0, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE)').run();
+                this.db.prepare('INSERT INTO settings_new SELECT * FROM settings').run();
+                this.db.prepare('DROP TABLE settings').run();
+                this.db.prepare('ALTER TABLE settings_new RENAME TO settings').run();
+            }
+
+            // Commit the transaction
+            this.db.prepare('COMMIT').run();
+        } catch (error) {
+            // Rollback on error
+            this.db.prepare('ROLLBACK').run();
+            console.error('Error during database migration:', error);
+            throw error;
+        }
     }
 
     initializeDefaultData() {
@@ -571,10 +649,12 @@ class DatabaseManager {
             const stmt = this.db.prepare(`
                 INSERT INTO items (
                     id, title, description, content, year, subtick,
-                    book_title, chapter, page, type_id, color, timeline_id
+                    original_subtick, end_year, end_subtick, original_end_subtick,
+                    creation_granularity, book_title, chapter, page, type_id, color, timeline_id
                 ) VALUES (
                     @id, @title, @description, @content, @year, @subtick,
-                    @book_title, @chapter, @page, @type_id, @color, @timeline_id
+                    @original_subtick, @end_year, @end_subtick, @original_end_subtick,
+                    @creation_granularity, @book_title, @chapter, @page, @type_id, @color, @timeline_id
                 )
             `);
 
@@ -585,6 +665,11 @@ class DatabaseManager {
                 content: item.content || '',
                 year: item.year,
                 subtick: item.subtick,
+                original_subtick: item.original_subtick || item.subtick,
+                end_year: item.end_year || item.year,
+                end_subtick: item.end_subtick || item.subtick,
+                original_end_subtick: item.original_end_subtick || item.original_subtick || item.subtick,
+                creation_granularity: item.creation_granularity || this.getUniverseData().granularity,
                 book_title: item.book_title || '',
                 chapter: item.chapter || '',
                 page: item.page || '',
@@ -983,15 +1068,23 @@ class DatabaseManager {
                     t.description,
                     t.start_year,
                     t.granularity,
-                    t.settings_id,
                     t.created_at,
                     t.updated_at,
-                    MIN(i.year) as min_year,
-                    MAX(i.year) as max_year,
+                    MIN(CASE 
+                        WHEN i.type_id IN (SELECT id FROM item_types WHERE name IN ('Period', 'Age')) 
+                        THEN i.year 
+                        ELSE i.year 
+                    END) as min_year,
+                    MAX(CASE 
+                        WHEN i.type_id IN (SELECT id FROM item_types WHERE name IN ('Period', 'Age')) 
+                        THEN i.end_year 
+                        ELSE i.year 
+                    END) as max_year,
                     COUNT(i.id) as item_count
                 FROM timelines t
                 LEFT JOIN items i ON i.timeline_id = t.id
-                GROUP BY t.id, t.title, t.author, t.description, t.start_year, t.granularity, t.settings_id, t.created_at, t.updated_at
+                LEFT JOIN item_types it ON i.type_id = it.id
+                GROUP BY t.id, t.title, t.author, t.description, t.start_year, t.granularity, t.created_at, t.updated_at
             )
             SELECT 
                 id,
@@ -1000,19 +1093,13 @@ class DatabaseManager {
                 description,
                 start_year,
                 granularity,
-                settings_id,
                 created_at,
                 updated_at,
                 CASE 
-                    WHEN item_count = 0 THEN -2147483648
-                    WHEN item_count = 1 THEN min_year
-                    ELSE min_year
-                END as start_year,
-                CASE 
-                    WHEN item_count = 0 THEN 2147483647
-                    WHEN item_count = 1 THEN max_year
-                    ELSE max_year
-                END as end_year
+                    WHEN item_count = 0 THEN '−∞ - ∞'
+                    ELSE CAST(min_year AS TEXT) || ' - ' || CAST(max_year AS TEXT)
+                END as year_range,
+                item_count
             FROM timeline_years
             ORDER BY title, author
         `);
@@ -1121,7 +1208,10 @@ class DatabaseManager {
         this.db.prepare('BEGIN').run();
 
         try {
-            // First delete item-related records
+            // First delete settings (due to foreign key constraint)
+            this.db.prepare('DELETE FROM settings WHERE timeline_id = ?').run(timelineId);
+            
+            // Then delete item-related records
             this.db.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
             this.db.prepare('DELETE FROM pictures WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
             this.db.prepare('DELETE FROM item_story_refs WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
@@ -1129,10 +1219,8 @@ class DatabaseManager {
             // Then delete the items themselves
             this.db.prepare('DELETE FROM items WHERE timeline_id = ?').run(timelineId);
             
-            // Delete the timeline itself
+            // Finally delete the timeline itself
             this.db.prepare('DELETE FROM timelines WHERE id = ?').run(timelineId);
-            
-            // Settings will be automatically deleted due to ON DELETE CASCADE
 
             // Commit the transaction
             this.db.prepare('COMMIT').run();
@@ -1347,15 +1435,35 @@ class DatabaseManager {
 
     // Add a new timeline
     addTimeline(timeline) {
-        // First create default settings
+        // First create the timeline
+        const timelineStmt = this.db.prepare(`
+            INSERT INTO timelines (
+                title, author, description, start_year, granularity
+            ) VALUES (
+                @title, @author, @description, @start_year, @granularity
+            )
+        `);
+        
+        const timelineData = {
+            title: timeline.title || 'New Timeline',
+            author: timeline.author || '',
+            description: timeline.description || '',
+            start_year: timeline.start_year || 0,
+            granularity: timeline.granularity || 4
+        };
+
+        const timelineResult = timelineStmt.run(timelineData);
+        const timelineId = timelineResult.lastInsertRowid;
+
+        // Then create settings for this timeline
         const settingsStmt = this.db.prepare(`
             INSERT INTO settings (
-                font, font_size_scale, pixels_per_subtick, custom_css,
+                timeline_id, font, font_size_scale, pixels_per_subtick, custom_css,
                 custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
                 is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
                 use_custom_scaling, custom_scale
             ) VALUES (
-                @font, @font_size_scale, @pixels_per_subtick, @custom_css,
+                @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
                 @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
                 @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
                 @use_custom_scaling, @custom_scale
@@ -1363,7 +1471,7 @@ class DatabaseManager {
         `);
 
         const defaultSettings = {
-            id: 1,
+            timeline_id: timelineId,
             font: 'Arial',
             font_size_scale: 1.0,
             pixels_per_subtick: 20,
@@ -1383,40 +1491,7 @@ class DatabaseManager {
             custom_scale: 1.0
         };
 
-        const settingsResult = settingsStmt.run(defaultSettings);
-        const settingsId = settingsResult.lastInsertRowid;
-
-        // Then create the timeline with the settings_id
-        const timelineStmt = this.db.prepare(`
-            INSERT INTO timelines (
-                title, author, description, start_year, granularity, settings_id
-            ) VALUES (
-                @title, @author, @description, @start_year, @granularity, @settings_id
-            )
-        `);
-        
-        const timelineData = {
-            title: timeline.title || 'New Timeline',
-            author: timeline.author || '',
-            description: timeline.description || '',
-            start_year: timeline.start_year || 0,
-            granularity: timeline.granularity || 4,
-            settings_id: settingsId
-        };
-
-        const timelineResult = timelineStmt.run(timelineData);
-        const timelineId = timelineResult.lastInsertRowid;
-
-        // Update settings with timeline_id
-        const updateSettingsStmt = this.db.prepare(`
-            UPDATE settings 
-            SET timeline_id = @timeline_id 
-            WHERE id = @settings_id
-        `);
-        updateSettingsStmt.run({
-            timeline_id: timelineId,
-            settings_id: settingsId
-        });
+        settingsStmt.run(defaultSettings);
         
         return timelineId;
     }
@@ -1428,9 +1503,11 @@ class DatabaseManager {
      */
     getItemsByTimeline(timelineId) {
         const stmt = this.db.prepare(`
-            SELECT * FROM items 
-            WHERE timeline_id = @timelineId
-            ORDER BY year ASC, subtick ASC
+            SELECT i.*, t.name as type
+            FROM items i
+            LEFT JOIN item_types t ON i.type_id = t.id
+            WHERE i.timeline_id = @timelineId
+            ORDER BY i.year ASC, i.subtick ASC
         `);
         
         return stmt.all({ timelineId });

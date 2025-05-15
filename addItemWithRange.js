@@ -1,6 +1,7 @@
 const tags = new Set();
 const images = [];
 let storySuggestions = [];
+let type; // Declare type in global scope
 
 // Get story suggestions from main window
 window.api.send('getStorySuggestions');
@@ -11,22 +12,35 @@ window.api.receive('storySuggestions', (suggestions) => {
 });
 
 // Initialize form with URL parameters
-const urlParams = new URLSearchParams(window.location.search);
-const year = urlParams.get('year');
-const subtick = urlParams.get('subtick');
-const granularity = urlParams.get('granularity');
-const color = urlParams.get('color');
+function initializeForm() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const year = urlParams.get('year');
+    const subtick = urlParams.get('subtick');
+    const granularity = urlParams.get('granularity');
+    const color = urlParams.get('color');
+    type = urlParams.get('type'); // Assign to global type variable
 
-if (year !== null && subtick !== null) {
-    document.getElementById('yearInput').value = year;
-    document.getElementById('subtickInput').value = subtick;
-    document.getElementById('endYearInput').value = year;
-    document.getElementById('endSubtickInput').value = subtick;
+    // Validate type parameter
+    if (!type || !['age', 'period'].includes(type.toLowerCase())) {
+        console.error('Invalid or missing type parameter. Must be either "age" or "period".');
+        window.close();
+        return;
+    }
+
+    if (year !== null && subtick !== null) {
+        document.getElementById('yearInput').value = year;
+        document.getElementById('subtickInput').value = subtick;
+        document.getElementById('endYearInput').value = year;
+        document.getElementById('endSubtickInput').value = subtick;
+    }
+
+    if (color !== null) {
+        document.getElementById('colorInput').value = color;
+    }
 }
 
-if (color !== null) {
-    document.getElementById('colorInput').value = color;
-}
+// Call initialization
+initializeForm();
 
 // Handle tag input
 document.getElementById('tagInput').addEventListener('keydown', function(e) {
@@ -60,7 +74,70 @@ function removeTag(tag) {
     updateTagDisplay();
 }
 
-// Handle image uploads
+// Image handling
+let uploadedImages = [];
+let imageCounter = 0;
+
+function createImagePreview(file, imageId) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const img = document.createElement('img');
+        img.src = e.target.result;
+        img.className = 'preview-image';
+        img.id = `preview-${imageId}`;
+        
+        const container = document.createElement('div');
+        container.className = 'image-preview-container';
+        container.id = `container-${imageId}`;
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-image-btn';
+        removeBtn.textContent = '×';
+        removeBtn.onclick = () => removeImage(imageId);
+        
+        container.appendChild(img);
+        container.appendChild(removeBtn);
+        
+        const imageContainer = document.getElementById('imageContainer');
+        if (!imageContainer) {
+            const newContainer = document.createElement('div');
+            newContainer.id = 'imageContainer';
+            newContainer.className = 'image-container';
+            document.querySelector('.image-upload-container').appendChild(newContainer);
+        }
+        document.getElementById('imageContainer').appendChild(container);
+    };
+    reader.readAsDataURL(file);
+}
+
+function removeImage(imageId) {
+    const container = document.getElementById(`container-${imageId}`);
+    if (container) {
+        container.remove();
+    }
+    uploadedImages = uploadedImages.filter(img => img.id !== imageId);
+}
+
+function handleImageUpload(event) {
+    const files = event.target.files;
+    for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        if (file.type.startsWith('image/')) {
+            const imageId = `img-${imageCounter++}`;
+            uploadedImages.push({
+                id: imageId,
+                file: file,
+                title: file.name,
+                description: ''
+            });
+            createImagePreview(file, imageId);
+        }
+    }
+    // Reset the input value to allow selecting the same file again
+    event.target.value = '';
+}
+
+// Add image button click handler
 document.getElementById('addImageBtn').addEventListener('click', function() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -213,17 +290,29 @@ function collectStoryRefs() {
     }).filter(ref => ref.story_title && ref.story_id);
 }
 
-// Handle form submission
+// Update the form submission to include images
 document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    // Get form data
     const formData = {
         id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
         title: document.getElementById('title').value,
         description: document.getElementById('description').value,
         content: document.getElementById('content').value,
-        tags: Array.from(tags),
+        year: parseInt(document.getElementById('yearInput').value),
+        subtick: parseInt(document.getElementById('subtickInput').value),
+        end_year: parseInt(document.getElementById('endYearInput').value),
+        end_subtick: parseInt(document.getElementById('endSubtickInput').value),
+        book_title: document.getElementById('bookTitle').value,
+        chapter: document.getElementById('chapter').value,
+        page: document.getElementById('page').value,
+        color: document.getElementById('colorInput').value,
+        type: type.charAt(0).toUpperCase() + type.slice(1),
+        tags: Array.from(document.querySelectorAll('.tag')).map(tag => tag.textContent),
+        story_refs: Array.from(document.querySelectorAll('.story-ref-row')).map(row => ({
+            story_id: row.querySelector('.story-ref-id').value,
+            story_title: row.querySelector('.story-ref-title').value
+        })),
         pictures: images.map((imageInfo, index) => ({
             id: imageInfo.id,
             file_path: imageInfo.file_path,
@@ -234,33 +323,30 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
             height: imageInfo.height,
             title: imageInfo.title || `Image ${index + 1}`,
             description: imageInfo.description || ''
-        })),
-        bookTitle: document.getElementById('bookTitle').value,
-        chapter: document.getElementById('chapter').value,
-        page: document.getElementById('page').value,
-        year: parseInt(document.getElementById('yearInput').value),
-        subtick: parseInt(document.getElementById('subtickInput').value),
-        end_year: parseInt(document.getElementById('endYearInput').value),
-        end_subtick: parseInt(document.getElementById('endSubtickInput').value),
-        story_refs: collectStoryRefs(),
-        story: '',
-        'story-id': '',
-        type: (urlParams.get('type') || 'period').charAt(0).toUpperCase() + (urlParams.get('type') || 'period').slice(1),
-        color: document.getElementById('colorInput').value || null
+        }))
     };
 
     try {
-        if (formData.story_refs.length > 0) {
-            formData.story = formData.story_refs[0].story_title;
-            formData['story-id'] = formData.story_refs[0].story_id;
-        }
         // Send data through IPC
         window.api.send('addTimelineItem', formData);
+
+        // Wait for item creation and update pictures
+        window.api.receive('item-created', (itemId) => {
+            if (itemId && images.length > 0) {
+                // Get all picture IDs
+                const pictureIds = images.map(img => img.id);
+                // Update pictures with the new item ID
+                window.api.send('update-pictures-item-id', {
+                    pictureIds: pictureIds,
+                    itemId: itemId
+                });
+            }
+        });
+
         window.api.send('add-item-window-closing');
         window.close();
     } catch (error) {
-        console.error('Error submitting form:', error);
-        alert('An error occurred. Please try again.');
+        console.error('Error adding item:', error);
     }
 });
 

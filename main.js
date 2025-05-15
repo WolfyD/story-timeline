@@ -66,17 +66,39 @@ const DEFAULT_SETTINGS = {
 
 // Epic title generation
 const EPIC_ADJECTIVES = [
-    'Ancient', 'Mystical', 'Eternal', 'Forgotten', 'Legendary', 'Mythical',
-    'Enchanted', 'Celestial', 'Cosmic', 'Divine', 'Sacred', 'Primal',
-    'Arcane', 'Ethereal', 'Mysterious', 'Timeless', 'Infinite', 'Boundless',
-    'Majestic', 'Noble', 'Radiant', 'Splendid', 'Glorious', 'Magnificent'
+  'Ancient', 'Mystical', 'Eternal', 'Forgotten', 'Legendary', 'Mythical',
+  'Enchanted', 'Celestial', 'Cosmic', 'Divine', 'Sacred', 'Primal',
+  'Arcane', 'Ethereal', 'Mysterious', 'Timeless', 'Infinite', 'Boundless',
+  'Majestic', 'Noble', 'Radiant', 'Splendid', 'Glorious', 'Magnificent',
+  'Astral', 'Eldritch', 'Transcendent', 'Immortal', 'Venerable', 'Sovereign',
+  'Mystic', 'Ethereal', 'Astral', 'Cosmic', 'Celestial', 'Divine',
+  'Primal', 'Ancient', 'Eternal', 'Infinite', 'Timeless', 'Immortal',
+  'Mystical', 'Enchanted', 'Arcane', 'Sacred', 'Legendary', 'Mythical',
+  'Majestic', 'Noble', 'Radiant', 'Splendid', 'Glorious', 'Magnificent',
+  'Transcendent', 'Venerable', 'Sovereign', 'Eldritch', 'Astral', 'Ethereal',
+  'Cosmic', 'Celestial', 'Divine', 'Primal', 'Ancient', 'Eternal',
+  'Infinite', 'Timeless', 'Immortal', 'Mystical', 'Enchanted', 'Arcane',
+  'Sacred', 'Legendary', 'Mythical', 'Majestic', 'Noble', 'Radiant',
+  'Splendid', 'Glorious', 'Magnificent', 'Transcendent', 'Venerable', 'Sovereign'
 ];
 
 const EPIC_NOUNS = [
-    'Chronicles', 'Saga', 'Legacy', 'Destiny', 'Odyssey', 'Voyage',
-    'Journey', 'Quest', 'Tale', 'Epic', 'Legend', 'Myth',
-    'Realm', 'Domain', 'Empire', 'Kingdom', 'Dynasty', 'Era',
-    'Epoch', 'Age', 'Time', 'World', 'Universe', 'Cosmos'
+  'Chronicles', 'Saga', 'Legacy', 'Destiny', 'Odyssey', 'Voyage',
+  'Journey', 'Quest', 'Tale', 'Epic', 'Legend', 'Myth',
+  'Realm', 'Domain', 'Empire', 'Kingdom', 'Dynasty', 'Era',
+  'Epoch', 'Age', 'Time', 'World', 'Universe', 'Cosmos',
+  'Nexus', 'Vortex', 'Abyss', 'Horizon', 'Voyage', 'Expedition',
+  'Pilgrimage', 'Crusade', 'Conquest', 'Ascension', 'Transcendence', 'Awakening',
+  'Genesis', 'Apocalypse', 'Revelation', 'Prophecy', 'Oracle', 'Vision',
+  'Dream', 'Nightmare', 'Fantasy', 'Reality', 'Dimension', 'Existence',
+  'Creation', 'Destruction', 'Rebirth', 'Evolution', 'Revolution', 'Transformation',
+  'Harmony', 'Chaos', 'Order', 'Balance', 'Equilibrium', 'Paradox',
+  'Mystery', 'Enigma', 'Riddle', 'Puzzle', 'Conundrum', 'Maze',
+  'Labyrinth', 'Sanctuary', 'Temple', 'Shrine', 'Altar', 'Throne',
+  'Crown', 'Scepter', 'Orb', 'Crystal', 'Gem', 'Jewel',
+  'Artifact', 'Relic', 'Talisman', 'Amulet', 'Charm', 'Token',
+  'Scroll', 'Tome', 'Grimoire', 'Codex', 'Manuscript', 'Archive',
+  'Library', 'Repository', 'Vault', 'Treasury', 'Hoard', 'Cache'
 ];
 
 function generateEpicTitle() {
