@@ -140,6 +140,7 @@ body {
     padding: 20px;
     overflow-y: auto;
     min-height: 0;
+    font-family: var(--default-font), "Times New Roman", serif;
 }
 
 /* Timeline area */
@@ -879,4 +880,107 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 .note-title {
     display: inline-block;
     vertical-align: middle;
+}
+
+/* Main content right area styles */
+.center-note,
+.center-age,
+.center-periods {
+    margin-bottom: 20px;
+}
+
+.center-note h1,
+.center-age h1 {
+    font-size: 2.5em;
+    color: #4b2e2e;
+    margin-bottom: 15px;
+    font-weight: bold;
+}
+
+.center-period h2,
+.center-period h3,
+.center-period h4,
+.center-period h5,
+.center-period h6 {
+    color: #4b2e2e;
+    margin: 15px 0 10px 0;
+    font-weight: normal;
+}
+
+.center-period h2 { font-size: 2em; }
+.center-period h3 { font-size: 1.8em; }
+.center-period h4 { font-size: 1.6em; }
+.center-period h5 { font-size: 1.4em; }
+.center-period h6 { font-size: 1.2em; }
+
+.center-note p,
+.center-age p,
+.center-period p {
+    font-size: 1.1em;
+    line-height: 1.6;
+    color: #4b2e2e;
+    margin: 10px 0;
+}
+
+.center-note {
+    margin: 20px 0;
+}
+
+.center-note h2 {
+    font-size: 1.5em;
+    color: #4b2e2e;
+    margin-bottom: 10px;
+}
+
+.center-note .note-description {
+    font-style: italic;
+    font-size: 0.9em;
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.center-note .note-content {
+    font-size: 1em;
+    line-height: 1.5;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.center-note .note-image {
+    max-width: 120px;
+    max-height: 120px;
+    object-fit: contain;
+    float: right;
+    margin: 0 0 15px 15px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+}
+
+.center-note .note-image:hover {
+    max-width: 30%;
+    max-height: none;
+    position: relative;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.center-note .note-tags {
+    margin-top: 15px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.center-note .note-tag {
+    background-color: #4b2e2e;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+    color: #f5e6d4;
+}
+
+.center-note hr {
+    margin: 20px 0;
+    border: none;
+    border-top: 1px solid #ddd;
 }

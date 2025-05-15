@@ -251,6 +251,162 @@ function getHoverLabel(v, granularity) {
 }
 
 /**
+ * Updates the main content area based on items at the center position
+ * @param {number} centerX - X position of the center
+ * @param {number} centerYear - Year at the center position
+ */
+function updateMainContent(centerX, centerYear) {
+    const mainContentRight = document.querySelector('.main-content-right');
+    if (!mainContentRight) return;
+
+    // Find items that overlap with the center position
+    const centerItems = timelineState.items.filter(item => {
+        if (!item) return false;
+        const itemYear = parseFloat(item.year || item.date || 0);
+        const itemEndYear = parseFloat(item.end_year || item.year || 0);
+        return centerYear >= itemYear && centerYear <= itemEndYear;
+    });
+
+    // Clear existing content
+    mainContentRight.innerHTML = '';
+
+    // Check for a note within 10px of center
+    const closestNote = findClosestNote(centerX);
+    
+    if (closestNote) {
+        // Find age and period items
+        const ageItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'age');
+        const periodItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'period')
+            .sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
+
+        if (ageItems.length > 0) {
+            const age = ageItems[0];
+            const ageDiv = document.createElement('div');
+            ageDiv.className = 'center-age';
+
+            const title = document.createElement('h1');
+            title.textContent = age.title || '(No Title)';
+            ageDiv.appendChild(title);
+
+            if (age.description) {
+                const description = document.createElement('p');
+                description.textContent = age.description;
+                ageDiv.appendChild(description);
+            }
+
+            mainContentRight.appendChild(ageDiv);
+        }
+
+        // Add the note content
+        const noteDiv = document.createElement('div');
+        noteDiv.className = 'center-note';
+        
+        // Add separator if there was an h1
+        if (mainContentRight.querySelector('h1')) {
+            const hr = document.createElement('hr');
+            noteDiv.appendChild(hr);
+        }
+
+        // Add title
+        if (closestNote.title) {
+            const title = document.createElement('h2');
+            title.textContent = closestNote.title.split(' ')
+                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+                .join(' ');
+            noteDiv.appendChild(title);
+        }
+
+        // Add description in italic
+        if (closestNote.description) {
+            const description = document.createElement('p');
+            description.className = 'note-description';
+            description.textContent = closestNote.description;
+            noteDiv.appendChild(description);
+        }
+
+        // Add content
+        if (closestNote.content) {
+            const content = document.createElement('p');
+            content.className = 'note-content';
+            content.textContent = closestNote.content;
+            noteDiv.appendChild(content);
+        }
+
+        // Add first image if exists
+        if (closestNote.pictures && closestNote.pictures.length > 0) {
+            const img = document.createElement('img');
+            img.className = 'note-image';
+            img.src = 'file://' + closestNote.pictures[0].file_path.replace(/\\/g, '/');
+            img.alt = closestNote.title || 'Note Image';
+            noteDiv.appendChild(img);
+        }
+
+        // Add tags if they exist
+        if (closestNote.tags && closestNote.tags.length > 0) {
+            const tagsDiv = document.createElement('div');
+            tagsDiv.className = 'note-tags';
+            closestNote.tags.forEach(tag => {
+                const tagSpan = document.createElement('span');
+                tagSpan.className = 'note-tag';
+                tagSpan.textContent = tag;
+                tagsDiv.appendChild(tagSpan);
+            });
+            noteDiv.appendChild(tagsDiv);
+        }
+
+        mainContentRight.appendChild(noteDiv);
+    } else {
+        // Find age and period items
+        const ageItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'age');
+        const periodItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'period')
+            .sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
+
+        if (ageItems.length > 0) {
+            const age = ageItems[0];
+            const ageDiv = document.createElement('div');
+            ageDiv.className = 'center-age';
+
+            const title = document.createElement('h1');
+            title.textContent = age.title || '(No Title)';
+            ageDiv.appendChild(title);
+
+            if (age.description) {
+                const description = document.createElement('p');
+                description.textContent = age.description;
+                ageDiv.appendChild(description);
+            }
+
+            mainContentRight.appendChild(ageDiv);
+
+            // Add periods if they exist
+            if (periodItems.length > 0) {
+                const periodsDiv = document.createElement('div');
+                periodsDiv.className = 'center-periods';
+
+                periodItems.forEach((period, index) => {
+                    const periodDiv = document.createElement('div');
+                    periodDiv.className = 'center-period';
+
+                    const title = document.createElement(`h${Math.min(index + 2, 6)}`);
+                    title.textContent = period.title || '(No Title)';
+                    periodDiv.appendChild(title);
+
+                    if (period.description) {
+                        const description = document.createElement('p');
+                        description.textContent = period.description;
+                        periodDiv.appendChild(description);
+                    }
+
+                    periodsDiv.appendChild(periodDiv);
+                });
+
+                mainContentRight.appendChild(periodsDiv);
+            }
+        }
+    }
+}
+
+/**
  * Renders the timeline
  * 
  * How it works:
@@ -269,6 +425,15 @@ function renderTimeline() {
     const containerRect = container.getBoundingClientRect();
     const centerX = containerRect.width / 2;
 
+    // Calculate the center year
+    const centerYear = calculateYearFromPosition(centerX + containerRect.left);
+    
+    // Find the closest note to center
+    const closestNote = findClosestNote(centerX);
+    
+    // Update the main content based on center position
+    updateMainContent(centerX, centerYear);
+
     // Initialize placement tracking arrays
     const abovePlaced = [];
     const belowPlaced = [];
@@ -278,7 +443,6 @@ function renderTimeline() {
     const itemBoxMargin = 5;
 
     // Update the centered year/subyear info
-    const centerYear = calculateYearFromPosition(centerX + containerRect.left);
     const centerYearInt = Math.floor(centerYear);
     const centerSubtick = Math.round((centerYear - centerYearInt) * granularity);
     const centerInfo = `Year: ${centerYear}, Subtick: ${centerSubtick}`;
@@ -685,7 +849,7 @@ function renderTimeline() {
                 
                 console.log('[timeline.js] Adding note icon', item.type);
 
-                if (item.type.toLowerCase() === 'note') {
+                if (item.type && item.type.toLowerCase() === 'note') {
                     console.log('[timeline.js] Adding note icon');
                     // Add the calligraphic letter SVG
                     const noteIcon = document.createElement('div');
@@ -1351,3 +1515,38 @@ container.addEventListener('mouseout', (e) => {
         img.style.transform = '';
     });
 });
+
+function findClosestNote(centerX) {
+    // Get all note items
+    const noteItems = timelineState.items.filter(item => 
+        item && item.type && item.type.toLowerCase() === 'note'
+    );
+
+    if (noteItems.length === 0) {
+        console.log('No note items found');
+        return null;
+    }
+
+    // Find the closest note
+    let closestNote = null;
+    let closestDistance = Infinity;
+
+    noteItems.forEach(note => {
+        const noteX = calculatePositionFromYear(parseFloat(note.year || note.date || 0) + (parseInt(note.subtick || 0) / timelineState.granularity));
+        const distance = Math.abs(centerX - noteX);
+        
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            closestNote = note;
+        }
+    });
+
+    // Only return the note if it's within 10px
+    if (closestDistance <= 10) {
+        console.log('Found note within 10px:', closestNote, 'Distance:', closestDistance);
+        return closestNote;
+    } else {
+        console.log('No note within 10px. Closest was:', closestNote, 'Distance:', closestDistance);
+        return null;
+    }
+}
