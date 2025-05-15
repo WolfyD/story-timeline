@@ -470,45 +470,60 @@ function renderTimeline() {
     // Clear existing images
     imageContainer.innerHTML = '';
 
+    // Find the closest regular item with pictures
+    const closestItem = findClosestItem(centerX);
+
     // Add images for items with pictures
     overlappingItems.forEach((item, index) => {
-        if (item.pictures && item.pictures.length > 0) {
-            const picture = item.pictures[0];
-            if (picture.file_path) {
-                const img = document.createElement('img');
-                img.className = 'cascading-image';
-                img.setAttribute('data-item-id', item.id); // Add item ID for reference
-                
-                // Set z-index based on item type
-                if (item.type === 'Age') {
-                    img.className += ' main age-image';
-                    img.style.zIndex = '1'; // Lowest z-index for age images
-                } else {
-                    // Assign class based on position for non-age items
-                    if (index === 0) {
-                        img.className += ' main';
-                    } else if (index <= 2) {
-                        img.className += ' secondary';
-                        img.className += index % 2 === 0 ? ' even' : ' odd';
-                    } else if (index <= 4) {
-                        img.className += ' tertiary';
-                        img.className += index % 2 === 0 ? ' even' : ' odd';
-                    } else if (index <= 6) {
-                        img.className += ' quaternary';
-                        img.className += index % 2 === 0 ? ' even' : ' odd';
-                    } else if (index <= 8) {
-                        img.className += ' quinary';
-                        img.className += index % 2 === 0 ? ' even' : ' odd';
+        // For ages and periods, keep existing behavior
+        if (item.type === 'Age' || item.type === 'Period') {
+            if (item.pictures && item.pictures.length > 0) {
+                const picture = item.pictures[0];
+                if (picture.file_path) {
+                    const img = document.createElement('img');
+                    img.className = 'cascading-image';
+                    if (item.type === 'Age') {
+                        img.className += ' age-image';
+                    } else {
+                        if (index === 0) {
+                            img.className += ' main';
+                        } else if (index <= 2) {
+                            img.className += ' secondary';
+                            img.className += index % 2 === 0 ? ' even' : ' odd';
+                        } else if (index <= 4) {
+                            img.className += ' tertiary';
+                            img.className += index % 2 === 0 ? ' even' : ' odd';
+                        } else if (index <= 6) {
+                            img.className += ' quaternary';
+                            img.className += index % 2 === 0 ? ' even' : ' odd';
+                        } else if (index <= 8) {
+                            img.className += ' quinary';
+                            img.className += index % 2 === 0 ? ' even' : ' odd';
+                        }
                     }
+                    img.setAttribute('data-item-id', item.id);
+                    const fileUrl = 'file://' + picture.file_path.replace(/\\/g, '/');
+                    img.src = fileUrl;
+                    img.alt = item.title || 'Timeline Image';
+                    imageContainer.appendChild(img);
                 }
-
-                const fileUrl = 'file://' + picture.file_path.replace(/\\/g, '/');
-                img.src = fileUrl;
-                img.alt = item.title || 'Timeline Image';
-                imageContainer.appendChild(img);
             }
         }
     });
+
+    // If we found a closest regular item with pictures, add its image
+    if (closestItem) {
+        const picture = closestItem.pictures[0];
+        if (picture.file_path) {
+            const img = document.createElement('img');
+            img.className = 'cascading-image main';
+            img.setAttribute('data-item-id', closestItem.id);
+            const fileUrl = 'file://' + picture.file_path.replace(/\\/g, '/');
+            img.src = fileUrl;
+            img.alt = closestItem.title || 'Timeline Image';
+            imageContainer.appendChild(img);
+        }
+    }
 
     // Calculate the leftmost and rightmost visible years based on current offset and size
     const leftYear = focusYear - ((centerX + offsetPx) / (granularity * pixelsPerSubtick));
@@ -1549,4 +1564,37 @@ function findClosestNote(centerX) {
         console.log('No note within 10px. Closest was:', closestNote, 'Distance:', closestDistance);
         return null;
     }
+}
+
+function findClosestItem(centerX) {
+    // Get all items except ages and periods
+    const regularItems = timelineState.items.filter(item => 
+        item && item.type && 
+        item.type.toLowerCase() !== 'age' && 
+        item.type.toLowerCase() !== 'period'
+    );
+
+    if (regularItems.length === 0) {
+        return null;
+    }
+
+    // Find the closest item
+    let closestItem = null;
+    let closestDistance = Infinity;
+
+    regularItems.forEach(item => {
+        const itemX = calculatePositionFromYear(parseFloat(item.year || item.date || 0) + (parseInt(item.subtick || 0) / timelineState.granularity));
+        const distance = Math.abs(centerX - itemX);
+        
+        if (distance < closestDistance) {
+            closestDistance = distance;
+            closestItem = item;
+        }
+    });
+
+    // Only return the item if it's within 10px and has pictures
+    if (closestDistance <= 10 && closestItem.pictures && closestItem.pictures.length > 0) {
+        return closestItem;
+    }
+    return null;
 }
