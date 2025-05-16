@@ -272,8 +272,19 @@ window.api.receive('new-image-saved', (imageInfo) => {
         alert('Error saving image: ' + imageInfo.error);
         return;
     }
+    // Store the complete image info including the ID
+    images.push({
+        id: imageInfo.id,
+        file_path: imageInfo.file_path,
+        file_name: imageInfo.file_name,
+        file_size: imageInfo.file_size,
+        file_type: imageInfo.file_type,
+        width: imageInfo.width,
+        height: imageInfo.height,
+        title: imageInfo.title || '',
+        description: imageInfo.description || ''
+    });
     addImagePreview(imageInfo);
-    images.push(imageInfo);
 });
 
 function addImagePreview(imageInfo) {
@@ -406,6 +417,7 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
             story_title: row.querySelector('.story-ref-title').value
         })),
         pictures: images.map((imageInfo, index) => ({
+            id: imageInfo.id,
             file_path: imageInfo.file_path,
             file_name: imageInfo.file_name,
             file_size: imageInfo.file_size,
