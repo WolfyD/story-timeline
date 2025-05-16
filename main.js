@@ -164,7 +164,8 @@ function createSplashWindow() {
             preload: path.join(__dirname, 'preload.js')
         },
         show: false,
-        backgroundColor: '#f5f0e6'
+        backgroundColor: '#f5f0e6',
+        frame: false // Make it frameless for a more modern look
     });
 
     splashWindow.webContents.on("before-input-event", (event, input) => {
@@ -180,8 +181,6 @@ function createSplashWindow() {
 
     splashWindow.on('closed', () => {
         splashWindow = null;
-        // Close the app when splash screen is closed
-        //app.quit();
     });
 }
 
@@ -195,13 +194,28 @@ function createWindow() {
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js')
         },
-        show: false,
+        show: false, // Keep window hidden initially
         backgroundColor: '#f5f0e6'
     });
 
     mainWindow.loadFile('index.html');
-    mainWindow.once('ready-to-show', () => {
-        mainWindow.show();
+
+    // Wait for content to load and initialize
+    mainWindow.webContents.on('did-finish-load', () => {
+        // Add a small delay to ensure everything is ready
+        setTimeout(() => {
+            // Load settings and data
+            loadSettings();
+            loadData();
+            
+            // Show the window with a fade-in effect
+            mainWindow.show();
+            
+            // Close the splash window if it exists
+            if (splashWindow) {
+                splashWindow.close();
+            }
+        }, 1000); // 1 second delay
     });
 
     mainWindow.on('closed', () => {
