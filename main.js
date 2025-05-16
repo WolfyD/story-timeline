@@ -236,8 +236,8 @@ function createWindow() {
  */
 function createAddItemWindow(year, subtick, granularity, type) {
   let newItemWindow = new BrowserWindow({
-    width: 500,
-    height: 400,
+    width: mainWindow.getSize()[0] * 0.8,
+    height: mainWindow.getSize()[1] * 0.8,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       parent: mainWindow,
@@ -251,7 +251,10 @@ function createAddItemWindow(year, subtick, granularity, type) {
       fullscreenable: false,
       alwaysOnTop: true,
       title: "Add Item"
-    }
+    },
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    parent: mainWindow
   });
 
   newItemWindow.webContents.on("before-input-event", (event, input) => {
@@ -292,22 +295,22 @@ function createAddItemWindow(year, subtick, granularity, type) {
  */
 function createEditItemWindow(item) {
   let editItemWindow = new BrowserWindow({
-    width: 500,
-    height: 400,
+    width: mainWindow.getSize()[0] * 0.8,
+    height: mainWindow.getSize()[1] * 0.8,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
-      parent: mainWindow,
       contextIsolation: true,
       nodeIntegration: false,
-      modal: true,
       show: false,
       resizable: true,
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
-      alwaysOnTop: true,
       title: "Edit Item"
-    }
+    },
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    parent: mainWindow
   });
 
   editItemWindow.webContents.on("before-input-event", (event, input) => {
@@ -315,13 +318,23 @@ function createEditItemWindow(item) {
       editItemWindow.webContents.openDevTools();
     }
   });
+
+  let query =  {
+    year: item.year,
+    subtick: item.subtick,
+    edit: true,
+    itemId: item.id
+  };
+
+  console.log('[main.js] editItemWindow query:', query);
   
   editItemWindow.loadFile('addItem.html', {
     query: {
       year: item.year,
       subtick: item.subtick,
       edit: true,
-      itemId: item.id || item['story-id']
+      itemId: item.id,
+      type: item.type
     }
   });
   

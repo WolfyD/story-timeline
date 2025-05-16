@@ -494,7 +494,7 @@ window.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const year = urlParams.get('year');
     const subtick = urlParams.get('subtick');
-    const granularity = urlParams.get('granularity');
+    let granularity = urlParams.get('granularity');
     type = urlParams.get('type'); // Get type from URL parameters
     
     console.log('[addItem.js] Initializing form with URL parameters:', {
@@ -526,9 +526,7 @@ window.addEventListener('DOMContentLoaded', function() {
     }
     // Set subtick max
     document.getElementById('subtickInput').setAttribute('max', granularity);
-    // Update header display
-    document.getElementById('header-year-value').textContent = `${year}`;
-    document.getElementById('header-subtick-value').textContent = `${subtick}`;
+
 });
 
 function initializeForm() {
@@ -555,15 +553,17 @@ function initializeForm() {
     // Update type label display
     updateTypeLabel();
 
-    const form = document.getElementById('addItemForm');
-    const typeSelect = document.getElementById('type');
-    
-    // Add note type to the type selector
-    const noteOption = document.createElement('option');
-    noteOption.value = 'note';
-    noteOption.textContent = 'Note';
-    typeSelect.appendChild(noteOption);
-    
+    // Set year and subtick values
+    if (year !== null) document.getElementById('yearInput').value = year;
+    if (subtick !== null) document.getElementById('subtickInput').value = subtick;
+    console.log('[addItem.js] subtick:', subtick);
+
+    // Set subtick max based on granularity
+    if (granularity) {
+        const maxSubtick = Math.max(0, parseInt(granularity) - 1);
+        document.getElementById('subtickInput').setAttribute('max', maxSubtick);
+    }
+
     // ... rest of the initialization code ...
 }
 
