@@ -651,6 +651,9 @@ class DatabaseManager {
             // Start a transaction
             this.db.prepare('BEGIN').run();
 
+            // Generate a new ID if one isn't provided
+            const itemId = item.id || require('uuid').v4();
+
             // Get type_id from type name
             const typeStmt = this.db.prepare('SELECT id FROM item_types WHERE name = ?');
             const typeResult = typeStmt.get(item.type || 'Event');
@@ -675,7 +678,7 @@ class DatabaseManager {
             `);
 
             const result = stmt.run({
-                id: item.id,
+                id: itemId,
                 title: item.title,
                 description: item.description || '',
                 content: item.content || '',
@@ -697,12 +700,12 @@ class DatabaseManager {
 
             // Add tags if any
             if (item.tags && item.tags.length > 0) {
-                this.addTagsToItem(item.id, item.tags);
+                this.addTagsToItem(itemId, item.tags);
             }
 
             // Add story references if any
             if (item.story_refs && item.story_refs.length > 0) {
-                this.addStoryReferencesToItem(item.id, item.story_refs);
+                this.addStoryReferencesToItem(itemId, item.story_refs);
             }
 
             // Add pictures if any
@@ -713,20 +716,20 @@ class DatabaseManager {
                     .map(pic => pic.id);
                 
                 if (pictureIds.length > 0) {
-                    this.updatePicturesItemId(pictureIds, item.id);
+                    this.updatePicturesItemId(pictureIds, itemId);
                 }
 
                 // Then add any new pictures
                 const newPictures = item.pictures.filter(pic => !pic.id);
                 if (newPictures.length > 0) {
-                    this.addPicturesToItem(item.id, newPictures);
+                    this.addPicturesToItem(itemId, newPictures);
                 }
             }
 
             // Commit the transaction
             this.db.prepare('COMMIT').run();
 
-            return result.lastInsertRowid;
+            return { id: itemId };
         } catch (error) {
             // Rollback on error
             this.db.prepare('ROLLBACK').run();

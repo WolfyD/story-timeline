@@ -35,6 +35,17 @@ function initializeForm() {
         return;
     }
 
+    // Set initial values from URL parameters
+    if (year !== null && subtick !== null) {
+        document.getElementById('yearInput').value = year;
+        document.getElementById('subtickInput').value = subtick;
+        document.getElementById('endYearInput').value = year;
+        document.getElementById('endSubtickInput').value = subtick;
+    }
+    if (color !== null) {
+        document.getElementById('colorInput').value = color;
+    }
+
     // Get itemData from the main process
     window.api.receive('item-data', (itemData) => {
         console.log('[addItemWithRange.js] Received itemData:', itemData);
@@ -130,7 +141,7 @@ document.getElementById('tagInput').addEventListener('keydown', function(e) {
         e.preventDefault();
         const tag = this.value.trim();
         if (tag && !tags.has(tag)) {
-            tags.add(tag);
+            tags.add(tag); // Store only the tag text
             updateTagDisplay();
         }
         this.value = '';
@@ -389,7 +400,7 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         page: document.getElementById('pageInput').value,
         color: document.getElementById('colorInput').value,
         type: type.charAt(0).toUpperCase() + type.slice(1),
-        tags: Array.from(document.querySelectorAll('.tag')).map(tag => tag.textContent),
+        tags: Array.from(tags),
         story_refs: Array.from(document.querySelectorAll('.story-ref-row')).map(row => ({
             story_id: row.querySelector('.story-ref-id').value,
             story_title: row.querySelector('.story-ref-title').value
@@ -420,26 +431,34 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         }
     } else {
         try {
-            // Send new item through IPC
-            window.api.send('addTimelineItem', formData);
-
-            // Wait for item creation and update pictures
-            window.api.receive('item-created', (itemId) => {
-                if (itemId && images.length > 0) {
-                    // Get all picture IDs
-                    const pictureIds = images.map(img => img.id);
-                    // Update pictures with the new item ID
-                    window.api.send('update-pictures-item-id', {
-                        pictureIds: pictureIds,
-                        itemId: itemId
-                    });
+            // Set up the response handler first
+            window.api.receive('item-created', (response) => {
+                if (response && response.id) {
+                    // Update pictures with the new item ID if we have images
+                    if (images.length > 0) {
+                        // Get all picture IDs
+                        const pictureIds = images.map(img => img.id);
+                        // Update pictures with the new item ID
+                        window.api.send('update-pictures-item-id', {
+                            pictureIds: pictureIds,
+                            itemId: response.id
+                        });
+                    }
+                    // Notify main window that we're closing
+                    window.api.send('add-item-window-closing');
+                    // Close this window
+                    window.close();
+                } else {
+                    console.error('Failed to create item: No ID received');
+                    alert('Failed to create item. Please try again.');
                 }
             });
 
-            window.api.send('add-item-window-closing');
-            window.close();
+            // Then send the new item through IPC
+            window.api.send('addTimelineItem', formData);
         } catch (error) {
             console.error('Error adding item:', error);
+            alert('Error creating item. Please try again.');
         }
     }
 });

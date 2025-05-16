@@ -747,9 +747,11 @@ function setupIpcHandlers() {
 
   ipcMain.on('addTimelineItem', (event, data) => {
     console.log("Received timeline item:", data);
-    dbManager.addItem(data);
+    const newItem = dbManager.addItem(data);
     const items = dbManager.getAllItems();
     mainWindow.webContents.send('items', items);
+    // Send the created item's ID back to the sender window
+    event.sender.send('item-created', { id: newItem.id });
   });
 
   ipcMain.on('add-item-window-closing', (event) => {

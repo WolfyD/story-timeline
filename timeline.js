@@ -855,7 +855,9 @@ function renderTimeline() {
             // Create the box
             const box = document.createElement('div');
             
-            if (item.type === 'picture' || (item.pictures && item.pictures.length > 0 && item.type !== 'note' && item.type !== 'Note')) {
+            
+            if (item.type.toLowerCase() === 'picture' || (item.pictures && item.pictures.length > 0 && item.type.toLowerCase() !== 'note' && item.type.toLowerCase() !== 'event')) {
+                console.log(item.type, item)
                 box.className = 'timeline-picture-box' + (isAbove ? ' above' : ' below');
                 const img = document.createElement('img');
                 img.src = 'file://' + item.pictures[0].file_path.replace(/\\/g, '/');
