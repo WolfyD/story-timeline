@@ -760,206 +760,272 @@ function renderTimeline() {
             const itemSubtick = parseInt(item.subtick || 0);
             const itemX = centerX + (itemYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (itemSubtick / granularity) * pixelsPerSubtick * granularity;
 
-            // Alternate above/below
-            const isAbove = idx % 2 === 0;
-            let y;
-            let placedItems = isAbove ? abovePlaced : belowPlaced;
-            // Start at furthest position from timeline
-            if (isAbove) {
-                y = 0; // top of container
+            if (item.type.toLowerCase() === 'bookmark') {
+                // Create the bookmark line
+                const bookmarkLine = document.createElement('div');
+                bookmarkLine.className = 'timeline-bookmark-line';
+                bookmarkLine.style.left = `${itemX}px`;
+                timeline.appendChild(bookmarkLine);
+
+                // Create the bookmark dot
+                const bookmarkDot = document.createElement('div');
+                bookmarkDot.className = 'timeline-bookmark-dot';
+                bookmarkDot.style.left = `${itemX}px`;
+                bookmarkDot.style.top = `${timelineY}px`;
+                timeline.appendChild(bookmarkDot);
+
+                // Set data attributes for identification
+                bookmarkLine.setAttribute('data-id', item.id || item['story-id'] || idx);
+                bookmarkLine.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
+                bookmarkLine.setAttribute('data-type', item.type);
+                bookmarkDot.setAttribute('data-id', item.id || item['story-id'] || idx);
+                bookmarkDot.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
+                bookmarkDot.setAttribute('data-type', item.type);
+
+                // Add click handlers
+                const clickHandler = (e) => {
+                    e.stopPropagation();
+                    window.openItemViewer && window.openItemViewer(e.target.getAttribute('data-id'));
+                };
+                bookmarkLine.addEventListener('click', clickHandler);
+                bookmarkDot.addEventListener('click', clickHandler);
+
+                // Add hover handlers
+                const hoverHandler = (e) => {
+                    // Show hover bubble
+                    let hoverBubble = document.querySelector('.timeline-hover-bubble');
+                    if (!hoverBubble) {
+                        hoverBubble = document.createElement('div');
+                        hoverBubble.className = 'timeline-hover-bubble';
+                        document.body.appendChild(hoverBubble);
+                    }
+                    
+                    // Get the year and title
+                    const year = e.target.getAttribute('data-year');
+                    const title = item.title || '(No Title)';
+                    hoverBubble.textContent = `${title} (${year})`;
+                    
+                    // Calculate position relative to the viewport
+                    const rect = e.target.getBoundingClientRect();
+                    hoverBubble.style.left = `${rect.left + rect.width/2}px`;
+                    hoverBubble.style.top = `${rect.top - 25}px`;
+                    hoverBubble.classList.add('visible');
+                };
+
+                const leaveHandler = () => {
+                    // Hide hover bubble
+                    const hoverBubble = document.querySelector('.timeline-hover-bubble');
+                    if (hoverBubble) {
+                        hoverBubble.classList.remove('visible');
+                    }
+                };
+
+                bookmarkLine.addEventListener('mouseenter', hoverHandler);
+                bookmarkLine.addEventListener('mouseleave', leaveHandler);
+                bookmarkDot.addEventListener('mouseenter', hoverHandler);
+                bookmarkDot.addEventListener('mouseleave', leaveHandler);
             } else {
-                y = containerRect.height - itemBoxHeight; // start at bottom of container
-            }
-            // Cascade down (for above) or up (for below) if overlapping
-            let foundOverlap = true;
-            while (foundOverlap) {
-                foundOverlap = false;
-                for (const placed of placedItems) {
-                    // Check horizontal overlap
-                    if (Math.abs(placed.x - itemX) < 150) {
-                        // Check vertical overlap
-                        if (isAbove) {
-                            if (y + itemBoxHeight > placed.y && y < placed.y + itemBoxHeight) {
-                                y = placed.y + itemBoxHeight + itemBoxMargin;
-                                foundOverlap = true;
-                            }
-                        } else {
-                            if (y < placed.y + itemBoxHeight && y + itemBoxHeight > placed.y) {
-                                y = placed.y - itemBoxHeight - itemBoxMargin;
-                                foundOverlap = true;
+                // Alternate above/below
+                const isAbove = idx % 2 === 0;
+                let y;
+                let placedItems = isAbove ? abovePlaced : belowPlaced;
+                // Start at furthest position from timeline
+                if (isAbove) {
+                    y = 0; // top of container
+                } else {
+                    y = containerRect.height - itemBoxHeight; // start at bottom of container
+                }
+                // Cascade down (for above) or up (for below) if overlapping
+                let foundOverlap = true;
+                while (foundOverlap) {
+                    foundOverlap = false;
+                    for (const placed of placedItems) {
+                        // Check horizontal overlap
+                        if (Math.abs(placed.x - itemX) < 150) {
+                            // Check vertical overlap
+                            if (isAbove) {
+                                if (y + itemBoxHeight > placed.y && y < placed.y + itemBoxHeight) {
+                                    y = placed.y + itemBoxHeight + itemBoxMargin;
+                                    foundOverlap = true;
+                                }
+                            } else {
+                                if (y < placed.y + itemBoxHeight && y + itemBoxHeight > placed.y) {
+                                    y = placed.y - itemBoxHeight - itemBoxMargin;
+                                    foundOverlap = true;
+                                }
                             }
                         }
                     }
                 }
-            }
-            placedItems.push({ x: itemX, y });
-            if (isAbove) {
-                y = y; // already at the correct position
-            } else {
-                // For below, y is already correct
-            }
-
-            // Adjust y so the connector line connects closer to the edge nearest the timeline center
-            const verticalOffset = 10; // px
-            let boxTop = y;
-            if (isAbove) {
-                boxTop = y + verticalOffset;
-            } else {
-                boxTop = y - verticalOffset;
-            }
-
-            const boxWidth = 150;
-            const isRightOfCenter = itemX >= centerX;
-            const leftMargin = 10; // px, for left side
-            const rightMargin = 10; // px, for right side
-            let boxLeft;
-            if (isRightOfCenter) {
-                // Box's right edge is at itemX - rightMargin
-                boxLeft = itemX - rightMargin;
-            } else {
-                // Box's left edge is at itemX + leftMargin
-                boxLeft = itemX + leftMargin - boxWidth;
-            }
-
-            // Create the line (always vertical at itemX)
-            const line = document.createElement('div');
-            line.className = 'timeline-item-line';
-            line.style.position = 'absolute';
-            line.style.left = `${itemX}px`;
-            // Give the line a unique id for linking
-            const lineId = `timeline-line-${idx}`;
-            line.setAttribute('data-line-id', lineId);
-            line.id = lineId;
-
-            if (isAbove) {
-                if (item.type === 'picture') {
-                    line.style.top = `${timelineY - 70}px`; // Start 70px above timeline
-                    line.style.height = '70px';
-                    boxTop = timelineY - 70 - 100; // Position box above the stem
+                placedItems.push({ x: itemX, y });
+                if (isAbove) {
+                    y = y; // already at the correct position
                 } else {
-                    line.style.top = `${boxTop + itemBoxHeight}px`;
-                    line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
+                    // For below, y is already correct
                 }
-            } else {
-                if (item.type === 'picture') {
-                    line.style.top = `${timelineY}px`;
-                    line.style.height = '70px';
-                    boxTop = timelineY + 70; // Position box below the stem
-                } else {
-                    line.style.top = `${timelineY}px`;
-                    line.style.height = `${boxTop - timelineY}px`;
-                }
-            }
-            timeline.appendChild(line);
 
-            // Create the box
-            const box = document.createElement('div');
-            
-            
-            if (item.type.toLowerCase() === 'picture' || (item.pictures && item.pictures.length > 0 && item.type.toLowerCase() !== 'note' && item.type.toLowerCase() !== 'event')) {
-                console.log(item.type, item)
-                box.className = 'timeline-picture-box' + (isAbove ? ' above' : ' below');
-                const img = document.createElement('img');
-                img.src = 'file://' + item.pictures[0].file_path.replace(/\\/g, '/');
-                img.alt = item.title || 'Timeline Image';
-                box.appendChild(img);
-                box.style.position = 'absolute';
-                box.style.left = `${itemX - 50}px`; // Center the box on the line
-                box.style.top = isAbove ? `${timelineY - 170}px` : `${timelineY + 70}px`; // Position above/below the stem
-            } else {
-                box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
+                // Adjust y so the connector line connects closer to the edge nearest the timeline center
+                const verticalOffset = 10; // px
+                let boxTop = y;
+                if (isAbove) {
+                    boxTop = y + verticalOffset;
+                } else {
+                    boxTop = y - verticalOffset;
+                }
+
+                const boxWidth = 150;
+                const isRightOfCenter = itemX >= centerX;
+                const leftMargin = 10; // px, for left side
+                const rightMargin = 10; // px, for right side
+                let boxLeft;
+                if (isRightOfCenter) {
+                    // Box's right edge is at itemX - rightMargin
+                    boxLeft = itemX - rightMargin;
+                } else {
+                    // Box's left edge is at itemX + leftMargin
+                    boxLeft = itemX + leftMargin - boxWidth;
+                }
+
+                // Create the line (always vertical at itemX)
+                const line = document.createElement('div');
+                line.className = 'timeline-item-line';
+                line.style.position = 'absolute';
+                line.style.left = `${itemX}px`;
+                // Give the line a unique id for linking
+                const lineId = `timeline-line-${idx}`;
+                line.setAttribute('data-line-id', lineId);
+                line.id = lineId;
+
+                if (isAbove) {
+                    if (item.type === 'picture') {
+                        line.style.top = `${timelineY - 70}px`; // Start 70px above timeline
+                        line.style.height = '70px';
+                        boxTop = timelineY - 70 - 100; // Position box above the stem
+                    } else {
+                        line.style.top = `${boxTop + itemBoxHeight}px`;
+                        line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
+                    }
+                } else {
+                    if (item.type === 'picture') {
+                        line.style.top = `${timelineY}px`;
+                        line.style.height = '70px';
+                        boxTop = timelineY + 70; // Position box below the stem
+                    } else {
+                        line.style.top = `${timelineY}px`;
+                        line.style.height = `${boxTop - timelineY}px`;
+                    }
+                }
+                timeline.appendChild(line);
+
+                // Create the box
+                const box = document.createElement('div');
                 
-                if (item.type && item.type.toLowerCase() === 'note') {
-                    // Add the calligraphic letter SVG
-                    const noteIcon = document.createElement('div');
-                    noteIcon.className = 'note-icon';
-                    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                    svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-                    svg.setAttribute('viewBox', '0 0 260.481 370');
-                    svg.setAttribute('width', '20');
-                    svg.setAttribute('height', '20');
-                    svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                
+                if (item.type.toLowerCase() === 'picture' || (item.pictures && item.pictures.length > 0 && item.type.toLowerCase() !== 'note' && item.type.toLowerCase() !== 'event')) {
+                    console.log(item.type, item)
+                    box.className = 'timeline-picture-box' + (isAbove ? ' above' : ' below');
+                    const img = document.createElement('img');
+                    img.src = 'file://' + item.pictures[0].file_path.replace(/\\/g, '/');
+                    img.alt = item.title || 'Timeline Image';
+                    box.appendChild(img);
+                    box.style.position = 'absolute';
+                    box.style.left = `${itemX - 50}px`; // Center the box on the line
+                    box.style.top = isAbove ? `${timelineY - 170}px` : `${timelineY + 70}px`; // Position above/below the stem
+                } else {
+                    box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
                     
-                    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-                    path.setAttribute('d', 'M25.457 355.248c11.465-9.44 30.713-7.155 47.235-7.155q32.876 0 59.176 24.783l49.567-49.566-8.093-9.104-18.208 17.702q-29.841-17.702-63.728-17.702l19.725-55.636h109.755l20.737 69.798q9.61 33.887 29.84 44.508l50.073-49.566-8.092-9.104-18.209 18.208q-10.115-4.047-14.667-12.139-1.012-2.023-3.035-6.575-1.517-4.552-3.54-11.633l-66.258-220.52q-9.104-30.347-15.173-38.945l4.552-14.668-11.127-4.552-4.552 10.621q-15.68-11.127-33.382-11.127-26.3 0-47.037 18.714-7.08 5.564-15.174 15.68-7.586 10.115-17.196 24.277l9.61 6.575q21.243-30.852 48.049-30.853 22.76 0 37.933 21.749l-19.725 51.59q-9.61-.506-14.668-.506-5.058-.506-6.07-.506-38.438 0-38.438 44.003 0 13.656 6.069 29.335l11.127-5.058q-2.529-7.587-2.529-11.633 0-23.266 20.231-23.266 6.576 0 11.633 5.058l-53.612 146.17q-34.393 4.047-57.153 26.807zm183.29-135.117h-82.948l45.52-124.928Z');
-                    path.setAttribute('style', 'fill:#4b2e2e;stroke:#4b2e2e;stroke-width:1.25561;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1');
+                    if (item.type && item.type.toLowerCase() === 'note') {
+                        // Add the calligraphic letter SVG
+                        const noteIcon = document.createElement('div');
+                        noteIcon.className = 'note-icon';
+                        const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                        svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                        svg.setAttribute('viewBox', '0 0 260.481 370');
+                        svg.setAttribute('width', '20');
+                        svg.setAttribute('height', '20');
+                        svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+                        
+                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        path.setAttribute('d', 'M25.457 355.248c11.465-9.44 30.713-7.155 47.235-7.155q32.876 0 59.176 24.783l49.567-49.566-8.093-9.104-18.208 17.702q-29.841-17.702-63.728-17.702l19.725-55.636h109.755l20.737 69.798q9.61 33.887 29.84 44.508l50.073-49.566-8.092-9.104-18.209 18.208q-10.115-4.047-14.667-12.139-1.012-2.023-3.035-6.575-1.517-4.552-3.54-11.633l-66.258-220.52q-9.104-30.347-15.173-38.945l4.552-14.668-11.127-4.552-4.552 10.621q-15.68-11.127-33.382-11.127-26.3 0-47.037 18.714-7.08 5.564-15.174 15.68-7.586 10.115-17.196 24.277l9.61 6.575q21.243-30.852 48.049-30.853 22.76 0 37.933 21.749l-19.725 51.59q-9.61-.506-14.668-.506-5.058-.506-6.07-.506-38.438 0-38.438 44.003 0 13.656 6.069 29.335l11.127-5.058q-2.529-7.587-2.529-11.633 0-23.266 20.231-23.266 6.576 0 11.633 5.058l-53.612 146.17q-34.393 4.047-57.153 26.807zm183.29-135.117h-82.948l45.52-124.928Z');
+                        path.setAttribute('style', 'fill:#4b2e2e;stroke:#4b2e2e;stroke-width:1.25561;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1');
+                        
+                        svg.appendChild(path);
+                        noteIcon.appendChild(svg);
+                        box.appendChild(noteIcon);
+                        
+                        // Add the title
+                        const titleStr = item.title || '(No Title)';
+                        const titleSpan = document.createElement('span');
+                        titleSpan.className = 'note-title';
+                        titleSpan.textContent = titleStr;
+                        box.appendChild(titleSpan);
+                    } else {
+                        // For non-note items, just add the title
+                        const titleStr = item.title || '(No Title)';
+                        const titleSpan = document.createElement('span');
+                        titleSpan.textContent = titleStr;
+                        box.appendChild(titleSpan);
+                    }
                     
-                    svg.appendChild(path);
-                    noteIcon.appendChild(svg);
-                    box.appendChild(noteIcon);
-                    
-                    // Add the title
-                    const titleStr = item.title || '(No Title)';
-                    const titleSpan = document.createElement('span');
-                    titleSpan.className = 'note-title';
-                    titleSpan.textContent = titleStr;
-                    box.appendChild(titleSpan);
-                } else {
-                    // For non-note items, just add the title
-                    const titleStr = item.title || '(No Title)';
-                    const titleSpan = document.createElement('span');
-                    titleSpan.textContent = titleStr;
-                    box.appendChild(titleSpan);
+                    box.style.position = 'absolute';
+                    box.style.left = `${boxLeft}px`;
+                    box.style.top = `${boxTop}px`;
                 }
-                
-                box.style.position = 'absolute';
-                box.style.left = `${boxLeft}px`;
-                box.style.top = `${boxTop}px`;
+                box.setAttribute('data-id', item.id || item['story-id'] || idx);
+                box.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
+                box.setAttribute('data-line-id', lineId);
+                box.setAttribute('data-type', item.type); // Add type for debugging
+
+                // Add click handler
+                box.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    if (item.type === 'picture') {
+                        // Open add item window for picture type
+                        window.api.send('open-add-item-window', itemYear, itemSubtick, timelineState.granularity);
+                    } else {
+                        // Open item viewer for other types
+                        window.openItemViewer && window.openItemViewer(box.getAttribute('data-id'));
+                    }
+                });
+
+                // Highlight on hover
+                box.addEventListener('mouseenter', function() {
+                    box.classList.add('highlighted');
+                    const lineElem = document.getElementById(lineId);
+                    if (lineElem) lineElem.classList.add('highlighted-line');
+                    
+                    // Show hover bubble
+                    let hoverBubble = document.querySelector('.timeline-hover-bubble');
+                    if (!hoverBubble) {
+                        hoverBubble = document.createElement('div');
+                        hoverBubble.className = 'timeline-hover-bubble';
+                        document.body.appendChild(hoverBubble);
+                    }
+                    
+                    // Get the year and subtick from the data attributes
+                    const year = box.getAttribute('data-year');
+                    hoverBubble.textContent = year;
+                    
+                    // Calculate position relative to the viewport
+                    const boxRect = box.getBoundingClientRect();
+                    hoverBubble.style.left = `${boxRect.left + boxRect.width/2}px`;
+                    hoverBubble.style.top = `${boxRect.top - 25}px`;
+                    hoverBubble.classList.add('visible');
+                });
+                box.addEventListener('mouseleave', function() {
+                    box.classList.remove('highlighted');
+                    const lineElem = document.getElementById(lineId);
+                    if (lineElem) lineElem.classList.remove('highlighted-line');
+                    
+                    // Hide hover bubble
+                    const hoverBubble = document.querySelector('.timeline-hover-bubble');
+                    if (hoverBubble) {
+                        hoverBubble.classList.remove('visible');
+                    }
+                });
+                timeline.appendChild(box);
+                itemBoxes.push(box);
             }
-            box.setAttribute('data-id', item.id || item['story-id'] || idx);
-            box.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
-            box.setAttribute('data-line-id', lineId);
-            box.setAttribute('data-type', item.type); // Add type for debugging
-
-            // Add click handler
-            box.addEventListener('click', function(e) {
-                e.stopPropagation();
-                if (item.type === 'picture') {
-                    // Open add item window for picture type
-                    window.api.send('open-add-item-window', itemYear, itemSubtick, timelineState.granularity);
-                } else {
-                    // Open item viewer for other types
-                    window.openItemViewer && window.openItemViewer(box.getAttribute('data-id'));
-                }
-            });
-
-            // Highlight on hover
-            box.addEventListener('mouseenter', function() {
-                box.classList.add('highlighted');
-                const lineElem = document.getElementById(lineId);
-                if (lineElem) lineElem.classList.add('highlighted-line');
-                
-                // Show hover bubble
-                let hoverBubble = document.querySelector('.timeline-hover-bubble');
-                if (!hoverBubble) {
-                    hoverBubble = document.createElement('div');
-                    hoverBubble.className = 'timeline-hover-bubble';
-                    document.body.appendChild(hoverBubble);
-                }
-                
-                // Get the year and subtick from the data attributes
-                const year = box.getAttribute('data-year');
-                hoverBubble.textContent = year;
-                
-                // Calculate position relative to the viewport
-                const boxRect = box.getBoundingClientRect();
-                hoverBubble.style.left = `${boxRect.left + boxRect.width/2}px`;
-                hoverBubble.style.top = `${boxRect.top - 25}px`;
-                hoverBubble.classList.add('visible');
-            });
-            box.addEventListener('mouseleave', function() {
-                box.classList.remove('highlighted');
-                const lineElem = document.getElementById(lineId);
-                if (lineElem) lineElem.classList.remove('highlighted-line');
-                
-                // Hide hover bubble
-                const hoverBubble = document.querySelector('.timeline-hover-bubble');
-                if (hoverBubble) {
-                    hoverBubble.classList.remove('visible');
-                }
-            });
-            timeline.appendChild(box);
-            itemBoxes.push(box);
         }
     });
 }
