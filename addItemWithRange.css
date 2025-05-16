@@ -141,6 +141,18 @@ button[type="submit"]:hover {
     margin-top: 20px;
 }
 
+.form-line.date_line {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.date_line_container {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+}
+
 .form-line:nth-child(1) {
     margin-top: 0;
 }
@@ -314,4 +326,17 @@ button[type="submit"]:hover {
 
 .suggestion-item:hover {
     background-color: #f5f5f5;
+}
+
+.type-label {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: #6a3e3e;
+    color: #f5e6d4;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-style: italic;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 } 

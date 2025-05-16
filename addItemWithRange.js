@@ -35,6 +35,9 @@ function initializeForm() {
         return;
     }
 
+    // Update type label display
+    updateTypeLabel();
+
     // Set initial values from URL parameters
     if (year !== null && subtick !== null) {
         document.getElementById('yearInput').value = year;
@@ -570,4 +573,11 @@ window.api.receive('itemData', (item) => {
             window.close();
         };
     }
-}); 
+});
+
+function updateTypeLabel() {
+    const label = document.getElementById('typeLabel');
+    if (type) {
+        label.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+    }
+} 

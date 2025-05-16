@@ -30,6 +30,7 @@
 const tags = new Set();
 const images = [];
 let storySuggestions = [];
+let type; // Declare type in global scope
 
 // Get story suggestions from main window
 window.api.send('getStorySuggestions');
@@ -493,8 +494,26 @@ window.addEventListener('DOMContentLoaded', function() {
     const urlParams = new URLSearchParams(window.location.search);
     const year = urlParams.get('year');
     const subtick = urlParams.get('subtick');
-    let granularity = urlParams.get('granularity');
+    const granularity = urlParams.get('granularity');
+    type = urlParams.get('type'); // Get type from URL parameters
     
+    console.log('[addItem.js] Initializing form with URL parameters:', {
+        year,
+        subtick,
+        granularity,
+        type
+    });
+
+    // Validate type parameter
+    if (!type || !['event', 'bookmark', 'picture', 'note'].includes(type.toLowerCase())) {
+        console.error('Invalid or missing type parameter. Must be one of: event, bookmark, picture, note');
+        window.close();
+        return;
+    }
+
+    // Update type label display
+    updateTypeLabel();
+
     if (!granularity || isNaN(parseInt(granularity))) {
         granularity = 4;
     } else {
@@ -513,6 +532,29 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 function initializeForm() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const year = urlParams.get('year');
+    const subtick = urlParams.get('subtick');
+    const granularity = urlParams.get('granularity');
+    type = urlParams.get('type'); // Get type from URL parameters
+
+    console.log('[addItem.js] Initializing form with URL parameters:', {
+        year,
+        subtick,
+        granularity,
+        type
+    });
+
+    // Validate type parameter
+    if (!type || !['event', 'bookmark', 'picture', 'note'].includes(type.toLowerCase())) {
+        console.error('Invalid or missing type parameter. Must be one of: event, bookmark, picture, note');
+        window.close();
+        return;
+    }
+
+    // Update type label display
+    updateTypeLabel();
+
     const form = document.getElementById('addItemForm');
     const typeSelect = document.getElementById('type');
     
@@ -523,4 +565,11 @@ function initializeForm() {
     typeSelect.appendChild(noteOption);
     
     // ... rest of the initialization code ...
+}
+
+function updateTypeLabel() {
+    const label = document.getElementById('typeLabel');
+    if (type) {
+        label.textContent = type.charAt(0).toUpperCase() + type.slice(1);
+    }
 }

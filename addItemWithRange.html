@@ -6,52 +6,65 @@
     <link rel="stylesheet" href="addItemWithRange.css">
 </head>
 <body>
+    <!-- Type Label -->
+    <div id="typeLabel" class="type-label"></div>
+
+    <!-- Top Header Container -->
     <div class="top-header-container">
-        <h1 class="title">Add Timeline Item with Range</h1>
-        <div class="header-container">
-            <header class="header-row">
-                <span class="header-field" id="header-year"><span class="header-field-item header-field-label">Year</span> <span class="header-field-item header-field-value" id="header-year-value"> #1990</span></span>
-                <span class="header-field" id="header-subtick"><span class="header-field-item header-field-label">Subyear</span> <span class="header-field-item header-field-value" id="header-subtick-value"> #36</span></span>
-            </header>
-        </div>
+        <h1 class="title">Add Range Item</h1>
+
     </div>
     <form id="addItemForm">
         <div class="form-group">
+
+            <!-- Date Container -->
             <div id="year-subtick-container">
-                <div class="form-line">
+
+                <!-- Start Date -->
+                <div class="form-line date_line">
                     <label>Start Date:</label>
-                    <div class="form-line-2">
-                        <label for="yearInput">Year:</label>
-                        <input type="number" id="yearInput" name="year" class="input-text" required>
-                    </div>
-                    <div class="form-line-2">
-                        <label for="subtickInput">Subyear:</label>
-                        <input type="number" id="subtickInput" name="subtick" class="input-text" required min="0">
+                    <div class="date_line_container">
+                        <div class="form-line-2">
+                            <label for="yearInput">Year:</label>
+                            <input type="number" id="yearInput" name="year" class="input-text" required>
+                        </div>
+                        <div class="form-line-2">
+                            <label for="subtickInput">Subyear:</label>
+                            <input type="number" id="subtickInput" name="subtick" class="input-text" required min="0">
+                        </div>
                     </div>
                 </div>
-                <div class="form-line">
+
+                <!-- End Date -->
+                <div class="form-line date_line">
                     <label>End Date:</label>
-                    <div class="form-line-2">
-                        <label for="endYearInput">Year:</label>
-                        <input type="number" id="endYearInput" name="endYear" class="input-text" required>
-                    </div>
-                    <div class="form-line-2">
-                        <label for="endSubtickInput">Subyear:</label>
-                        <input type="number" id="endSubtickInput" name="endSubtick" class="input-text" required min="0">
+                    <div class="date_line_container">
+                        <div class="form-line-2">
+                            <label for="endYearInput">Year:</label>
+                            <input type="number" id="endYearInput" name="endYear" class="input-text" required>
+                        </div>
+                        <div class="form-line-2">
+                            <label for="endSubtickInput">Subyear:</label>
+                            <input type="number" id="endSubtickInput" name="endSubtick" class="input-text" required min="0">
+                        </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Title Container -->
             <div class="form-line">
                 <label for="titleInput">Title:</label>
                 <input type="text" id="titleInput" name="title" class="input-text" required>
             </div>
-            
+
+            <!-- Description Container -->
             <div class="form-line">
                 <label for="descriptionInput">Description:</label>
                 <textarea id="descriptionInput" name="description" class="input-textarea"></textarea>
             </div>
         </div>
 
+        <!-- Content Container -->
         <div class="form-group">
             <div class="form-line">
                 <label for="contentInput">Content:</label>
@@ -59,6 +72,7 @@
             </div>
         </div>
 
+        <!-- Tags Container -->
         <div class="form-group">
             <div class="form-line">
                 <label for="tags">Tags:</label>
@@ -67,6 +81,7 @@
             <div id="tagContainer" class="tag-container"></div>
         </div>
 
+        <!-- Images Container -->
         <div class="form-group">
             <div class="form-line">
                 <label>Images:</label>
@@ -78,25 +93,36 @@
             </div>
         </div>
 
+        <!-- Book Container -->
         <div class="form-group">
+
+            <!-- Book Title -->
             <div class="form-line">
                 <label for="bookTitleInput">Book Title:</label>
                 <input type="text" id="bookTitleInput" name="bookTitle" class="input-text">
             </div>
+
+            <!-- Chapter -->
             <div class="form-line">
                 <label for="chapterInput">Chapter:</label>
                 <input type="text" id="chapterInput" name="chapter" class="input-text">
             </div>
+
+            <!-- Page -->
             <div class="form-line">
                 <label for="pageInput">Page:</label>
                 <input type="text" id="pageInput" name="page" class="input-text">
             </div>
+
+            <!-- Color -->
             <div class="form-line">
                 <label for="colorInput">Color:</label>
                 <input type="color" id="colorInput" name="color" class="input-text" value="#37F2AE">
             </div>
         </div>
 
+
+        <!-- Story References Container -->
         <div class="form-group">
             <div class="form-line">
                 <label>Story References:</label>
@@ -107,6 +133,8 @@
             </div>
         </div>
 
+
+        <!-- Button Container -->
         <div class="button-group">
             <button type="submit" class="button-submit">Add Item</button>
             <button type="button" id="testFillBtn" class="button-debug">Test Fill</button>

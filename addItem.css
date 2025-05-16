@@ -321,5 +321,18 @@ button[type="submit"]:hover {
     background: #f0f0f0;
 }
 
+.type-label {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: #6a3e3e;
+    color: #f5e6d4;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-style: italic;
+    z-index: 1000;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
 
 
