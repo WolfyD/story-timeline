@@ -28,7 +28,8 @@ contextBridge.exposeInMainWorld('api', {
             'get-timeline-info',
             'call-load-data', 
             'open-timeline-images',
-            'save-new-image'
+            'save-new-image',
+            'get-item-data'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -75,7 +76,8 @@ contextBridge.exposeInMainWorld('api', {
             'timeline-deleted',
             'timeline-delete-error',
             'timeline-info',
-            'new-image-saved'
+            'new-image-saved',
+            'item-data'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

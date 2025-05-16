@@ -11,7 +11,7 @@ window.api.receive('storySuggestions', (suggestions) => {
     storySuggestions = suggestions;
 });
 
-// Initialize form with URL parameters
+// Initialize form with URL parameters and itemData
 function initializeForm() {
     const urlParams = new URLSearchParams(window.location.search);
     const year = urlParams.get('year');
@@ -20,6 +20,14 @@ function initializeForm() {
     const color = urlParams.get('color');
     type = urlParams.get('type'); // Assign to global type variable
 
+    console.log('[addItemWithRange.js] Initializing form with URL parameters:', {
+        year,
+        subtick,
+        granularity,
+        color,
+        type
+    });
+
     // Validate type parameter
     if (!type || !['age', 'period'].includes(type.toLowerCase())) {
         console.error('Invalid or missing type parameter. Must be either "age" or "period".');
@@ -27,16 +35,90 @@ function initializeForm() {
         return;
     }
 
-    if (year !== null && subtick !== null) {
-        document.getElementById('yearInput').value = year;
-        document.getElementById('subtickInput').value = subtick;
-        document.getElementById('endYearInput').value = year;
-        document.getElementById('endSubtickInput').value = subtick;
-    }
+    // Get itemData from the main process
+    window.api.receive('item-data', (itemData) => {
+        console.log('[addItemWithRange.js] Received itemData:', itemData);
+        
+        if (itemData) {
+            console.log('[addItemWithRange.js] Filling form with itemData:', {
+                year: itemData.year || year,
+                subtick: itemData.subtick || subtick,
+                end_year: itemData.end_year || year,
+                end_subtick: itemData.end_subtick || subtick,
+                title: itemData.title,
+                description: itemData.description,
+                content: itemData.content,
+                color: itemData.color || color,
+                book_title: itemData.book_title,
+                chapter: itemData.chapter,
+                page: itemData.page,
+                tags: itemData.tags,
+                story_refs: itemData.story_refs,
+                pictures: itemData.pictures
+            });
 
-    if (color !== null) {
-        document.getElementById('colorInput').value = color;
-    }
+            // Fill in all form fields with the item data
+            document.getElementById('yearInput').value = itemData.year || year;
+            document.getElementById('subtickInput').value = itemData.subtick || subtick;
+            document.getElementById('endYearInput').value = itemData.end_year || year;
+            document.getElementById('endSubtickInput').value = itemData.end_subtick || subtick;
+            document.getElementById('titleInput').value = itemData.title || '';
+            document.getElementById('descriptionInput').value = itemData.description || '';
+            document.getElementById('contentInput').value = itemData.content || '';
+            document.getElementById('colorInput').value = itemData.color || color;
+            document.getElementById('bookTitleInput').value = itemData.book_title || '';
+            document.getElementById('chapterInput').value = itemData.chapter || '';
+            document.getElementById('pageInput').value = itemData.page || '';
+            
+            // Set the form's item ID
+            document.getElementById('addItemForm').dataset.itemId = itemData.id;
+
+            // Add tags
+            if (itemData.tags && itemData.tags.length) {
+                tags.clear(); // Clear existing tags
+                itemData.tags.forEach(tag => tags.add(tag));
+                updateTagDisplay();
+            }
+
+            // Add story references
+            if (itemData.story_refs && itemData.story_refs.length) {
+                const storyRefsContainer = document.getElementById('storyRefsContainer');
+                storyRefsContainer.innerHTML = ''; // Clear existing refs
+                itemData.story_refs.forEach(story => {
+                    addStoryRefRow(story.title, story.id);
+                });
+            }
+
+            // Add images
+            if (itemData.pictures && itemData.pictures.length) {
+                itemData.pictures.forEach(pic => {
+                    const imageInfo = {
+                        file_path: pic.file_path,
+                        title: pic.title || '',
+                        description: pic.description || ''
+                    };
+                    addImagePreview(imageInfo);
+                    images.push(imageInfo);
+                });
+            }
+        } else {
+            console.log('[addItemWithRange.js] No itemData received, using URL parameters');
+            // If no itemData, use URL parameters
+            if (year !== null && subtick !== null) {
+                document.getElementById('yearInput').value = year;
+                document.getElementById('subtickInput').value = subtick;
+                document.getElementById('endYearInput').value = year;
+                document.getElementById('endSubtickInput').value = subtick;
+            }
+            if (color !== null) {
+                document.getElementById('colorInput').value = color;
+            }
+        }
+    });
+
+    // Request the item data from the main process
+    console.log('[addItemWithRange.js] Requesting item data from main process');
+    window.api.send('get-item-data');
 }
 
 // Call initialization
@@ -295,17 +377,16 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const formData = {
-        id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
-        title: document.getElementById('title').value,
-        description: document.getElementById('description').value,
-        content: document.getElementById('content').value,
+        title: document.getElementById('titleInput').value,
+        description: document.getElementById('descriptionInput').value,
+        content: document.getElementById('contentInput').value,
         year: parseInt(document.getElementById('yearInput').value),
         subtick: parseInt(document.getElementById('subtickInput').value),
         end_year: parseInt(document.getElementById('endYearInput').value),
         end_subtick: parseInt(document.getElementById('endSubtickInput').value),
-        book_title: document.getElementById('bookTitle').value,
-        chapter: document.getElementById('chapter').value,
-        page: document.getElementById('page').value,
+        book_title: document.getElementById('bookTitleInput').value,
+        chapter: document.getElementById('chapterInput').value,
+        page: document.getElementById('pageInput').value,
         color: document.getElementById('colorInput').value,
         type: type.charAt(0).toUpperCase() + type.slice(1),
         tags: Array.from(document.querySelectorAll('.tag')).map(tag => tag.textContent),
@@ -314,7 +395,6 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
             story_title: row.querySelector('.story-ref-title').value
         })),
         pictures: images.map((imageInfo, index) => ({
-            id: imageInfo.id,
             file_path: imageInfo.file_path,
             file_name: imageInfo.file_name,
             file_size: imageInfo.file_size,
@@ -326,38 +406,52 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         }))
     };
 
-    try {
-        // Send data through IPC
-        window.api.send('addTimelineItem', formData);
+    // If we have an item ID, this is an edit
+    const itemId = document.getElementById('addItemForm').dataset.itemId;
+    if (itemId) {
+        formData.id = itemId;
+        try {
+            // Send update through IPC
+            window.api.send('updateTimelineItem', formData);
+            window.api.send('add-item-window-closing');
+            window.close();
+        } catch (error) {
+            console.error('Error updating item:', error);
+        }
+    } else {
+        try {
+            // Send new item through IPC
+            window.api.send('addTimelineItem', formData);
 
-        // Wait for item creation and update pictures
-        window.api.receive('item-created', (itemId) => {
-            if (itemId && images.length > 0) {
-                // Get all picture IDs
-                const pictureIds = images.map(img => img.id);
-                // Update pictures with the new item ID
-                window.api.send('update-pictures-item-id', {
-                    pictureIds: pictureIds,
-                    itemId: itemId
-                });
-            }
-        });
+            // Wait for item creation and update pictures
+            window.api.receive('item-created', (itemId) => {
+                if (itemId && images.length > 0) {
+                    // Get all picture IDs
+                    const pictureIds = images.map(img => img.id);
+                    // Update pictures with the new item ID
+                    window.api.send('update-pictures-item-id', {
+                        pictureIds: pictureIds,
+                        itemId: itemId
+                    });
+                }
+            });
 
-        window.api.send('add-item-window-closing');
-        window.close();
-    } catch (error) {
-        console.error('Error adding item:', error);
+            window.api.send('add-item-window-closing');
+            window.close();
+        } catch (error) {
+            console.error('Error adding item:', error);
+        }
     }
 });
 
 // Test fill button
 document.getElementById('testFillBtn').addEventListener('click', function() {
-    document.getElementById('title').value = 'Test Item with Range';
-    document.getElementById('description').value = 'This is a test item with a date range';
-    document.getElementById('content').value = 'Test content for an item with a date range';
-    document.getElementById('bookTitle').value = 'Test Book';
-    document.getElementById('chapter').value = 'Test Chapter';
-    document.getElementById('page').value = '42';
+    document.getElementById('titleInput').value = 'Test Item with Range';
+    document.getElementById('descriptionInput').value = 'This is a test item with a date range';
+    document.getElementById('contentInput').value = 'Test content for an item with a date range';
+    document.getElementById('bookTitleInput').value = 'Test Book';
+    document.getElementById('chapterInput').value = 'Test Chapter';
+    document.getElementById('pageInput').value = '42';
     document.getElementById('colorInput').value = '#37F2AE';
 
     // Add a sample tag
@@ -375,16 +469,16 @@ window.api.receive('itemData', (item) => {
         document.getElementById('addItemForm').dataset.itemId = item.id;
 
         // Set form values
-        document.getElementById('title').value = item.title || '';
-        document.getElementById('description').value = item.description || '';
-        document.getElementById('content').value = item.content || '';
+        document.getElementById('titleInput').value = item.title || '';
+        document.getElementById('descriptionInput').value = item.description || '';
+        document.getElementById('contentInput').value = item.content || '';
         document.getElementById('yearInput').value = item.year || '';
         document.getElementById('subtickInput').value = item.subtick || '';
         document.getElementById('endYearInput').value = item.end_year || item.year || '';
         document.getElementById('endSubtickInput').value = item.end_subtick || item.subtick || '';
-        document.getElementById('bookTitle').value = item.book_title || '';
-        document.getElementById('chapter').value = item.chapter || '';
-        document.getElementById('page').value = item.page || '';
+        document.getElementById('bookTitleInput').value = item.book_title || '';
+        document.getElementById('chapterInput').value = item.chapter || '';
+        document.getElementById('pageInput').value = item.page || '';
         if (item.color) {
             document.getElementById('colorInput').value = item.color;
         }
@@ -416,9 +510,9 @@ window.api.receive('itemData', (item) => {
             e.preventDefault();
             const formData = {
                 id: item.id, // Keep the same ID
-                title: document.getElementById('title').value,
-                description: document.getElementById('description').value,
-                content: document.getElementById('content').value,
+                title: document.getElementById('titleInput').value,
+                description: document.getElementById('descriptionInput').value,
+                content: document.getElementById('contentInput').value,
                 tags: Array.from(tags),
                 pictures: images.map((imageInfo, index) => ({
                     id: imageInfo.id,
@@ -431,9 +525,9 @@ window.api.receive('itemData', (item) => {
                     title: imageInfo.title || `Image ${index + 1}`,
                     description: imageInfo.description || ''
                 })),
-                book_title: document.getElementById('bookTitle').value,
-                chapter: document.getElementById('chapter').value,
-                page: document.getElementById('page').value,
+                book_title: document.getElementById('bookTitleInput').value,
+                chapter: document.getElementById('chapterInput').value,
+                page: document.getElementById('pageInput').value,
                 year: document.getElementById('yearInput').value,
                 subtick: document.getElementById('subtickInput').value,
                 end_year: document.getElementById('endYearInput').value,

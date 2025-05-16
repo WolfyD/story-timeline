@@ -648,6 +648,7 @@ function renderTimeline() {
                 // Add click handler for item viewer
                 if (window.openItemViewer) {
                     ageItem.addEventListener('click', () => {
+                        // First show the view modal
                         window.openItemViewer(item.id);
                     });
                 }
@@ -746,6 +747,7 @@ function renderTimeline() {
                 // Add click handler for item viewer
                 if (window.openItemViewer) {
                     periodItem.addEventListener('click', () => {
+                        // First show the view modal
                         window.openItemViewer(item.id);
                     });
                 }
@@ -1610,3 +1612,35 @@ function findVisibleAgesAndPeriods(centerX, centerYear) {
 
     return { ages, periods };
 }
+
+// Add this function near the other utility functions
+function openEditAgeOrPeriod(item) {
+    const year = parseFloat(item.year || item.date || 0);
+    const subtick = parseInt(item.subtick || 0);
+    const endYear = parseFloat(item.end_year || item.year || 0);
+    const endSubtick = parseInt(item.end_subtick || item.subtick || 0);
+    
+    const itemData = {
+        id: item.id,
+        type: item.type,
+        year: year,
+        subtick: subtick,
+        end_year: endYear,
+        end_subtick: endSubtick,
+        title: item.title,
+        description: item.description,
+        content: item.content,
+        pictures: item.pictures,
+        tags: item.tags,
+        book_title: item.book_title,
+        chapter: item.chapter,
+        page: item.page,
+        color: item.color,
+        story_references: item.story_references
+    };
+    
+    window.api.send('open-add-item-with-range-window', year, subtick, timelineState.granularity, item.type, itemData);
+}
+
+// Add this to the window object so it can be called from the view modal
+window.openEditAgeOrPeriod = openEditAgeOrPeriod;

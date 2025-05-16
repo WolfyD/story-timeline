@@ -1,3 +1,10 @@
+// TODO: Make sure when tags are saved, only the inner text content is saved, not the HTML
+// TODO: Make sure tag input offers up existing tags
+// TODO: Make sure images can be deleted from the items
+// TODO: Make sure tags can be deleted from the items
+// TODO: Make sure items are not rendered when x distance from screen binding box
+
+
 /**
  * Main Process Module
  * 
@@ -332,9 +339,17 @@ function createEditItemWindow(item) {
  * @param {number} subtick - Subtick position
  * @param {number} granularity - Granularity of the timeline
  * @param {string} type - Type of the item
- * @param {string} color - Color for the item
+ * @param {string|Object} colorOrData - Either a color string or an itemData object
  */
-function createAddItemWithRangeWindow(year, subtick, granularity, type, color) {
+function createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrData) {
+  console.log('[main.js] createAddItemWithRangeWindow called with:', {
+    year,
+    subtick,
+    granularity,
+    type,
+    colorOrData
+  });
+
   let newItemWindow = new BrowserWindow({
     width: 500,
     height: 400,
@@ -360,6 +375,19 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type, color) {
     }
   });
 
+  // Determine if colorOrData is an itemData object or just a color
+  const isItemData = typeof colorOrData === 'object' && colorOrData !== null;
+  const color = isItemData ? colorOrData.color : colorOrData;
+
+  console.log('[main.js] Window parameters:', {
+    isItemData,
+    color,
+    year,
+    subtick,
+    granularity,
+    type
+  });
+
   newItemWindow.loadFile('addItemWithRange.html', {
     query: {
       year: year,
@@ -374,6 +402,15 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type, color) {
     mainWindow.getPosition()[0] + 100, 
     mainWindow.getPosition()[1] + 100
   );
+
+  // If we have itemData, send it to the window after it's loaded
+  if (isItemData) {
+    newItemWindow.webContents.on('did-finish-load', () => {
+      console.log('[main.js] Sending itemData to window:', colorOrData);
+      newItemWindow.webContents.send('item-data', colorOrData);
+    });
+  }
+
   newItemWindow.show();
 }
 
@@ -698,9 +735,9 @@ function setupIpcHandlers() {
     createAddItemWindow(year, subtick, granularity, type);
   });
 
-  ipcMain.on('open-add-item-with-range-window', (event, year, subtick, granularity, type, color) => {
-    console.log('[main.js] opening add item with range window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity, 'and type:', type, 'and color:', color);
-    createAddItemWithRangeWindow(year, subtick, granularity, type, color);
+  ipcMain.on('open-add-item-with-range-window', (event, year, subtick, granularity, type, colorOrData) => {
+    console.log('[main.js] opening add item with range window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity, 'and type:', type);
+    createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrData);
   });
 
   ipcMain.on('getStorySuggestions', (event) => {
