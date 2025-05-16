@@ -99,13 +99,13 @@ body {
     width: 100vw;
     display: grid;
     grid-template-rows: 80px 1fr 400px 100px; /* Header, main content, timeline, jump-to-date */
-    grid-template-columns: 1fr 1fr; /* Two columns for main content */
+    grid-template-columns: 1fr 1fr 1fr; /* Three columns for main content */
     grid-template-areas: 
-        "header header"
-        "left right"
-        "timeline timeline"
-        "display display"
-        "jump-to-date jump-to-date";
+        "header header header"
+        "left middle right"
+        "timeline timeline timeline"
+        "display display display"
+        "jump-to-date jump-to-date jump-to-date";
     box-sizing: border-box;
 }
 
@@ -133,6 +133,15 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
+}
+
+.main-content-middle {
+    grid-area: middle;
+    padding: 20px;
+    border-right: 1px solid rgba(75, 46, 46, 0.2);
+    overflow-y: auto;
+    min-height: 0;
+    font-family: var(--default-font), "Times New Roman", serif;
 }
 
 .main-content-right {
@@ -930,6 +939,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     font-size: 1.5em;
     color: #4b2e2e;
     margin-bottom: 10px;
+    position: relative;
 }
 
 .center-note .note-description {
@@ -951,6 +961,9 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     max-height: 120px;
     object-fit: contain;
     float: right;
+    position: relative;
+    top: 10px;
+    right: 10px;
     margin: 0 0 15px 15px;
     transition: all 0.3s ease;
     cursor: pointer;
@@ -959,7 +972,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 .center-note .note-image:hover {
     max-width: 30%;
     max-height: none;
-    position: relative;
+    --position: relative;
     z-index: 100;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }

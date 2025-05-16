@@ -1,4 +1,3 @@
-// TODO: Make sure when tags are saved, only the inner text content is saved, not the HTML
 // TODO: Make sure tag input offers up existing tags
 // TODO: Make sure images can be deleted from the items
 // TODO: Make sure tags can be deleted from the items
