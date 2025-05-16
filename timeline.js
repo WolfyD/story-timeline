@@ -428,6 +428,22 @@ function renderTimeline() {
     // Calculate the center year
     const centerYear = calculateYearFromPosition(centerX + containerRect.left);
     
+    // Update the centered year/subyear info with full precision
+    const centerYearInt = Math.floor(centerYear);
+    const centerSubtick = Math.round((centerYear - centerYearInt) * granularity);
+    const centerInfo = `${centerYearInt}.${centerSubtick.toString().padStart(2, '0')}`;
+    
+    // Try both possible element IDs
+    const nowDiv = document.getElementById('timeline-info-now') || document.getElementById('now');
+    if (nowDiv) {
+        nowDiv.textContent = centerInfo;
+    } else {
+        console.warn('[Debug] Could not find center position display element');
+    }
+
+    // Find visible ages and periods
+    const { ages, periods } = findVisibleAgesAndPeriods(centerX, centerYear);
+
     // Find the closest note to center
     const closestNote = findClosestNote(centerX);
     
@@ -441,13 +457,6 @@ function renderTimeline() {
     const timelineY = containerRect.height / 2;
     const itemBoxHeight = 30;
     const itemBoxMargin = 5;
-
-    // Update the centered year/subyear info
-    const centerYearInt = Math.floor(centerYear);
-    const centerSubtick = Math.round((centerYear - centerYearInt) * granularity);
-    const centerInfo = `Year: ${centerYear}, Subtick: ${centerSubtick}`;
-    const nowDiv = document.getElementById('now');
-    if (nowDiv) nowDiv.textContent = centerInfo;
 
     // Find all items that overlap with the current center position
     const overlappingItems = timelineState.items.filter(item => {
@@ -470,60 +479,54 @@ function renderTimeline() {
     // Clear existing images
     imageContainer.innerHTML = '';
 
-    // Find the closest regular item with pictures
-    const closestItem = findClosestItem(centerX);
-
-    // Add images for items with pictures
-    overlappingItems.forEach((item, index) => {
-        // For ages and periods, keep existing behavior
-        if (item.type === 'Age' || item.type === 'Period') {
-            if (item.pictures && item.pictures.length > 0) {
-                const picture = item.pictures[0];
-                if (picture.file_path) {
-                    const img = document.createElement('img');
-                    img.className = 'cascading-image';
-                    if (item.type === 'Age') {
-                        img.className += ' age-image';
-                    } else {
-                        if (index === 0) {
-                            img.className += ' main';
-                        } else if (index <= 2) {
-                            img.className += ' secondary';
-                            img.className += index % 2 === 0 ? ' even' : ' odd';
-                        } else if (index <= 4) {
-                            img.className += ' tertiary';
-                            img.className += index % 2 === 0 ? ' even' : ' odd';
-                        } else if (index <= 6) {
-                            img.className += ' quaternary';
-                            img.className += index % 2 === 0 ? ' even' : ' odd';
-                        } else if (index <= 8) {
-                            img.className += ' quinary';
-                            img.className += index % 2 === 0 ? ' even' : ' odd';
-                        }
-                    }
-                    img.setAttribute('data-item-id', item.id);
-                    const fileUrl = 'file://' + picture.file_path.replace(/\\/g, '/');
-                    img.src = fileUrl;
-                    img.alt = item.title || 'Timeline Image';
-                    imageContainer.appendChild(img);
-                }
+    // Display images for visible ages
+    ages.forEach(age => {
+        if (age.pictures && age.pictures.length > 0) {
+            const picture = age.pictures[0];
+            if (picture.file_path) {
+                const img = document.createElement('img');
+                img.className = 'cascading-image age-image';
+                img.setAttribute('data-item-id', age.id);
+                const fileUrl = 'file://' + picture.file_path.replace(/\\/g, '/');
+                img.src = fileUrl;
+                img.alt = age.title || 'Age Image';
+                imageContainer.appendChild(img);
             }
         }
     });
 
-    // If we found a closest regular item with pictures, add its image
-    if (closestItem) {
-        const picture = closestItem.pictures[0];
-        if (picture.file_path) {
-            const img = document.createElement('img');
-            img.className = 'cascading-image main';
-            img.setAttribute('data-item-id', closestItem.id);
-            const fileUrl = 'file://' + picture.file_path.replace(/\\/g, '/');
-            img.src = fileUrl;
-            img.alt = closestItem.title || 'Timeline Image';
-            imageContainer.appendChild(img);
+    // Display images for visible periods
+    periods.forEach((period, index) => {
+        if (period.pictures && period.pictures.length > 0) {
+            const picture = period.pictures[0];
+            if (picture.file_path) {
+                const img = document.createElement('img');
+                img.className = 'cascading-image';
+                if (index === 0) {
+                    img.className += ' main';
+                } else if (index <= 2) {
+                    img.className += ' secondary';
+                    img.className += index % 2 === 0 ? ' even' : ' odd';
+                } else if (index <= 4) {
+                    img.className += ' tertiary';
+                    img.className += index % 2 === 0 ? ' even' : ' odd';
+                } else if (index <= 6) {
+                    img.className += ' quaternary';
+                    img.className += index % 2 === 0 ? ' even' : ' odd';
+                } else if (index <= 8) {
+                    img.className += ' quinary';
+                    img.className += index % 2 === 0 ? ' even' : ' odd';
+                }
+                img.setAttribute('data-item-id', period.id);
+                // Set z-index based on item_index
+                img.style.zIndex = period.item_index || 0;
+                const fileUrl = 'file://' + picture.file_path.replace(/\\/g, '/');
+                img.src = fileUrl;
+                img.alt = period.title || 'Period Image';
+                imageContainer.appendChild(img);
+            }
         }
-    }
+    });
 
     // Calculate the leftmost and rightmost visible years based on current offset and size
     const leftYear = focusYear - ((centerX + offsetPx) / (granularity * pixelsPerSubtick));
@@ -862,10 +865,7 @@ function renderTimeline() {
             } else {
                 box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
                 
-                console.log('[timeline.js] Adding note icon', item.type);
-
                 if (item.type && item.type.toLowerCase() === 'note') {
-                    console.log('[timeline.js] Adding note icon');
                     // Add the calligraphic letter SVG
                     const noteIcon = document.createElement('div');
                     noteIcon.className = 'note-icon';
@@ -1150,19 +1150,6 @@ container.addEventListener("mouseleave", () => {
 });
 
 container.addEventListener("wheel", (event) => {
-    // check if control key is pressed
-    // if(event.ctrlKey){
-    //     // zoom in or out
-    //     const currentScale = parseFloat(timeline.style.transform?.match(/scale\(([^)]+)\)/)?.[1] || 1);
-    //     const newScale = event.deltaY > 0 
-    //         ? Math.max(0.1, currentScale - 0.1)  // zoom out
-    //         : Math.min(10, currentScale + 0.1);  // zoom in
-        
-    //     timeline.style.transform = `scale(${newScale})`;
-    //     console.log('[timeline.js:600] Control key pressed, new scale:', newScale);
-    //     return;
-    // }
-
     if(!isPositionWholeYear()){
         const nearestYear = getNearestYearFromPosition(null, event.deltaY > 0 ? -1 : 1);
         jumpToYear(nearestYear);
@@ -1320,14 +1307,12 @@ function isPositionWholeYear(x = null, tolerance = 2) {
  * - Window creation failure
  */
 function addItem(year, subtick, granularity) {
-    console.log('[timeline.js:748] adding item at year:', year, 'and subtick:', subtick, 'with granularity:', granularity);
     let newItem = openAddItemWindow(year, subtick, granularity);
     //let newItem = window.webContents.send('open-add-item-window', year, subtick);
     return newItem;
 }
 function openAddItemWindow(year, subtick, granularity){
     year = Math.floor(year);
-    console.log('[timeline.js:755] opening add item window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity);
     // Pass granularity as a third argument
     window.api.send('open-add-item-window', year, subtick, granularity);
 }
@@ -1400,8 +1385,6 @@ function handleSelectorClick(e) {
     const type = button.dataset.type;
     const year = parseInt(this.dataset.year);
     const subtick = parseInt(this.dataset.subtick);
-
-    console.log('[timeline.js] button clicked:', button, 'type:', type, 'year:', year, 'subtick:', subtick);
 
     // Close the item selector
     closeItemSelector();
@@ -1538,7 +1521,6 @@ function findClosestNote(centerX) {
     );
 
     if (noteItems.length === 0) {
-        console.log('No note items found');
         return null;
     }
 
@@ -1558,10 +1540,8 @@ function findClosestNote(centerX) {
 
     // Only return the note if it's within 10px
     if (closestDistance <= 10) {
-        console.log('Found note within 10px:', closestNote, 'Distance:', closestDistance);
         return closestNote;
     } else {
-        console.log('No note within 10px. Closest was:', closestNote, 'Distance:', closestDistance);
         return null;
     }
 }
@@ -1597,4 +1577,36 @@ function findClosestItem(centerX) {
         return closestItem;
     }
     return null;
+}
+
+function findVisibleAgesAndPeriods(centerX, centerYear) {
+    // Get all items that could be visible
+    const visibleItems = timelineState.items.filter(item => {
+        if (!item || !item.type) return false;
+        
+        // Only look at ages and periods
+        const type = item.type.toLowerCase();
+        if (type !== 'age' && type !== 'period') return false;
+
+        // Calculate start and end positions
+        const startYear = parseFloat(item.year || item.date || 0);
+        const startSubtick = parseInt(item.subtick || 0);
+        const endYear = parseFloat(item.end_year || item.year || 0);
+        const endSubtick = parseInt(item.end_subtick || item.subtick || 0);
+        
+        // Calculate exact positions
+        const startPosition = startYear + (startSubtick / timelineState.granularity);
+        const endPosition = endYear + (endSubtick / timelineState.granularity);
+        
+        const isVisible = centerYear >= startPosition && centerYear <= endPosition;
+        
+        return isVisible;
+    });
+
+    // Separate ages and periods
+    const ages = visibleItems.filter(item => item.type.toLowerCase() === 'age');
+    const periods = visibleItems.filter(item => item.type.toLowerCase() === 'period')
+        .sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
+
+    return { ages, periods };
 }
