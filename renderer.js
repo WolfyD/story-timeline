@@ -52,6 +52,8 @@ let isFullscreen = false;
 let storyIndex = {};
 let loadedSettings = null;
 let loadedData = null;
+let isDataReady = false;
+let isSettingsReady = false;
 
 // ===== Public API Functions =====
 /**
@@ -553,11 +555,20 @@ function callSetInitialSettings(focusYear, granularity, pixelsPerSubtick) {
 function checkAllLoaded() {
     if (loadedSettings && loadedData) {
         console.log("Both settings and data are loaded");
+        isSettingsReady = true;
+        isDataReady = true;
+        
+        // Initialize the timeline
         callSetInitialSettings(
             loadedData.start || 0,
             loadedData.granularity || 4,
             loadedSettings.pixelsPerSubtick || 20
         );
+
+        // If both data and settings are ready, tell main process we're ready to display
+        if (isDataReady && isSettingsReady) {
+            window.api.send('renderer-ready');
+        }
     }
 }
 
@@ -739,6 +750,8 @@ window.api.receive('call-load-settings', (settings) => {
     // Only update settings if they've actually changed
     if (JSON.stringify(settings) !== JSON.stringify(loadedSettings)) {
         settingsSetup(settings);
+        isSettingsReady = true;
+        checkAllLoaded();
     }
 });
 
@@ -760,6 +773,8 @@ window.api.receive('call-load-data', (data) => {
     if (JSON.stringify(data) !== JSON.stringify(loadedData)) {
         dataSetup(data);
         loadData(data);
+        isDataReady = true;
+        checkAllLoaded();
     }
 });
 
@@ -1154,4 +1169,10 @@ window.api.receive('items', (newItems) => {
     console.log('Received items:', newItems);
     timelineState.items = newItems;
     renderTimeline();
+});
+
+// Add handler for data-ready message
+window.api.receive('data-ready', () => {
+    isDataReady = true;
+    checkAllLoaded();
 });

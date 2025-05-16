@@ -155,17 +155,23 @@ let splashWindow = null;
  * - File load failure
  */
 function createSplashWindow() {
+
+    const windowWidth = 900;
+    const windowHeight = 700;
+
     splashWindow = new BrowserWindow({
-        width: 900,
-        height: 700,
+        width: windowWidth,
+        height: windowHeight,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js')
+            preload: path.join(__dirname, 'preload.js'),
         },
         show: false,
         backgroundColor: '#f5f0e6',
-        frame: false // Make it frameless for a more modern look
+        frame: true,
+        autoHideMenuBar: true,
+        center: true
     });
 
     splashWindow.webContents.on("before-input-event", (event, input) => {
@@ -194,28 +200,61 @@ function createWindow() {
             contextIsolation: true,
             preload: path.join(__dirname, 'preload.js')
         },
-        show: false, // Keep window hidden initially
-        backgroundColor: '#f5f0e6'
+        show: false  // Keep window hidden initially
     });
 
     mainWindow.loadFile('index.html');
 
-    // Wait for content to load and initialize
+    // Wait for the page to load
     mainWindow.webContents.on('did-finish-load', () => {
-        // Add a small delay to ensure everything is ready
-        setTimeout(() => {
-            // Load settings and data
-            loadSettings();
-            loadData();
-            
-            // Show the window with a fade-in effect
-            mainWindow.show();
-            
-            // Close the splash window if it exists
-            if (splashWindow) {
-                splashWindow.close();
+        // Load settings and data
+        loadSettings();
+        loadData().then(() => {
+            // Send a message to the renderer that data is ready
+            mainWindow.webContents.send('data-ready');
+        });
+    });
+
+    // Listen for the renderer's confirmation that it's ready to display
+    ipcMain.once('renderer-ready', () => {
+        // Apply window position and size from settings
+        console.log('[main.js] settings:', settings);
+
+        if (settings) {
+            // Set window size
+            mainWindow.setSize(
+                settings.size?.x || 1000,
+                settings.size?.y || 700
+            );
+
+            // Set window position
+            mainWindow.setPosition(
+                settings.position?.x || 300,
+                settings.position?.y || 100
+            );
+
+            // Apply maximized state if needed
+            if (settings.isFullscreen) {
+                mainWindow.maximize();
             }
-        }, 1000); // 1 second delay
+
+            // Apply custom scaling if enabled
+            if (settings.useCustomScaling) {
+                mainWindow.webContents.setZoomFactor(parseFloat(settings.customScale || 1.0));
+            } else {
+                mainWindow.webContents.setZoomFactor(1.0);
+            }
+        }
+
+        // Now we can safely show the window
+        mainWindow.show();
+
+        console.log('[main.js] CUSTOM SCALE:', settings.useCustomScaling);
+        
+        // Close the splash window if it exists
+        if (splashWindow) {
+            splashWindow.close();
+        }
     });
 
     mainWindow.on('closed', () => {
@@ -225,9 +264,9 @@ function createWindow() {
     });
 
     mainWindow.webContents.on("before-input-event", (event, input) => {
-      if (input.key === "F12") {
-        mainWindow.webContents.openDevTools();
-      }
+        if (input.key === "F12") {
+            mainWindow.webContents.openDevTools();
+        }
     });
 }
 
@@ -475,6 +514,8 @@ function loadSettings() {
       useItemsCSS: Boolean(savedSettings.useItemsCSS),
       isFullscreen: Boolean(savedSettings.isFullscreen),
       showGuides: Boolean(savedSettings.showGuides),
+      useCustomScaling: savedSettings.useCustomScaling,
+      customScale: savedSettings.customScale,
       size: {
         x: parseInt(savedSettings.size?.x || 800),
         y: parseInt(savedSettings.size?.y || 600)
@@ -484,6 +525,8 @@ function loadSettings() {
         y: parseInt(savedSettings.position?.y || 100)
       }
     };
+
+    console.log('[main.js] settings:XXXX', settings);
 
     // Load templates if CSS fields are empty
     if (!settings.customCSS || settings.customCSS === "") {
@@ -496,10 +539,8 @@ function loadSettings() {
       settings.customItemsCSS = fs.readFileSync(path.join(__dirname, 'customItemsCSSTemplate.txt'), 'utf8');
     }
     
-    mainWindow.webContents.send("window-resized", mainWindow.getSize());
+    // Send settings to renderer
     mainWindow.webContents.send('call-load-settings', settings);
-    mainWindow.setPosition(settings.position.x, settings.position.y);
-    mainWindow.setSize(settings.size.x, settings.size.y);
   }
 }
 
@@ -523,6 +564,8 @@ function saveSettings(newSettings) {
     return false;
   }
 
+  console.log('[main.js] saving settings:', newSettings);
+
   // Save settings to database
   const dbSettings = {
     font: newSettings.font || 'Arial',
@@ -534,7 +577,7 @@ function saveSettings(newSettings) {
     use_timeline_css: newSettings.useTimelineCSS ? 1 : 0,
     use_main_css: newSettings.useMainCSS ? 1 : 0,
     use_items_css: newSettings.useItemsCSS ? 1 : 0,
-    is_fullscreen: newSettings.isFullscreen ? 1 : 0,
+    is_fullscreen: mainWindow.isMaximized() ? 1 : 0,
     show_guides: newSettings.showGuides ? 1 : 0,
     window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
     window_size_y: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
@@ -599,23 +642,26 @@ function saveSettings(newSettings) {
  * - Invalid JSON
  */
 function loadData() {
-  if (!mainWindow) {
-    console.error('Main window not initialized');
-    return;
-  }
+    return new Promise((resolve) => {
+        if (!mainWindow) {
+            console.error('Main window not initialized');
+            resolve();
+            return;
+        }
 
-  const savedData = dbManager.getUniverseData();
-  if (savedData) {
-    data = {
-      ...data,
-      ...savedData,
-      items: dbManager.getAllItems() || []
-    };
+        const savedData = dbManager.getUniverseData();
+        if (savedData) {
+            data = {
+                ...data,
+                ...savedData,
+                items: dbManager.getAllItems() || []
+            };
 
-    console.log("loadData", data);
-
-    mainWindow.webContents.send('call-load-data', data);
-  }
+            console.log("loadData", data);
+            mainWindow.webContents.send('call-load-data', data);
+        }
+        resolve();
+    });
 }
 
 /**
@@ -686,6 +732,9 @@ function setupIpcHandlers() {
         granularity: newData.granularity
     };
 
+
+    console.log('[main.js] updatedSettings:', updatedSettings);
+
     // Save settings to database
     const dbSettings = {
         font: updatedSettings.font || 'Arial',
@@ -697,7 +746,7 @@ function setupIpcHandlers() {
         use_timeline_css: updatedSettings.useTimelineCSS ? 1 : 0,
         use_main_css: updatedSettings.useMainCSS ? 1 : 0,
         use_items_css: updatedSettings.useItemsCSS ? 1 : 0,
-        is_fullscreen: updatedSettings.isFullscreen ? 1 : 0,
+        is_fullscreen: mainWindow.isMaximized() ? 1 : 0,
         show_guides: updatedSettings.showGuides ? 1 : 0,
         window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
         window_size_y: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),

@@ -513,6 +513,8 @@ class DatabaseManager {
             useItemsCSS: settings.use_items_css === 1,
             isFullscreen: settings.is_fullscreen === 1,
             showGuides: settings.show_guides === 1,
+            useCustomScaling: settings.use_custom_scaling === 1,
+            customScale: settings.custom_scale,
             size: {
                 x: settings.window_size_x,
                 y: settings.window_size_y
