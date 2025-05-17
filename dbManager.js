@@ -272,51 +272,218 @@ class DatabaseManager {
         // `);
     }
 
+    // Helper method to check and add missing columns
+    ensureTableColumns(tableName, requiredColumns) {
+        // Get current columns
+        const currentColumns = this.db.prepare(`PRAGMA table_info(${tableName})`).all();
+        const existingColumnNames = currentColumns.map(col => col.name);
+
+        // Check each required column
+        for (const column of requiredColumns) {
+            if (!existingColumnNames.includes(column.name)) {
+                console.log(`Adding missing column ${column.name} to ${tableName}`);
+                const alterStmt = `ALTER TABLE ${tableName} ADD COLUMN ${column.name} ${column.type}${column.default ? ` DEFAULT ${column.default}` : ''}`;
+                this.db.prepare(alterStmt).run();
+            }
+        }
+    }
+
     migrateDatabase() {
         // Start a transaction
         this.db.prepare('BEGIN').run();
 
         try {
-            // Check if settings_id column exists in timelines table
-            const tableInfo = this.db.prepare("PRAGMA table_info(timelines)").all();
-            const hasSettingsId = tableInfo.some(col => col.name === 'settings_id');
+            // Define required columns for each table
+            const timelinesColumns = [
+                { name: 'id', type: 'INTEGER PRIMARY KEY AUTOINCREMENT' },
+                { name: 'title', type: 'TEXT NOT NULL' },
+                { name: 'author', type: 'TEXT NOT NULL' },
+                { name: 'description', type: 'TEXT' },
+                { name: 'start_year', type: 'INTEGER DEFAULT 0' },
+                { name: 'granularity', type: 'INTEGER DEFAULT 4' },
+                { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
+                { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+            ];
 
-            if (hasSettingsId) {
-                // Get all timelines with their settings_id
-                const timelines = this.db.prepare('SELECT id, settings_id FROM timelines').all();
+            const settingsColumns = [
+                { name: 'id', type: 'INTEGER PRIMARY KEY' },
+                { name: 'timeline_id', type: 'INTEGER' },
+                { name: 'font', type: 'TEXT DEFAULT "Arial"' },
+                { name: 'font_size_scale', type: 'REAL DEFAULT 1.0' },
+                { name: 'pixels_per_subtick', type: 'INTEGER DEFAULT 20' },
+                { name: 'custom_css', type: 'TEXT' },
+                { name: 'custom_main_css', type: 'TEXT' },
+                { name: 'custom_items_css', type: 'TEXT' },
+                { name: 'use_timeline_css', type: 'INTEGER DEFAULT 0' },
+                { name: 'use_main_css', type: 'INTEGER DEFAULT 0' },
+                { name: 'use_items_css', type: 'INTEGER DEFAULT 0' },
+                { name: 'is_fullscreen', type: 'INTEGER DEFAULT 0' },
+                { name: 'show_guides', type: 'INTEGER DEFAULT 1' },
+                { name: 'window_size_x', type: 'INTEGER DEFAULT 1000' },
+                { name: 'window_size_y', type: 'INTEGER DEFAULT 700' },
+                { name: 'window_position_x', type: 'INTEGER DEFAULT 300' },
+                { name: 'window_position_y', type: 'INTEGER DEFAULT 100' },
+                { name: 'use_custom_scaling', type: 'INTEGER DEFAULT 0' },
+                { name: 'custom_scale', type: 'REAL DEFAULT 1.0' },
+                { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+            ];
 
-                // Update settings table to add timeline_id if it doesn't exist
-                const settingsInfo = this.db.prepare("PRAGMA table_info(settings)").all();
-                const hasTimelineId = settingsInfo.some(col => col.name === 'timeline_id');
+            const itemsColumns = [
+                { name: 'id', type: 'TEXT PRIMARY KEY' },
+                { name: 'title', type: 'TEXT' },
+                { name: 'description', type: 'TEXT' },
+                { name: 'content', type: 'TEXT' },
+                { name: 'story_id', type: 'TEXT' },
+                { name: 'type_id', type: 'INTEGER DEFAULT 1' },
+                { name: 'year', type: 'INTEGER' },
+                { name: 'subtick', type: 'INTEGER' },
+                { name: 'original_subtick', type: 'INTEGER' },
+                { name: 'end_year', type: 'INTEGER' },
+                { name: 'end_subtick', type: 'INTEGER' },
+                { name: 'original_end_subtick', type: 'INTEGER' },
+                { name: 'book_title', type: 'TEXT' },
+                { name: 'chapter', type: 'TEXT' },
+                { name: 'page', type: 'TEXT' },
+                { name: 'color', type: 'TEXT' },
+                { name: 'creation_granularity', type: 'INTEGER' },
+                { name: 'timeline_id', type: 'INTEGER' },
+                { name: 'item_index', type: 'INTEGER' },
+                { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
+                { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
+            ];
 
-                if (!hasTimelineId) {
-                    this.db.prepare('ALTER TABLE settings ADD COLUMN timeline_id INTEGER').run();
+            // Ensure all tables exist first
+            this.initializeTables();
+
+            // Check and add missing columns for each table
+            this.ensureTableColumns('timelines', timelinesColumns);
+            this.ensureTableColumns('settings', settingsColumns);
+            this.ensureTableColumns('items', itemsColumns);
+
+            // Check if universe_data table exists
+            const tableExists = this.db.prepare(`
+                SELECT name FROM sqlite_master 
+                WHERE type='table' AND name='universe_data'
+            `).get();
+
+            if (tableExists) {
+                console.log('Found universe_data table, starting migration...');
+
+                // Get the universe data
+                const universeData = this.db.prepare('SELECT * FROM universe_data').get();
+                if (!universeData) {
+                    console.log('No universe data found, skipping migration');
+                    return;
                 }
 
-                // Update settings with timeline_id
-                for (const timeline of timelines) {
-                    if (timeline.settings_id) {
-                        this.db.prepare('UPDATE settings SET timeline_id = ? WHERE id = ?')
-                            .run(timeline.id, timeline.settings_id);
-                    }
+                // Create a new timeline from universe data
+                const timelineStmt = this.db.prepare(`
+                    INSERT INTO timelines (
+                        title, author, description, start_year, granularity
+                    ) VALUES (
+                        @title, @author, @description, @start_year, @granularity
+                    )
+                `);
+
+                const timelineResult = timelineStmt.run({
+                    title: universeData.title || 'New Timeline',
+                    author: universeData.author || '',
+                    description: universeData.description || '',
+                    start_year: universeData.start_year || 0,
+                    granularity: universeData.granularity || 4
+                });
+
+                const timelineId = timelineResult.lastInsertRowid;
+                console.log('Created new timeline with ID:', timelineId);
+
+                // Update all items to use the new timeline_id
+                const updateItemsStmt = this.db.prepare(`
+                    UPDATE items 
+                    SET timeline_id = @timeline_id 
+                    WHERE timeline_id IS NULL
+                `);
+                const result = updateItemsStmt.run({ timeline_id: timelineId });
+                console.log(`Updated ${result.changes} items with new timeline_id`);
+
+                // Update item_index for all items
+                const items = this.db.prepare(`
+                    SELECT id FROM items 
+                    WHERE timeline_id = @timeline_id 
+                    ORDER BY year, subtick
+                `).all({ timeline_id: timelineId });
+
+                const updateIndexStmt = this.db.prepare(`
+                    UPDATE items 
+                    SET item_index = @item_index 
+                    WHERE id = @item_id
+                `);
+
+                items.forEach((item, index) => {
+                    updateIndexStmt.run({
+                        item_id: item.id,
+                        item_index: index
+                    });
+                });
+                console.log(`Updated item_index for ${items.length} items`);
+
+                // Get the last settings
+                const oldSettings = this.db.prepare('SELECT * FROM settings ORDER BY id DESC LIMIT 1').get();
+                if (oldSettings) {
+                    // Update existing settings with timeline_id
+                    const updateSettingsStmt = this.db.prepare(`
+                        UPDATE settings 
+                        SET timeline_id = @timeline_id 
+                        WHERE id = @settings_id
+                    `);
+                    updateSettingsStmt.run({
+                        timeline_id: timelineId,
+                        settings_id: oldSettings.id
+                    });
+                    console.log('Updated settings with new timeline_id');
+                } else {
+                    // Create new settings if none exist
+                    const settingsStmt = this.db.prepare(`
+                        INSERT INTO settings (
+                            timeline_id, font, font_size_scale, pixels_per_subtick,
+                            custom_css, custom_main_css, custom_items_css,
+                            use_timeline_css, use_main_css, use_items_css,
+                            is_fullscreen, show_guides, window_size_x, window_size_y,
+                            window_position_x, window_position_y, use_custom_scaling, custom_scale
+                        ) VALUES (
+                            @timeline_id, @font, @font_size_scale, @pixels_per_subtick,
+                            @custom_css, @custom_main_css, @custom_items_css,
+                            @use_timeline_css, @use_main_css, @use_items_css,
+                            @is_fullscreen, @show_guides, @window_size_x, @window_size_y,
+                            @window_position_x, @window_position_y, @use_custom_scaling, @custom_scale
+                        )
+                    `);
+
+                    settingsStmt.run({
+                        timeline_id: timelineId,
+                        font: 'Arial',
+                        font_size_scale: 1.0,
+                        pixels_per_subtick: 20,
+                        custom_css: '',
+                        custom_main_css: '',
+                        custom_items_css: '',
+                        use_timeline_css: 0,
+                        use_main_css: 0,
+                        use_items_css: 0,
+                        is_fullscreen: 0,
+                        show_guides: 1,
+                        window_size_x: 1000,
+                        window_size_y: 700,
+                        window_position_x: 300,
+                        window_position_y: 100,
+                        use_custom_scaling: 0,
+                        custom_scale: 1.0
+                    });
+                    console.log('Created new settings for timeline');
                 }
 
-                // Remove settings_id column from timelines
-                this.db.prepare('CREATE TABLE timelines_new (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, author TEXT NOT NULL, description TEXT, start_year INTEGER DEFAULT 0, granularity INTEGER DEFAULT 4, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, UNIQUE(title, author))').run();
-                this.db.prepare('INSERT INTO timelines_new SELECT id, title, author, description, start_year, granularity, created_at, updated_at FROM timelines').run();
-                this.db.prepare('DROP TABLE timelines').run();
-                this.db.prepare('ALTER TABLE timelines_new RENAME TO timelines').run();
-            }
-
-            // Add ON DELETE CASCADE to settings table if not present
-            const settingsForeignKeys = this.db.prepare("PRAGMA foreign_key_list(settings)").all();
-            const hasCascade = settingsForeignKeys.some(fk => fk.on_delete === 'CASCADE');
-
-            if (!hasCascade) {
-                this.db.prepare('CREATE TABLE settings_new (id INTEGER PRIMARY KEY, timeline_id INTEGER, font TEXT DEFAULT "Arial", font_size_scale REAL DEFAULT 1.0, pixels_per_subtick INTEGER DEFAULT 20, custom_css TEXT, custom_main_css TEXT, custom_items_css TEXT, use_timeline_css INTEGER DEFAULT 0, use_main_css INTEGER DEFAULT 0, use_items_css INTEGER DEFAULT 0, is_fullscreen INTEGER DEFAULT 0, show_guides INTEGER DEFAULT 1, window_size_x INTEGER DEFAULT 1000, window_size_y INTEGER DEFAULT 700, window_position_x INTEGER DEFAULT 300, window_position_y INTEGER DEFAULT 100, use_custom_scaling INTEGER DEFAULT 0, custom_scale REAL DEFAULT 1.0, updated_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE)').run();
-                this.db.prepare('INSERT INTO settings_new SELECT * FROM settings').run();
-                this.db.prepare('DROP TABLE settings').run();
-                this.db.prepare('ALTER TABLE settings_new RENAME TO settings').run();
+                // Drop the universe_data table
+                this.db.prepare('DROP TABLE IF EXISTS universe_data').run();
+                console.log('Migration completed successfully');
             }
 
             // Commit the transaction

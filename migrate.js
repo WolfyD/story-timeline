@@ -150,6 +150,7 @@ class DatabaseMigration {
         // Get the settings
         const settings = this.db.prepare('SELECT * FROM settings WHERE id = 1').get();
         if (settings) {
+            console.log('Settings found:', settings.timeline_id);
             // Update the settings with the timeline_id
             this.db.prepare(`
                 UPDATE settings 
