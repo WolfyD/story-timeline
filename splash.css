@@ -155,4 +155,56 @@
 .splash_empty_state p {
     margin: 10px 0;
     font-size: 1.1em;
+}
+
+.debug_item_generator {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    background-color: rgba(0, 0, 0, 0.8);
+    padding: 15px;
+    border-radius: 8px;
+    color: white;
+    z-index: 1000;
+}
+
+.debug_item_generator_container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.debug_item_generator h3 {
+    margin: 0;
+    font-size: 16px;
+    color: #fff;
+}
+
+.debug_item_generator_inputs {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.debug_item_generator input[type="number"] {
+    width: 100px;
+    padding: 5px;
+    border: 1px solid #444;
+    border-radius: 4px;
+    background-color: #333;
+    color: white;
+}
+
+.debug_item_generator button {
+    padding: 5px 10px;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+.debug_item_generator button:hover {
+    background-color: #45a049;
 } 

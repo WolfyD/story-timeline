@@ -144,6 +144,20 @@ body {
     font-family: var(--default-font), "Times New Roman", serif;
 }
 
+/* Add styles for the displays in main-content-middle */
+#visible_item_counter,
+#fps_display,
+#scroll_speed_p_s {
+    font-family: monospace;
+    font-size: 14px;
+    color: #4b2e2e;
+    margin-bottom: 10px;
+    padding: 5px;
+    background-color: rgba(75, 46, 46, 0.05);
+    border-radius: 4px;
+    white-space: nowrap;
+}
+
 .main-content-right {
     grid-area: right;
     padding: 20px;

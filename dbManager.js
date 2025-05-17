@@ -59,6 +59,7 @@ class DatabaseManager {
         this.initializeTables();
         this.migrateDatabase();
         this.initializeDefaultData();
+        this.createIndexes();
         this.reindexItems();
     }
 
@@ -1670,6 +1671,48 @@ class DatabaseManager {
             this.db.prepare('ROLLBACK').run();
             console.error('Error reindexing items:', error);
         }
+    }
+
+    createIndexes() {
+        console.log('Creating database indexes...');
+        
+        // Items table indexes
+        this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_items_timeline_id ON items(timeline_id);
+            CREATE INDEX IF NOT EXISTS idx_items_year_subtick ON items(year, subtick);
+            CREATE INDEX IF NOT EXISTS idx_items_type_id ON items(type_id);
+            CREATE INDEX IF NOT EXISTS idx_items_item_index ON items(item_index);
+            CREATE INDEX IF NOT EXISTS idx_items_story_id ON items(story_id);
+        `);
+
+        // Item-Tags junction table indexes
+        this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_item_tags_item_id ON item_tags(item_id);
+            CREATE INDEX IF NOT EXISTS idx_item_tags_tag_id ON item_tags(tag_id);
+        `);
+
+        // Pictures table indexes
+        this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_pictures_item_id ON pictures(item_id);
+        `);
+
+        // Item-Story References table indexes
+        this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_item_story_refs_item_id ON item_story_refs(item_id);
+            CREATE INDEX IF NOT EXISTS idx_item_story_refs_story_id ON item_story_refs(story_id);
+        `);
+
+        // Tags table indexes
+        this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_tags_name ON tags(name);
+        `);
+
+        // Notes table indexes
+        this.db.exec(`
+            CREATE INDEX IF NOT EXISTS idx_notes_year_subtick ON notes(year, subtick);
+        `);
+
+        console.log('Database indexes created successfully');
     }
 }
 

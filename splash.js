@@ -1,3 +1,6 @@
+const DEV_VERSION = false;
+const ITEM_INSERTER_VISIBLE = false;
+
 // Get DOM elements
 const splashTimelinesList = document.getElementById('splash_timelines_list');
 const splashCreateTimelineButton = document.getElementById('splash_create_timeline_button');
@@ -8,6 +11,53 @@ splashCreateTimelineButton.addEventListener('click', createNewTimeline);
 // Load timelines when the page loads
 window.addEventListener('DOMContentLoaded', () => {
     loadTimelines();
+    
+    // Show debug item generator if enabled
+    if (DEV_VERSION && ITEM_INSERTER_VISIBLE) {
+        const debugGenerator = document.getElementById('debug_item_generator');
+        if (debugGenerator) {
+            debugGenerator.style.display = 'block';
+            console.log('Debug item generator UI shown');
+
+            const generateButton = document.getElementById('debug_generate_items');
+            const itemCountInput = document.getElementById('debug_item_count');
+
+            generateButton.addEventListener('click', async () => {
+                const count = parseInt(itemCountInput.value);
+                if (isNaN(count) || count < 1) {
+                    alert('Please enter a valid number of items to generate');
+                    return;
+                }
+
+                try {
+                    generateButton.disabled = true;
+                    generateButton.textContent = 'Generating...';
+                    
+                    // Send request to main process to generate items
+                    window.api.send('generate-test-items', count);
+                } catch (error) {
+                    console.error('Error generating test items:', error);
+                    alert('Error generating test items: ' + error.message);
+                } finally {
+                    generateButton.disabled = false;
+                    generateButton.textContent = 'Generate Items';
+                }
+            });
+
+            // Listen for generation completion
+            window.api.receive('test-items-generated', (result) => {
+                if (result.error) {
+                    alert('Error generating test items: ' + result.error);
+                } else {
+                    alert(`Successfully generated ${result.count} test items!`);
+                }
+                generateButton.disabled = false;
+                generateButton.textContent = 'Generate Items';
+            });
+        } else {
+            console.error('Debug item generator UI element not found');
+        }
+    }
 });
 
 // Function to create a new timeline

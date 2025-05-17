@@ -48,6 +48,70 @@
  * @type {Object} loadedData - Current timeline data
  */
 let items = [];
+
+// FPS Counter variables
+let frameCount = 0;
+let lastTime = performance.now();
+let fps = 0;
+
+// Scrolling speed variables
+let lastOffsetPx = 0;
+let lastYear = 0;
+let pixelsPerSecond = 0;
+let yearsPerSecond = 0;
+let lastScrollUpdate = performance.now();
+
+// FPS Counter function
+function updateFPS() {
+    frameCount++;
+    const currentTime = performance.now();
+    const elapsedTime = currentTime - lastTime;
+
+    if (elapsedTime >= 1000) { // Update every second
+        fps = Math.round((frameCount * 1000) / elapsedTime);
+        const fpsDisplay = document.getElementById('fps_display');
+        if (fpsDisplay) {
+            fpsDisplay.textContent = `FPS: ${fps}`;
+        }
+        frameCount = 0;
+        lastTime = currentTime;
+    }
+
+    // Update scrolling speed
+    if (timelineState) {
+        const currentTime = performance.now();
+        const timeDiff = currentTime - lastScrollUpdate;
+        
+        if (timeDiff >= 100) { // Update every 100ms for smoother display
+            const currentOffsetPx = timelineState.offsetPx;
+            const currentYear = timelineState.focusYear;
+            
+            // Calculate speeds
+            pixelsPerSecond = Math.round(((currentOffsetPx - lastOffsetPx) / timeDiff) * 1000);
+            
+            // Calculate years per second based on pixels per subtick and granularity
+            const pixelsPerYear = timelineState.granularity * timelineState.pixelsPerSubtick;
+            yearsPerSecond = Math.round((pixelsPerSecond / pixelsPerYear) * 100) / 100; // Round to 2 decimal places
+            
+            // Update display
+            const speedDisplay = document.getElementById('scroll_speed_p_s');
+            if (speedDisplay) {
+                speedDisplay.textContent = `Scroll Speed: ${pixelsPerSecond} px/s (${yearsPerSecond} years/s)`;
+            }
+            
+            // Update last values
+            lastOffsetPx = currentOffsetPx;
+            lastYear = currentYear;
+            lastScrollUpdate = currentTime;
+        }
+    }
+
+    requestAnimationFrame(updateFPS);
+}
+
+// Start FPS counter
+updateFPS();
+
 let isFullscreen = false;
 let storyIndex = {};
 let loadedSettings = null;

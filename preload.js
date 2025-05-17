@@ -1,5 +1,11 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+// Expose DEV_VERSION to renderer
+let DEV_VERSION = false;
+ipcRenderer.on('set-dev-version', (event, value) => {
+    DEV_VERSION = value;
+});
+
 contextBridge.exposeInMainWorld('api', {
     send: (channel, ...args) => {
         console.log("preload.js: send called with channel:", channel, "and args:", args);  
@@ -30,7 +36,8 @@ contextBridge.exposeInMainWorld('api', {
             'open-timeline-images',
             'save-new-image',
             'get-item-data',
-            'renderer-ready'
+            'renderer-ready',
+            'generate-test-items'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -80,11 +87,13 @@ contextBridge.exposeInMainWorld('api', {
             'timeline-info',
             'new-image-saved',
             'item-data',
-            'data-ready'
+            'data-ready',
+            'test-items-generated'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
         }
     },
-    readFile: (filename) => ipcRenderer.invoke('read-file', filename)
+    readFile: (filename) => ipcRenderer.invoke('read-file', filename),
+    getDevVersion: () => DEV_VERSION
 });
