@@ -59,6 +59,7 @@ class DatabaseManager {
         this.initializeTables();
         this.migrateDatabase();
         this.initializeDefaultData();
+        this.reindexItems();
     }
 
     initializeTables() {
@@ -1627,6 +1628,48 @@ class DatabaseManager {
         `);
 
         return stmt.run({ item_id: itemId }, ...pictureIds);
+    }
+
+    /**
+     * Reindexes all items in the database to ensure even distribution above/below timeline
+     * Items are ordered by year and subtick, then assigned sequential indices
+     */
+    reindexItems() {
+        try {
+            // Start a transaction
+            this.db.prepare('BEGIN').run();
+
+            // Get all timelines
+            const timelines = this.db.prepare('SELECT id FROM timelines').all();
+
+            for (const timeline of timelines) {
+                // Get all items for this timeline, ordered by year and subtick
+                const items = this.db.prepare(`
+                    SELECT id FROM items 
+                    WHERE timeline_id = ? 
+                    ORDER BY year, subtick
+                `).all(timeline.id);
+
+                // Update each item with a new index
+                const updateStmt = this.db.prepare(`
+                    UPDATE items 
+                    SET item_index = ? 
+                    WHERE id = ?
+                `);
+
+                items.forEach((item, index) => {
+                    updateStmt.run(index, item.id);
+                });
+            }
+
+            // Commit the transaction
+            this.db.prepare('COMMIT').run();
+            console.log('Successfully reindexed all items');
+        } catch (error) {
+            // Rollback on error
+            this.db.prepare('ROLLBACK').run();
+            console.error('Error reindexing items:', error);
+        }
     }
 }
 

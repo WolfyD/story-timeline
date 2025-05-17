@@ -45,6 +45,8 @@ const { v4: uuidv4 } = require('uuid');
 const dbManager = require('./dbManager');
 const { migrate } = require('./migrate');
 
+const CLOSE_SPLASH_WINDOW = true;
+
 // ===== Constants =====
 /**
  * Application constants
@@ -252,7 +254,7 @@ function createWindow() {
         console.log('[main.js] CUSTOM SCALE:', settings.useCustomScaling);
         
         // Close the splash window if it exists
-        if (splashWindow) {
+        if (splashWindow && CLOSE_SPLASH_WINDOW) {
             splashWindow.close();
         }
     });
@@ -1176,7 +1178,7 @@ function setupIpcHandlers() {
     }
 
     // Close splash window if it exists
-    if (splashWindow) {
+    if (splashWindow && CLOSE_SPLASH_WINDOW) {
         splashWindow.close();
     }
   });
@@ -1337,7 +1339,7 @@ function setupIpcHandlers() {
             mainWindow.webContents.setZoomFactor(1.0);
         });
     }
-    if (splashWindow) {
+    if (splashWindow && CLOSE_SPLASH_WINDOW) {
         splashWindow.close();
     }
   });

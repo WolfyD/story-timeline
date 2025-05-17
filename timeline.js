@@ -407,6 +407,51 @@ function updateMainContent(centerX, centerYear) {
 }
 
 /**
+ * Calculates which items are visible in the current viewport
+ * @param {number} centerX - Center X position of the viewport
+ * @param {number} centerYear - Center year of the viewport
+ * @returns {Array} Array of items that are visible or near the viewport
+ */
+function getVisibleItems(centerX, centerYear) {
+    const { granularity, pixelsPerSubtick, offsetPx } = timelineState;
+    const containerRect = container.getBoundingClientRect();
+    
+    // Calculate the visible year range based on the container width and current offset
+    const visibleWidth = containerRect.width;
+    const yearsPerPixel = 1 / (granularity * pixelsPerSubtick);
+    
+    // Calculate the leftmost and rightmost visible years
+    const leftYear = centerYear - (centerX * yearsPerPixel);
+    const rightYear = centerYear + ((visibleWidth - centerX) * yearsPerPixel);
+    
+    // Add a buffer zone (100% of the visible range on each side)
+    const bufferSize = (rightYear - leftYear);
+    const bufferedLeftYear = leftYear - bufferSize;
+    const bufferedRightYear = rightYear + bufferSize;
+    
+    // Filter items that are within the buffered range
+    return timelineState.items.filter(item => {
+        if (!item) return false;
+        
+        // Calculate item's start and end positions
+        const startYear = parseFloat(item.year || item.date || 0);
+        const startSubtick = parseFloat(item.subtick || 0);
+        const endYear = parseFloat(item.end_year || item.year || 0);
+        const endSubtick = parseFloat(item.end_subtick || item.subtick || 0);
+        
+        // Calculate exact positions
+        const startPosition = startYear + (startSubtick / granularity);
+        const endPosition = endYear + (endSubtick / granularity);
+        
+        // Check if item overlaps with the buffered range
+        // An item is visible if:
+        // 1. It starts before the right edge of the buffered range AND
+        // 2. It ends after the left edge of the buffered range
+        return startPosition <= bufferedRightYear && endPosition >= bufferedLeftYear;
+    });
+}
+
+/**
  * Renders the timeline
  * 
  * How it works:
@@ -427,6 +472,9 @@ function renderTimeline() {
 
     // Calculate the center year
     const centerYear = calculateYearFromPosition(centerX + containerRect.left);
+    
+    // Get visible items
+    const visibleItems = getVisibleItems(centerX, centerYear);
     
     // Update the centered year/subyear info with full precision
     const centerYearInt = Math.floor(centerYear);
@@ -458,8 +506,11 @@ function renderTimeline() {
     const itemBoxHeight = 30;
     const itemBoxMargin = 5;
 
+    // Track rendered items count
+    let renderedItemCount = 0;
+
     // Find all items that overlap with the current center position
-    const overlappingItems = timelineState.items.filter(item => {
+    const overlappingItems = visibleItems.filter(item => {
         const itemStartYear = parseFloat(item.year || item.date || 0);
         const itemEndYear = parseFloat(item.end_year || item.year || 0);
         return centerYear >= itemStartYear && centerYear <= itemEndYear;
@@ -491,6 +542,7 @@ function renderTimeline() {
                 img.src = fileUrl;
                 img.alt = age.title || 'Age Image';
                 imageContainer.appendChild(img);
+                renderedItemCount++;
             }
         }
     });
@@ -524,6 +576,7 @@ function renderTimeline() {
                 img.src = fileUrl;
                 img.alt = period.title || 'Period Image';
                 imageContainer.appendChild(img);
+                renderedItemCount++;
             }
         }
     });
@@ -575,7 +628,7 @@ function renderTimeline() {
     const periodPositions = []; // For period items
 
     // First pass: render all items to calculate positions
-    timelineState.items.forEach((item, idx) => {
+    visibleItems.forEach((item, idx) => {
         if(!item){ return; }
 
         if (item.type === 'Age') {
@@ -654,6 +707,7 @@ function renderTimeline() {
                 }
                 
                 container.appendChild(ageItem);
+                renderedItemCount++;
             }
         } else if (item.type === 'Period') {
             // Calculate start and end positions
@@ -753,6 +807,7 @@ function renderTimeline() {
                 }
                 
                 container.appendChild(periodItem);
+                renderedItemCount++;
             }
         } else {
             // Regular item handling (existing code)
@@ -824,9 +879,10 @@ function renderTimeline() {
                 bookmarkLine.addEventListener('mouseleave', leaveHandler);
                 bookmarkDot.addEventListener('mouseenter', hoverHandler);
                 bookmarkDot.addEventListener('mouseleave', leaveHandler);
+                renderedItemCount += 2; // Count both the line and dot
             } else {
-                // Alternate above/below
-                const isAbove = idx % 2 === 0;
+                // Use item_index to determine above/below positioning
+                const isAbove = (item.item_index || 0) % 2 === 0;
                 let y;
                 let placedItems = isAbove ? abovePlaced : belowPlaced;
                 // Start at furthest position from timeline
@@ -855,6 +911,7 @@ function renderTimeline() {
                                 }
                             }
                         }
+
                     }
                 }
                 placedItems.push({ x: itemX, y });
@@ -1025,9 +1082,16 @@ function renderTimeline() {
                 });
                 timeline.appendChild(box);
                 itemBoxes.push(box);
+                renderedItemCount++;
             }
         }
     });
+
+    // Update the rendered item counter
+    const counterDiv = document.getElementById('visible_item_counter');
+    if (counterDiv) {
+        counterDiv.textContent = `Rendered Items: ${renderedItemCount}`;
+    }
 }
 
 /**
@@ -1712,3 +1776,4 @@ function openEditAgeOrPeriod(item) {
 
 // Add this to the window object so it can be called from the view modal
 window.openEditAgeOrPeriod = openEditAgeOrPeriod;
+
