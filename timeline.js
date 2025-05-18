@@ -485,8 +485,8 @@ function getVisibleItems(centerX, centerYear) {
     const leftYear = centerYear - (centerX * yearsPerPixel);
     const rightYear = centerYear + ((visibleWidth - centerX) * yearsPerPixel);
     
-    // Add a buffer zone (100% of the visible range on each side)
-    const bufferSize = (rightYear - leftYear);
+    // Add a buffer zone (25% of the visible range on each side)
+    const bufferSize = (rightYear - leftYear) * 0.25;
     const bufferedLeftYear = leftYear - bufferSize;
     const bufferedRightYear = rightYear + bufferSize;
     

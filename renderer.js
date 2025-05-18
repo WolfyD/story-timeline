@@ -53,6 +53,8 @@ let items = [];
 let frameCount = 0;
 let lastTime = performance.now();
 let fps = 0;
+const fpsHistory = [];
+const HISTORY_SIZE = 10; // Keep last 10 measurements for smoothing
 
 // Scrolling speed variables
 let lastOffsetPx = 0;
@@ -63,49 +65,39 @@ let lastScrollUpdate = performance.now();
 
 // FPS Counter function
 function updateFPS() {
-    frameCount++;
     const currentTime = performance.now();
     const elapsedTime = currentTime - lastTime;
-
-    if (elapsedTime >= 1000) { // Update every second
-        fps = Math.round((frameCount * 1000) / elapsedTime);
+    
+    // Only count frames if enough time has passed (prevents counting frames during long pauses)
+    if (elapsedTime > 0) {
+        const currentFPS = 1000 / elapsedTime;
+        fpsHistory.push(currentFPS);
+        
+        // Keep only the last HISTORY_SIZE measurements
+        if (fpsHistory.length > HISTORY_SIZE) {
+            fpsHistory.shift();
+        }
+        
+        // Calculate average FPS from history
+        fps = Math.round(fpsHistory.reduce((a, b) => a + b, 0) / fpsHistory.length);
+        
+        // Update display
         const fpsDisplay = document.getElementById('fps_display');
         if (fpsDisplay) {
             fpsDisplay.textContent = `FPS: ${fps}`;
-        }
-        frameCount = 0;
-        lastTime = currentTime;
-    }
-
-    // Update scrolling speed
-    if (timelineState) {
-        const currentTime = performance.now();
-        const timeDiff = currentTime - lastScrollUpdate;
-        
-        if (timeDiff >= 100) { // Update every 100ms for smoother display
-            const currentOffsetPx = timelineState.offsetPx;
-            const currentYear = timelineState.focusYear;
             
-            // Calculate speeds
-            pixelsPerSecond = Math.round(((currentOffsetPx - lastOffsetPx) / timeDiff) * 1000);
-            
-            // Calculate years per second based on pixels per subtick and granularity
-            const pixelsPerYear = timelineState.granularity * timelineState.pixelsPerSubtick;
-            yearsPerSecond = Math.round((pixelsPerSecond / pixelsPerYear) * 100) / 100; // Round to 2 decimal places
-            
-            // Update display
-            const speedDisplay = document.getElementById('scroll_speed_p_s');
-            if (speedDisplay) {
-                speedDisplay.textContent = `Scroll Speed: ${pixelsPerSecond} px/s (${yearsPerSecond} years/s)`;
+            // Add color coding based on FPS with colors that contrast well with #f5e6d4 background
+            if (fps >= 55) {
+                fpsDisplay.style.color = '#2c7a2c'; // Dark green for good performance
+            } else if (fps >= 30) {
+                fpsDisplay.style.color = '#8a4e4e'; // Dark brown for acceptable performance
+            } else {
+                fpsDisplay.style.color = '#c0392b'; // Dark red for poor performance
             }
-            
-            // Update last values
-            lastOffsetPx = currentOffsetPx;
-            lastYear = currentYear;
-            lastScrollUpdate = currentTime;
         }
     }
-
+    
+    lastTime = currentTime;
     requestAnimationFrame(updateFPS);
 }
 
