@@ -737,7 +737,7 @@ function renderTimeline() {
                 // Check for overlaps with existing periods
                 for (const existingPeriod of periodPositions) {
                     // If periods overlap and are on the same side of the timeline
-                    if (!(actualEndPosition < existingPeriod.start || actualStartPosition > existingPeriod.end) && 
+                    if (!(actualEndPosition <= existingPeriod.start || actualStartPosition >= existingPeriod.end) && 
                         existingPeriod.isAbove === isAbove) {
                         stackLevel = Math.max(stackLevel, existingPeriod.stackLevel + 1);
                     }
