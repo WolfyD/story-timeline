@@ -60,7 +60,6 @@ class DatabaseManager {
         this.migrateDatabase();
         this.initializeDefaultData();
         this.createIndexes();
-        this.reindexItems();
     }
 
     initializeTables() {
@@ -202,14 +201,15 @@ class DatabaseManager {
             CREATE TABLE IF NOT EXISTS pictures (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 item_id TEXT,
-                file_path TEXT NOT NULL,
-                file_name TEXT NOT NULL,
+                file_path TEXT,
+                file_name TEXT,
                 file_size INTEGER,
                 file_type TEXT,
                 width INTEGER,
                 height INTEGER,
                 title TEXT,
                 description TEXT,
+                picture TEXT,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
             )
@@ -288,7 +288,7 @@ class DatabaseManager {
         }
     }
 
-    migrateDatabase() {
+    async migrateDatabase() {
         // Start a transaction
         this.db.prepare('BEGIN').run();
 
@@ -485,6 +485,12 @@ class DatabaseManager {
                 this.db.prepare('DROP TABLE IF EXISTS universe_data').run();
                 console.log('Migration completed successfully');
             }
+
+            // Migrate pictures from base64 to files
+            await this.migratePictures(true);
+
+            // Reindex items within the same transaction
+            this.reindexItems(true);
 
             // Commit the transaction
             this.db.prepare('COMMIT').run();
@@ -1801,11 +1807,14 @@ class DatabaseManager {
     /**
      * Reindexes all items in the database to ensure even distribution above/below timeline
      * Items are ordered by year and subtick, then assigned sequential indices
+     * @param {boolean} inTransaction - Whether this method is being called from within a transaction
      */
-    reindexItems() {
+    reindexItems(inTransaction = false) {
         try {
-            // Start a transaction
-            this.db.prepare('BEGIN').run();
+            // Only start a transaction if we're not already in one
+            if (!inTransaction) {
+                this.db.prepare('BEGIN').run();
+            }
 
             // Get all timelines
             const timelines = this.db.prepare('SELECT id FROM timelines').all();
@@ -1830,13 +1839,18 @@ class DatabaseManager {
                 });
             }
 
-            // Commit the transaction
-            this.db.prepare('COMMIT').run();
+            // Only commit if we started the transaction
+            if (!inTransaction) {
+                this.db.prepare('COMMIT').run();
+            }
             console.log('Successfully reindexed all items');
         } catch (error) {
-            // Rollback on error
-            this.db.prepare('ROLLBACK').run();
+            // Only rollback if we started the transaction
+            if (!inTransaction) {
+                this.db.prepare('ROLLBACK').run();
+            }
             console.error('Error reindexing items:', error);
+            throw error;
         }
     }
 
@@ -1880,6 +1894,131 @@ class DatabaseManager {
         `);
 
         console.log('Database indexes created successfully');
+    }
+
+    async migratePictures(inTransaction = false) {
+        const fs = require('fs');
+        const path = require('path');
+        const { app } = require('electron');
+        const sharp = require('sharp');
+
+        // Only start a transaction if we're not already in one
+        if (!inTransaction) {
+            this.db.prepare('BEGIN').run();
+        }
+
+        try {
+            // Backup existing pictures data
+            const existingPictures = this.db.prepare(`
+                SELECT i.id as item_id, p.id as picture_id, p.picture as base64_data, p.title, p.description
+                FROM items i
+                JOIN pictures p ON i.id = p.item_id
+                WHERE p.picture IS NOT NULL
+            `).all();
+
+            // Drop and recreate pictures table with new schema
+            this.db.prepare('DROP TABLE IF EXISTS pictures').run();
+            this.db.prepare(`
+                CREATE TABLE pictures (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    item_id TEXT,
+                    file_path TEXT,
+                    file_name TEXT,
+                    file_size INTEGER,
+                    file_type TEXT,
+                    width INTEGER,
+                    height INTEGER,
+                    title TEXT,
+                    description TEXT,
+                    picture TEXT,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE
+                )
+            `).run();
+
+            // Reinsert the pictures with their base64 data
+            const insertStmt = this.db.prepare(`
+                INSERT INTO pictures (item_id, picture, title, description)
+                VALUES (@item_id, @picture, @title, @description)
+            `);
+
+            for (const pic of existingPictures) {
+                insertStmt.run({
+                    item_id: pic.item_id,
+                    picture: pic.base64_data,
+                    title: pic.title,
+                    description: pic.description
+                });
+            }
+
+            console.log(`Found ${existingPictures.length} items with base64 pictures to migrate`);
+
+            // Now migrate the pictures to files
+            for (const item of existingPictures) {
+                // Get the timeline_id for this item
+                const timelineId = this.db.prepare('SELECT timeline_id FROM items WHERE id = ?').get(item.item_id).timeline_id;
+
+                // Create media directory if it doesn't exist
+                const mediaDir = path.join(app.getPath('userData'), 'media', 'pictures', timelineId.toString());
+                if (!fs.existsSync(mediaDir)) {
+                    fs.mkdirSync(mediaDir, { recursive: true });
+                }
+
+                // Generate unique filename
+                const timestamp = Date.now();
+                const randomStr = Math.random().toString(36).substring(7);
+                const fileName = `img_${timestamp}_${randomStr}.png`;
+                const filePath = path.join(mediaDir, fileName);
+
+                // Convert base64 to buffer and save
+                const base64Image = item.base64_data.replace(/^data:image\/\w+;base64,/, '');
+                const buffer = Buffer.from(base64Image, 'base64');
+                await fs.promises.writeFile(filePath, buffer);
+
+                // Get image dimensions using sharp
+                const metadata = await sharp(buffer).metadata();
+                const size = buffer.length;
+
+                // Update the pictures table with file information
+                const updateStmt = this.db.prepare(`
+                    UPDATE pictures 
+                    SET file_path = @file_path,
+                        file_name = @file_name,
+                        file_size = @file_size,
+                        file_type = @file_type,
+                        width = @width,
+                        height = @height,
+                        picture = NULL
+                    WHERE item_id = @item_id AND picture = @picture
+                `);
+
+                updateStmt.run({
+                    file_path: filePath,
+                    file_name: fileName,
+                    file_size: size,
+                    file_type: 'image/png',
+                    width: metadata.width,
+                    height: metadata.height,
+                    item_id: item.item_id,
+                    picture: item.base64_data
+                });
+
+                console.log(`Migrated picture for item ${item.item_id}`);
+            }
+
+            // Only commit if we started the transaction
+            if (!inTransaction) {
+                this.db.prepare('COMMIT').run();
+            }
+            console.log('Picture migration completed successfully');
+        } catch (error) {
+            // Only rollback if we started the transaction
+            if (!inTransaction) {
+                this.db.prepare('ROLLBACK').run();
+            }
+            console.error('Error during picture migration:', error);
+            throw error;
+        }
     }
 }
 

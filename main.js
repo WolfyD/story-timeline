@@ -43,7 +43,6 @@ const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const dbManager = require('./dbManager');
-const { migrate } = require('./migrate');
 
 const CLOSE_SPLASH_WINDOW = true;
 

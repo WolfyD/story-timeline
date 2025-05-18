@@ -731,11 +731,14 @@ function renderTimeline() {
                 // Find the stack level by checking overlaps with existing periods
                 let stackLevel = 0;
                 
+                // Use item_index for determining above/below position instead of array index
+                const isAbove = (item.item_index || 0) % 2 === 0;
+                
                 // Check for overlaps with existing periods
                 for (const existingPeriod of periodPositions) {
                     // If periods overlap and are on the same side of the timeline
                     if (!(actualEndPosition < existingPeriod.start || actualStartPosition > existingPeriod.end) && 
-                        existingPeriod.isAbove === (idx % 2 === 0)) {
+                        existingPeriod.isAbove === isAbove) {
                         stackLevel = Math.max(stackLevel, existingPeriod.stackLevel + 1);
                     }
                 }
@@ -745,7 +748,7 @@ function renderTimeline() {
                     start: actualStartPosition,
                     end: actualEndPosition,
                     stackLevel: stackLevel,
-                    isAbove: idx % 2 === 0
+                    isAbove: isAbove
                 });
                 
                 // Create the period item element
@@ -755,7 +758,6 @@ function renderTimeline() {
                 periodItem.style.width = `${actualEndPosition - actualStartPosition}px`;
                 
                 // Calculate vertical position
-                const isAbove = idx % 2 === 0;
                 const baseOffset = 10; // Base offset from timeline
                 const stackOffset = stackLevel * 13; // Increased from 10px to 13px for more gap between stacked periods
                 const totalOffset = baseOffset + stackOffset;
