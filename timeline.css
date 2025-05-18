@@ -303,7 +303,7 @@
 /* Add Font Awesome for icons */
 @import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css');
 
-.timeline-hover-bubble {
+.global-hover-bubble {
     position: fixed;
     background: #4b2e2e;
     color: white;
@@ -311,17 +311,14 @@
     border-radius: 4px;
     font-size: 12px;
     pointer-events: none;
-    z-index: 1000;
     opacity: 0;
     transition: opacity 0.2s;
+    white-space: nowrap;
+    z-index: 9999;
     transform: translateX(-50%);
 }
 
-.timeline-hover-bubble.visible {
-    opacity: 1;
-}
-
-.timeline-hover-bubble::after {
+.global-hover-bubble::after {
     content: '';
     position: absolute;
     bottom: -4px;
@@ -330,6 +327,13 @@
     border-width: 4px 4px 0 4px;
     border-style: solid;
     border-color: #4b2e2e transparent transparent transparent;
+}
+
+/* Remove old hover bubble styles */
+.timeline-hover-bubble,
+.age-hover-bubble,
+.period-hover-bubble {
+    display: none;
 }
 
 /* Age Timeline Item Styles */
@@ -368,7 +372,7 @@
     opacity: 0;
     transition: opacity 0.2s;
     white-space: nowrap;
-    z-index: 1000;
+    z-index: 9999;
     margin-top: -40px;
     transform: none !important;
 }
@@ -418,7 +422,7 @@
     transform: translateX(-50%);
     margin-top: -25px;
     white-space: nowrap;
-    z-index: 1000;
+    z-index: 9999;
 }
 
 .timeline-period-item:hover .period-hover-bubble {

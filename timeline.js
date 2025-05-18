@@ -22,6 +22,7 @@ const timeline = document.getElementById("timeline");
 const container = document.getElementById("timeline-container");
 const hoverMarker = document.getElementById("timeline-hover-marker");
 const hoverMarkerStick = document.getElementById("timeline-hover-marker-stick");
+const globalHoverBubble = document.getElementById('global-hover-bubble');
 
 // ===== State Management =====
 /**
@@ -726,39 +727,55 @@ function renderTimeline() {
                     ageItem.style.backgroundColor = item.color;
                 }
                 
-                // Add hover bubble
+                // Add hover bubble to document body instead of age item
                 const hoverBubble = document.createElement('div');
                 hoverBubble.className = 'age-hover-bubble';
                 hoverBubble.textContent = item.title;
-                ageItem.appendChild(hoverBubble);
+                document.body.appendChild(hoverBubble);
 
                 // Add mousemove event listener to update bubble position
                 ageItem.addEventListener('mousemove', (e) => {
-                    const bubble = ageItem.querySelector('.age-hover-bubble');
-                    if (bubble) {
-                        // Get the device pixel ratio and scale
-                        const scale = window.devicePixelRatio;
+                    if (globalHoverBubble) {
+                        // Get the year and subtick
+                        const year = item.year;
+                        const subtick = item.subtick || 0;
+                        const formattedYear = `${year}.${subtick.toString().padStart(2, '0')}`;
                         
-                        // Calculate scaled position (multiply by scale to offset the scaling)
-                        const scaledX = e.clientX * scale;
+                        // Set the content
+                        globalHoverBubble.textContent = `${item.title} (${formattedYear})`;
+                        
+                        // Position the bubble
+                        const bubbleWidth = globalHoverBubble.offsetWidth;
+                        const screenWidth = window.innerWidth;
+                        let left = e.clientX;
                         
                         // Keep bubble within screen bounds
-                        const bubbleWidth = bubble.offsetWidth;
-                        const screenWidth = window.innerWidth * scale;
-                        let left = scaledX;
-                        
-                        // Adjust position if bubble would go off screen
                         if (left + bubbleWidth/2 > screenWidth) {
                             left = screenWidth - bubbleWidth/2;
                         } else if (left - bubbleWidth/2 < 0) {
                             left = bubbleWidth/2;
                         }
                         
-                        bubble.style.left = `${left}px`;
-                        bubble.style.transform = 'none';
+                        globalHoverBubble.style.left = `${left}px`;
+                        globalHoverBubble.style.top = `${e.clientY - 40}px`;
+                        globalHoverBubble.style.opacity = '1';
                     }
                 });
                 
+                // Add mouseout event to hide bubble
+                ageItem.addEventListener('mouseout', () => {
+                    if (globalHoverBubble) {
+                        globalHoverBubble.style.opacity = '0';
+                    }
+                });
+
+                // Add mouseover event to show bubble
+                ageItem.addEventListener('mouseover', () => {
+                    if (globalHoverBubble) {
+                        globalHoverBubble.style.opacity = '1';
+                    }
+                });
+
                 // Add click handler for item viewer
                 if (window.openItemViewer) {
                     ageItem.addEventListener('click', () => {
@@ -815,33 +832,55 @@ function renderTimeline() {
                 periodItem.setAttribute('data-end-year', item.end_year);
                 periodItem.setAttribute('data-ystack', stackLevel);
                 
-                // Add hover bubble
-                const hoverBubble = document.createElement('div');
-                hoverBubble.className = 'period-hover-bubble';
-                hoverBubble.textContent = item.title;
-                periodItem.appendChild(hoverBubble);
+                // Add hover bubble to document body instead of period item
+                const periodHoverBubble = document.createElement('div');
+                periodHoverBubble.className = 'period-hover-bubble';
+                periodHoverBubble.textContent = item.title;
+                document.body.appendChild(periodHoverBubble);
 
                 // Add mousemove event listener to update bubble position
                 periodItem.addEventListener('mousemove', (e) => {
-                    const bubble = periodItem.querySelector('.period-hover-bubble');
-                    if (bubble) {
-                        // Keep bubble within screen bounds
-                        const bubbleWidth = bubble.offsetWidth;
+                    if (globalHoverBubble) {
+                        // Get the year and subtick
+                        const year = item.year;
+                        const subtick = item.subtick || 0;
+                        const formattedYear = `${year}.${subtick.toString().padStart(2, '0')}`;
+                        
+                        // Set the content
+                        globalHoverBubble.textContent = `${item.title} (${formattedYear})`;
+                        
+                        // Position the bubble
+                        const bubbleWidth = globalHoverBubble.offsetWidth;
                         const screenWidth = window.innerWidth;
                         let left = e.clientX;
                         
-                        // Adjust position if bubble would go off screen
+                        // Keep bubble within screen bounds
                         if (left + bubbleWidth/2 > screenWidth) {
                             left = screenWidth - bubbleWidth/2;
                         } else if (left - bubbleWidth/2 < 0) {
                             left = bubbleWidth/2;
                         }
                         
-                        bubble.style.left = `${left}px`;
-                        bubble.style.transform = 'none';
+                        globalHoverBubble.style.left = `${left}px`;
+                        globalHoverBubble.style.top = `${e.clientY - 25}px`;
+                        globalHoverBubble.style.opacity = '1';
                     }
                 });
                 
+                // Add mouseout event to hide bubble
+                periodItem.addEventListener('mouseout', () => {
+                    if (globalHoverBubble) {
+                        globalHoverBubble.style.opacity = '0';
+                    }
+                });
+
+                // Add mouseover event to show bubble
+                periodItem.addEventListener('mouseover', () => {
+                    if (globalHoverBubble) {
+                        globalHoverBubble.style.opacity = '1';
+                    }
+                });
+
                 // Add click handler for item viewer
                 if (window.openItemViewer) {
                     periodItem.addEventListener('click', () => {
@@ -1093,33 +1132,28 @@ function renderTimeline() {
                     const lineElem = document.getElementById(lineId);
                     if (lineElem) lineElem.classList.add('highlighted-line');
                     
-                    // Show hover bubble
-                    let hoverBubble = document.querySelector('.timeline-hover-bubble');
-                    if (!hoverBubble) {
-                        hoverBubble = document.createElement('div');
-                        hoverBubble.className = 'timeline-hover-bubble';
-                        document.body.appendChild(hoverBubble);
+                    if (globalHoverBubble) {
+                        // Get the year and subtick from the data attributes
+                        const year = box.getAttribute('data-year');
+                        const title = item.title || '(No Title)';
+                        
+                        // Set the content
+                        globalHoverBubble.textContent = `${title} (${year})`;
+                        
+                        // Position the bubble
+                        const boxRect = box.getBoundingClientRect();
+                        globalHoverBubble.style.left = `${boxRect.left + boxRect.width/2}px`;
+                        globalHoverBubble.style.top = `${boxRect.top - 25}px`;
+                        globalHoverBubble.style.opacity = '1';
                     }
-                    
-                    // Get the year and subtick from the data attributes
-                    const year = box.getAttribute('data-year');
-                    hoverBubble.textContent = year;
-                    
-                    // Calculate position relative to the viewport
-                    const boxRect = box.getBoundingClientRect();
-                    hoverBubble.style.left = `${boxRect.left + boxRect.width/2}px`;
-                    hoverBubble.style.top = `${boxRect.top - 25}px`;
-                    hoverBubble.classList.add('visible');
                 });
                 box.addEventListener('mouseleave', function() {
                     box.classList.remove('highlighted');
                     const lineElem = document.getElementById(lineId);
                     if (lineElem) lineElem.classList.remove('highlighted-line');
                     
-                    // Hide hover bubble
-                    const hoverBubble = document.querySelector('.timeline-hover-bubble');
-                    if (hoverBubble) {
-                        hoverBubble.classList.remove('visible');
+                    if (globalHoverBubble) {
+                        globalHoverBubble.style.opacity = '0';
                     }
                 });
                 timeline.appendChild(box);
