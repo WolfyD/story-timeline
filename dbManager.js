@@ -1098,6 +1098,11 @@ class DatabaseManager {
         }
     }
 
+    getAllTags() {
+        const stmt = this.db.prepare('SELECT name FROM tags ORDER BY name');
+        return stmt.all().map(row => row.name);
+    }
+
     getItemTags(itemId) {
         const stmt = this.db.prepare(`
             SELECT t.name 

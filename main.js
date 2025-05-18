@@ -821,6 +821,11 @@ function setupIpcHandlers() {
     event.sender.send('storySuggestions', suggestions);
   });
 
+  ipcMain.on('getTagSuggestions', (event) => {
+    const suggestions = dbManager.getAllTags();
+    event.sender.send('tagSuggestions', suggestions);
+  });
+
   ipcMain.on('addTimelineItem', (event, data) => {
     console.log("Received timeline item:", data);
     const newItem = dbManager.addItem(data);

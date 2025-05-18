@@ -1,14 +1,22 @@
 const tags = new Set();
 const images = [];
 let storySuggestions = [];
+let tagSuggestions = []; // Add tag suggestions array
 let type; // Declare type in global scope
 
 // Get story suggestions from main window
 window.api.send('getStorySuggestions');
+// Get tag suggestions from main window
+window.api.send('getTagSuggestions');
 
 // Handle story suggestions response
 window.api.receive('storySuggestions', (suggestions) => {
     storySuggestions = suggestions;
+});
+
+// Handle tag suggestions response
+window.api.receive('tagSuggestions', (suggestions) => {
+    tagSuggestions = suggestions;
 });
 
 // Initialize form with URL parameters and itemData
@@ -145,9 +153,73 @@ document.getElementById('tagInput').addEventListener('keydown', function(e) {
         const tag = this.value.trim();
         if (tag && !tags.has(tag)) {
             tags.add(tag); // Store only the tag text
+            // Add the new tag to suggestions if it's not already there
+            if (!tagSuggestions.includes(tag)) {
+                tagSuggestions.push(tag);
+            }
             updateTagDisplay();
         }
         this.value = '';
+        // Hide suggestions when Enter is pressed
+        const dropdown = document.getElementById('tagSuggestions');
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
+    }
+});
+
+// Add input event listener for tag suggestions
+document.getElementById('tagInput').addEventListener('input', function() {
+    const value = this.value.toLowerCase();
+    const matches = tagSuggestions.filter(tag => 
+        tag.toLowerCase().includes(value) && !tags.has(tag)
+    );
+
+    // Get or create the suggestions container
+    let suggestionsContainer = document.getElementById('tagSuggestionsContainer');
+    if (!suggestionsContainer) {
+        suggestionsContainer = document.createElement('div');
+        suggestionsContainer.id = 'tagSuggestionsContainer';
+        suggestionsContainer.className = 'suggestions-container';
+        // Insert after the tag input
+        this.parentElement.appendChild(suggestionsContainer);
+    }
+
+    // Get or create the dropdown
+    let dropdown = document.getElementById('tagSuggestions');
+    if (!dropdown) {
+        dropdown = document.createElement('div');
+        dropdown.id = 'tagSuggestions';
+        dropdown.className = 'suggestions-dropdown';
+        suggestionsContainer.appendChild(dropdown);
+    }
+
+    if (matches.length > 0 && value.length > 0) {
+        dropdown.innerHTML = '';
+        matches.forEach(match => {
+            const div = document.createElement('div');
+            div.className = 'suggestion-item';
+            div.textContent = match;
+            div.onclick = () => {
+                this.value = match;
+                const event = new KeyboardEvent('keydown', { key: 'Enter' });
+                this.dispatchEvent(event);
+            };
+            dropdown.appendChild(div);
+        });
+        dropdown.style.display = 'block';
+    } else {
+        dropdown.style.display = 'none';
+    }
+});
+
+// Close suggestions when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.form-line')) {
+        const dropdown = document.getElementById('tagSuggestions');
+        if (dropdown) {
+            dropdown.style.display = 'none';
+        }
     }
 });
 
