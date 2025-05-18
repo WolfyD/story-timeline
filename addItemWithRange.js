@@ -385,16 +385,25 @@ document.getElementById('addStoryRefBtn').addEventListener('click', function() {
     addStoryRefRow();
 });
 
+function generateStoryId(title) {
+    // Simple: STORY-<timestamp>-<random>
+    return 'STORY-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+}
+
 function collectStoryRefs() {
-    const rows = document.querySelectorAll('.story-ref-row');
-    return Array.from(rows).map(row => {
-        const titleInput = row.querySelector('.story-ref-title');
-        const idInput = row.querySelector('.story-ref-id');
-        return {
-            story_title: titleInput.value,
-            story_id: idInput.value
-        };
-    }).filter(ref => ref.story_title && ref.story_id);
+    const refs = [];
+    document.querySelectorAll('.story-ref-row').forEach(row => {
+        const title = row.querySelector('.story-ref-title').value.trim();
+        let id = row.querySelector('.story-ref-id').value.trim();
+        if (title) {
+            if (!id) {
+                id = generateStoryId(title);
+                row.querySelector('.story-ref-id').value = id; // update UI
+            }
+            refs.push({ story_title: title, story_id: id });
+        }
+    });
+    return refs;
 }
 
 // Update the form submission to include images
@@ -402,6 +411,7 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     const formData = {
+        id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
         title: document.getElementById('titleInput').value,
         description: document.getElementById('descriptionInput').value,
         content: document.getElementById('contentInput').value,
@@ -415,10 +425,9 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         color: document.getElementById('colorInput').value,
         type: type.charAt(0).toUpperCase() + type.slice(1),
         tags: Array.from(tags),
-        story_refs: Array.from(document.querySelectorAll('.story-ref-row')).map(row => ({
-            story_id: row.querySelector('.story-ref-id').value,
-            story_title: row.querySelector('.story-ref-title').value
-        })),
+        story_refs: collectStoryRefs(),
+        story: '',
+        'story-id': '',
         pictures: images.map((imageInfo, index) => ({
             id: imageInfo.id,
             file_path: imageInfo.file_path,
@@ -432,49 +441,18 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         }))
     };
 
-    // If we have an item ID, this is an edit
-    const itemId = document.getElementById('addItemForm').dataset.itemId;
-    if (itemId) {
-        formData.id = itemId;
-        try {
-            // Send update through IPC
-            window.api.send('updateTimelineItem', formData);
-            window.api.send('add-item-window-closing');
-            window.close();
-        } catch (error) {
-            console.error('Error updating item:', error);
+    try {
+        if (formData.story_refs.length > 0) {
+            formData.story = formData.story_refs[0].story_title;
+            formData['story-id'] = formData.story_refs[0].story_id;
         }
-    } else {
-        try {
-            // Set up the response handler first
-            window.api.receive('item-created', (response) => {
-                if (response && response.id) {
-                    // Update pictures with the new item ID if we have images
-                    if (images.length > 0) {
-                        // Get all picture IDs
-                        const pictureIds = images.map(img => img.id);
-                        // Update pictures with the new item ID
-                        window.api.send('update-pictures-item-id', {
-                            pictureIds: pictureIds,
-                            itemId: response.id
-                        });
-                    }
-                    // Notify main window that we're closing
-                    window.api.send('add-item-window-closing');
-                    // Close this window
-                    window.close();
-                } else {
-                    console.error('Failed to create item: No ID received');
-                    alert('Failed to create item. Please try again.');
-                }
-            });
-
-            // Then send the new item through IPC
-            window.api.send('addTimelineItem', formData);
-        } catch (error) {
-            console.error('Error adding item:', error);
-            alert('Error creating item. Please try again.');
-        }
+        // Send data through IPC
+        window.api.send('addTimelineItem', formData);
+        window.api.send('add-item-window-closing');
+        window.close();
+    } catch (error) {
+        console.error('Error submitting form:', error);
+        alert('An error occurred. Please try again.');
     }
 });
 
@@ -531,6 +509,15 @@ window.api.receive('itemData', (item) => {
             });
         }
 
+        // Add story references
+        if (item.story_refs && item.story_refs.length) {
+            const storyRefsContainer = document.getElementById('storyRefsContainer');
+            storyRefsContainer.innerHTML = ''; // Clear existing refs
+            item.story_refs.forEach(story => {
+                addStoryRefRow(story.story_title, story.story_id);
+            });
+        }
+
         // Add existing images
         if (item.pictures) {
             item.pictures.forEach(pic => {
@@ -566,8 +553,16 @@ window.api.receive('itemData', (item) => {
                 subtick: document.getElementById('subtickInput').value,
                 end_year: document.getElementById('endYearInput').value,
                 end_subtick: document.getElementById('endSubtickInput').value,
-                story_refs: collectStoryRefs()
+                story_refs: collectStoryRefs(),
+                story: '',
+                'story-id': ''
             };
+
+            if (formData.story_refs.length > 0) {
+                formData.story = formData.story_refs[0].story_title;
+                formData['story-id'] = formData.story_refs[0].story_id;
+            }
+
             // Send update request
             window.api.send('updateTimelineItem', formData);
             window.close();
