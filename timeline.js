@@ -3,6 +3,20 @@
  * Handles the core timeline functionality including rendering, interaction, and state management.
  */
 
+// ===== Debug Logging Utility =====
+let debugLog = (...args) => {
+    try {
+        const { ipcRenderer } = window.require ? window.require('electron') : {};
+        if (ipcRenderer && ipcRenderer.send) {
+            ipcRenderer.send('log', args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' '));
+        } else {
+            console.log(...args);
+        }
+    } catch (e) {
+        console.log(...args);
+    }
+};
+
 // ===== DOM Elements =====
 const timeline = document.getElementById("timeline");
 const container = document.getElementById("timeline-container");
@@ -52,6 +66,53 @@ let middleMouseStartX = 0;
 let middleMouseCurrentX = 0;
 let middleMouseScrollAnim = null;
 let middleMouseStartOffset = 0;
+
+// ===== Period Stack Level Map and Alternation Index =====
+const periodStackLevels = {};
+const periodAltIndices = {};
+
+function computePeriodStackLevels() {
+    // Get all periods (not ages)
+    const periods = timelineState.items.filter(item => item && item.type === 'Period');
+    // Sort by start, then by end (shorter/earlier-ending first)
+    periods.sort((a, b) => {
+        const aStart = parseFloat(a.year || a.date || 0) + (parseFloat(a.subtick || 0) / timelineState.granularity);
+        const bStart = parseFloat(b.year || b.date || 0) + (parseFloat(b.subtick || 0) / timelineState.granularity);
+        if (aStart !== bStart) return aStart - bStart;
+        const aEnd = parseFloat(a.end_year || a.year || 0) + (parseFloat(a.end_subtick || a.subtick || 0) / timelineState.granularity);
+        const bEnd = parseFloat(b.end_year || b.year || 0) + (parseFloat(b.end_subtick || b.subtick || 0) / timelineState.granularity);
+        return aEnd - bEnd;
+    });
+    // Assign stack levels and alternation indices
+    const aboveStacks = [];
+    const belowStacks = [];
+    let altIndex = 0;
+    for (const item of periods) {
+        // Assign alternation index
+        periodAltIndices[item.id] = altIndex++;
+        // Stacking logic
+        const start = parseFloat(item.year || item.date || 0) + (parseFloat(item.subtick || 0) / timelineState.granularity);
+        const end = parseFloat(item.end_year || item.year || 0) + (parseFloat(item.end_subtick || item.subtick || 0) / timelineState.granularity);
+        // Alternate above/below based on periodAltIndex
+        const isAbove = (periodAltIndices[item.id] % 2 === 0);
+        const stacks = isAbove ? aboveStacks : belowStacks;
+        let stackLevel = 0;
+        while (true) {
+            let overlap = false;
+            for (const placed of stacks[stackLevel] || []) {
+                if (!(end <= placed.start || start >= placed.end)) {
+                    overlap = true;
+                    break;
+                }
+            }
+            if (!overlap) break;
+            stackLevel++;
+        }
+        if (!stacks[stackLevel]) stacks[stackLevel] = [];
+        stacks[stackLevel].push({ start, end, id: item.id });
+        periodStackLevels[item.id] = stackLevel;
+    }
+}
 
 // ===== Public API =====
 updateTickOffset();
@@ -710,6 +771,9 @@ function renderTimeline() {
                 renderedItemCount++;
             }
         } else if (item.type === 'Period') {
+            const stackLevel = periodStackLevels[item.id] || 0;
+            const periodAltIndex = periodAltIndices[item.id] || 0;
+            const isAbove = (periodAltIndex % 2 === 0);
             // Calculate start and end positions
             const startYear = parseFloat(item.year || item.date || 0);
             const startSubtick = parseFloat(item.subtick || 0);
@@ -728,29 +792,6 @@ function renderTimeline() {
             
             // Only render if there's a visible portion
             if (actualEndPosition > actualStartPosition) {
-                // Find the stack level by checking overlaps with existing periods
-                let stackLevel = 0;
-                
-                // Use item_index for determining above/below position instead of array index
-                const isAbove = (item.item_index || 0) % 2 === 0;
-                
-                // Check for overlaps with existing periods
-                for (const existingPeriod of periodPositions) {
-                    // If periods overlap and are on the same side of the timeline
-                    if (!(actualEndPosition <= existingPeriod.start || actualStartPosition >= existingPeriod.end) && 
-                        existingPeriod.isAbove === isAbove) {
-                        stackLevel = Math.max(stackLevel, existingPeriod.stackLevel + 1);
-                    }
-                }
-                
-                // Add this period to the tracking array
-                periodPositions.push({
-                    start: actualStartPosition,
-                    end: actualEndPosition,
-                    stackLevel: stackLevel,
-                    isAbove: isAbove
-                });
-                
                 // Create the period item element
                 const periodItem = document.createElement('div');
                 periodItem.className = 'timeline-period-item';
@@ -758,11 +799,11 @@ function renderTimeline() {
                 periodItem.style.width = `${actualEndPosition - actualStartPosition}px`;
                 
                 // Calculate vertical position
-                const baseOffset = 10; // Base offset from timeline
-                const stackOffset = stackLevel * 13; // Increased from 10px to 13px for more gap between stacked periods
+                const baseOffset = 10;
+                const stackOffset = stackLevel * 13;
                 const totalOffset = baseOffset + stackOffset;
-                
-                periodItem.style.top = `${containerRect.height / 2 + (isAbove ? ((totalOffset * -1) - 4) : totalOffset)}px`;
+                const yPos = containerRect.height / 2 + (isAbove ? ((totalOffset * -1) - 4) : totalOffset);
+                periodItem.style.top = `${yPos}px`;
                 
                 // Set the color from the database
                 if (item.color) {
@@ -772,6 +813,7 @@ function renderTimeline() {
                 periodItem.setAttribute('data-id', item.id);
                 periodItem.setAttribute('data-year', item.year);
                 periodItem.setAttribute('data-end-year', item.end_year);
+                periodItem.setAttribute('data-ystack', stackLevel);
                 
                 // Add hover bubble
                 const hoverBubble = document.createElement('div');
@@ -883,15 +925,14 @@ function renderTimeline() {
                 bookmarkDot.addEventListener('mouseleave', leaveHandler);
                 renderedItemCount += 2; // Count both the line and dot
             } else {
-                // Use item_index to determine above/below positioning
-                const isAbove = (item.item_index || 0) % 2 === 0;
+                // Use the stable item_index to determine above/below placement
+                let isAbove = (item.item_index % 2 === 0);
                 let y;
                 let placedItems = isAbove ? abovePlaced : belowPlaced;
-                // Start at furthest position from timeline
                 if (isAbove) {
-                    y = 0; // top of container
+                    y = 0;
                 } else {
-                    y = containerRect.height - itemBoxHeight; // start at bottom of container
+                    y = containerRect.height - itemBoxHeight;
                 }
                 // Cascade down (for above) or up (for below) if overlapping
                 let foundOverlap = true;
@@ -913,7 +954,6 @@ function renderTimeline() {
                                 }
                             }
                         }
-
                     }
                 }
                 placedItems.push({ x: itemX, y });
@@ -1088,6 +1128,36 @@ function renderTimeline() {
             }
         }
     });
+
+    if(!container || !containerRect){
+        return;
+    }
+
+    // Step 2: After rendering, log all visible periods and their stack info
+    try {
+        const visiblePeriods = visibleItems.filter(item => item && item.type === 'Period').map(item => {
+            let stackLevel = periodStackLevels ? (periodStackLevels[item.id] || 0) : 0;
+            let periodAltIndex = periodAltIndices ? (periodAltIndices[item.id] || 0) : 0;
+            let isAbove = (periodAltIndex % 2 === 0);
+            let baseOffset = 10;
+            let stackOffset = stackLevel * 13;
+            let totalOffset = baseOffset + stackOffset;
+            let yPos = containerRect.height / 2 + (isAbove ? ((totalOffset * -1) - 4) : totalOffset);
+            return {
+                id: item.id,
+                title: item.title,
+                stackLevel,
+                periodAltIndex,
+                isAbove,
+                yPos,
+                year: item.year,
+                end_year: item.end_year
+            };
+        });
+        debugLog('[visiblePeriods]', visiblePeriods);
+    } catch (e) {
+        console.error('Error in visiblePeriods logging:', e);
+    }
 
     // Update the rendered item counter
     const counterDiv = document.getElementById('visible_item_counter');
@@ -1354,12 +1424,21 @@ function scrollBy(years) {
  * - Render failure
  */
 function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 10 }) {
+    // Assign stable indices to regular items
+    let regularItemIndex = 0;
+    items.forEach(item => {
+        if (item && item.type && item.type.toLowerCase() !== 'age' && item.type.toLowerCase() !== 'period') {
+            item.item_index = regularItemIndex++;
+        }
+    });
+
     timelineState.focusYear = focusYear;
     timelineState.granularity = granularity;
     timelineState.items = items;
     timelineState.pixelsPerSubtick = pixelsPerSubtick;
     timelineState.offsetPx = 0;
     renderTimeline();
+    computePeriodStackLevels();
 }
 
 /**
