@@ -360,6 +360,9 @@ class DatabaseManager {
             this.ensureTableColumns('settings', settingsColumns);
             this.ensureTableColumns('items', itemsColumns);
 
+            // Ensure all items have a type_id (default to 1 for Event)
+            this.db.prepare('UPDATE items SET type_id = 1 WHERE type_id IS NULL').run();
+
             // Check if universe_data table exists
             const tableExists = this.db.prepare(`
                 SELECT name FROM sqlite_master 
