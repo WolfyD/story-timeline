@@ -1939,21 +1939,6 @@ class DatabaseManager {
                 )
             `).run();
 
-            // Reinsert the pictures with their base64 data
-            const insertStmt = this.db.prepare(`
-                INSERT INTO pictures (item_id, picture, title, description)
-                VALUES (@item_id, @picture, @title, @description)
-            `);
-
-            for (const pic of existingPictures) {
-                insertStmt.run({
-                    item_id: pic.item_id,
-                    picture: pic.base64_data,
-                    title: pic.title,
-                    description: pic.description
-                });
-            }
-
             console.log(`Found ${existingPictures.length} items with base64 pictures to migrate`);
 
             // Now migrate the pictures to files
@@ -1982,28 +1967,27 @@ class DatabaseManager {
                 const metadata = await sharp(buffer).metadata();
                 const size = buffer.length;
 
-                // Update the pictures table with file information
-                const updateStmt = this.db.prepare(`
-                    UPDATE pictures 
-                    SET file_path = @file_path,
-                        file_name = @file_name,
-                        file_size = @file_size,
-                        file_type = @file_type,
-                        width = @width,
-                        height = @height,
-                        picture = NULL
-                    WHERE item_id = @item_id AND picture = @picture
+                // Insert the picture with file information and maintain the item_id connection
+                const insertStmt = this.db.prepare(`
+                    INSERT INTO pictures (
+                        item_id, file_path, file_name, file_size, file_type,
+                        width, height, title, description
+                    ) VALUES (
+                        @item_id, @file_path, @file_name, @file_size, @file_type,
+                        @width, @height, @title, @description
+                    )
                 `);
 
-                updateStmt.run({
+                insertStmt.run({
+                    item_id: item.item_id,
                     file_path: filePath,
                     file_name: fileName,
                     file_size: size,
                     file_type: 'image/png',
                     width: metadata.width,
                     height: metadata.height,
-                    item_id: item.item_id,
-                    picture: item.base64_data
+                    title: item.title || 'Untitled',
+                    description: item.description || ''
                 });
 
                 console.log(`Migrated picture for item ${item.item_id}`);
