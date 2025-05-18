@@ -373,7 +373,7 @@ class DatabaseManager {
                 console.log('Found universe_data table, starting migration...');
 
                 // Get the universe data
-                const universeData = this.db.prepare('SELECT * FROM universe_data').get();
+                const universeData = this.db.prepare('SELECT * FROM universe_data ORDER BY id DESC LIMIT 1').get();
                 if (!universeData) {
                     console.log('No universe data found, skipping migration');
                     return;
