@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "better-sqlite3": "^11.10.0",
+    "remixicon": "^4.6.0",
     "sharp": "^0.34.1",
     "uuid": "^11.1.0"
   },

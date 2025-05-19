@@ -1,0 +1,95 @@
+/* Context Menu Styles */
+.context-menu {
+    position: fixed;
+    background: #f0f0f0;
+    border: 1px solid #c8c8c8;
+    border-radius: 2px;
+    padding: 2px 0;
+    min-width: 200px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-size: 13px;
+    color: #333;
+    display: flex;
+    flex-direction: column;
+}
+
+.context-menu-item {
+    display: flex;
+    align-items: center;
+    padding: 6px 24px 6px 12px;
+    color: #333;
+    background: none;
+    border: none;
+    width: 100%;
+    text-align: left;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background-color 0.1s;
+    position: relative;
+    white-space: nowrap;
+    box-sizing: border-box;
+    height: 28px;
+    line-height: 16px;
+}
+
+.context-menu-item.separator {
+    height: 1px;
+    padding: 0;
+    margin: 4px 0;
+    background-color: #e0e0e0;
+    cursor: default;
+}
+
+.context-menu-item:hover {
+    background-color: #e5f1fb;
+    color: #000;
+}
+
+.context-menu-item:active {
+    background-color: #cce8ff;
+}
+
+.context-menu-item i {
+    margin-right: 8px;
+    width: 16px;
+    text-align: center;
+    color: #666;
+    font-size: 14px;
+}
+
+/* Add separator between menu items */
+.context-menu-item:not(:last-child) {
+    border-bottom: 1px solid #e0e0e0;
+}
+
+/* Add arrow for submenu items */
+.context-menu-item.has-submenu::after {
+    content: '▶';
+    position: absolute;
+    right: 8px;
+    font-size: 10px;
+    color: #666;
+}
+
+/* Disabled state */
+.context-menu-item.disabled {
+    color: #999;
+    cursor: default;
+}
+
+.context-menu-item.disabled:hover {
+    background: none;
+}
+
+/* Selected state */
+.context-menu-item.selected {
+    background-color: #e5f1fb;
+}
+
+/* Focus state */
+.context-menu-item:focus {
+    outline: 1px solid #0078d7;
+    outline-offset: -1px;
+} 

@@ -134,16 +134,22 @@ class DatabaseManager {
             { name: 'Picture', description: 'An image or visual record' },
             { name: 'Note', description: 'A text note or annotation' },
             { name: 'Bookmark', description: 'A marked point of interest' },
-            { name: 'Character', description: 'A person or entity' }
+            { name: 'Character', description: 'A person or entity' },
+            { name: 'Timeline_start', description: 'The start point of the timeline' },
+            { name: 'Timeline_end', description: 'The end point of the timeline' }
         ];
 
         const insertTypeStmt = this.db.prepare(`
-            INSERT OR IGNORE INTO item_types (name, description)
-            VALUES (@name, @description)
+            INSERT OR IGNORE INTO item_types (id, name, description)
+            VALUES (@id, @name, @description)
         `);
 
         for (const type of defaultTypes) {
-            insertTypeStmt.run(type);
+            insertTypeStmt.run({
+                id: type.name === 'Timeline_start' ? 8 : type.name === 'Timeline_end' ? 9 : undefined,
+                name: type.name,
+                description: type.description
+            });
         }
 
         // Create items table

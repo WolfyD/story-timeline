@@ -5,4 +5,4 @@ settings.json
 data copy.json
 dist/
 dist_*/
-.cursor/rules.json
+.cursor/rules/*

@@ -43,6 +43,17 @@ const timelineState = {
 };
 
 /**
+ * Timeline markers state
+ * @type {Object} timelineMarkers - Current timeline markers state
+ * @property {Object|null} start - Timeline start marker
+ * @property {Object|null} end - Timeline end marker
+ */
+const timelineMarkers = {
+    start: null,
+    end: null
+};
+
+/**
  * Mouse interaction state
  * @type {boolean} isDragging - Whether timeline is being dragged
  * @type {boolean} mouseDown - Whether mouse button is down
@@ -1198,6 +1209,52 @@ function renderTimeline() {
     if (counterDiv) {
         counterDiv.textContent = `Rendered Items: ${renderedItemCount}`;
     }
+
+    // Add click handlers for timeline markers
+    const startMarker = document.querySelector('.timeline-item-box[data-type="Timeline_start"]');
+    const endMarker = document.querySelector('.timeline-item-box[data-type="Timeline_end"]');
+
+    if (startMarker) {
+        startMarker.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Clear existing menu items
+            clearContextMenuItems();
+            
+            // Add remove option
+            addContextMenuItem({
+                type: 'remove_start',
+                icon: 'ri-delete-bin-line',
+                label: 'Remove timeline start',
+                action: () => removeTimelineStart()
+            });
+            
+            // Show context menu
+            showContextMenu(e.clientX, e.clientY, startMarker.dataset.year, startMarker.dataset.subtick);
+        });
+    }
+
+    if (endMarker) {
+        endMarker.addEventListener('contextmenu', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            // Clear existing menu items
+            clearContextMenuItems();
+            
+            // Add remove option
+            addContextMenuItem({
+                type: 'remove_end',
+                icon: 'ri-delete-bin-line',
+                label: 'Remove timeline end',
+                action: () => removeTimelineEnd()
+            });
+            
+            // Show context menu
+            showContextMenu(e.clientX, e.clientY, endMarker.dataset.year, endMarker.dataset.subtick);
+        });
+    }
 }
 
 /**
@@ -1471,269 +1528,49 @@ function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 
     timelineState.items = items;
     timelineState.pixelsPerSubtick = pixelsPerSubtick;
     timelineState.offsetPx = 0;
+
+    // Step 1: Check for timeline markers when timeline loads
+    checkTimelineMarkers();
+    
     renderTimeline();
     computePeriodStackLevels();
 }
 
 /**
- * Gets the nearest year from a position
- * @param {number|null} x - X position (null for center)
- * @param {number} direction - Direction to round (-1, 0, 1)
- * @returns {number} Nearest year
- * 
- * How it works:
- * 1. Calculates year at position
- * 2. Rounds based on direction
- * 
- * Possible errors:
- * - Invalid position
- * - Invalid direction
+ * Checks for timeline markers in the items array
+ * Step 1: Check all items for type 8 (Timeline_start) or type 9 (Timeline_end)
+ * Step 2: Store their years and subticks in the timelineMarkers state
  */
-function getNearestYearFromPosition(x = null, direction = 0) {
-    const containerRect = container.getBoundingClientRect();
-    const centerX = containerRect.width / 2;
-    
-    if (x === null) {
-        x = centerX;
-    }
-    
-    const year = calculateYearFromPosition(x);
-    
-    if (direction > 0) {
-        return Math.ceil(year);
-    } else if (direction < 0) {
-        return Math.floor(year);
-    } else {
-        return Math.round(year);
-    }
+function checkTimelineMarkers() {
+    // Reset markers
+    timelineMarkers.start = null;
+    timelineMarkers.end = null;
+
+    // Check each item
+    timelineState.items.forEach(item => {
+        if (!item) return;
+
+        // Check for type 8 (Timeline_start)
+        if (item.type === 'Timeline_start') {
+            timelineMarkers.start = {
+                year: item.year,
+                subtick: item.subtick
+            };
+        }
+        // Check for type 9 (Timeline_end)
+        else if (item.type === 'Timeline_end') {
+            timelineMarkers.end = {
+                year: item.year,
+                subtick: item.subtick
+            };
+        }
+    });
 }
 
 /**
- * Checks if position is at a whole year
- * @param {number|null} x - X position (null for center)
- * @param {number} tolerance - Tolerance in pixels
- * @returns {boolean} Whether position is at whole year
- * 
- * How it works:
- * 1. Calculates year at position
- * 2. Checks distance to nearest year
- * 
- * Possible errors:
- * - Invalid position
- * - Invalid tolerance
+ * Updates the timeline markers state based on current items
  */
-function isPositionWholeYear(x = null, tolerance = 2) {
-    const containerRect = container.getBoundingClientRect();
-    const centerX = containerRect.width / 2;
-    
-    if (x === null) {
-        x = centerX;
-    }
-    
-    // Calculate the year at the given position
-    const year = calculateYearFromPosition(x);
-    
-    // Get the position of the nearest whole year
-    const nearestYear = Math.round(year);
-    const yearPosition = calculatePositionFromYear(nearestYear);
-    
-    // Check if we're within tolerance of the whole year position
-    return Math.abs(x - yearPosition) <= tolerance;
-}
-
-/**
- * Adds a new timeline item
- * @param {number} year - Year to add item at
- * @param {number} subtick - Subtick to add item at
- * @returns {Object} New item
- * 
- * How it works:
- * 1. Opens add item window
- * 2. Returns new item
- * 
- * Possible errors:
- * - Invalid year/subtick
- * - Window creation failure
- */
-function addItem(year, subtick, granularity) {
-    let newItem = openAddItemWindow(year, subtick, granularity);
-    //let newItem = window.webContents.send('open-add-item-window', year, subtick);
-    return newItem;
-}
-function openAddItemWindow(year, subtick, granularity){
-    year = Math.floor(year);
-    // Pass granularity as a third argument
-    window.api.send('open-add-item-window', year, subtick, granularity);
-}
-
-/**
- * Generates a random pastel color
- * @returns {string} Hex color code
- */
-function generatePastelColor() {
-    // Generate random RGB values between 128 and 255 for pastel effect
-    const r = Math.floor(Math.random() * 128) + 128;
-    const g = Math.floor(Math.random() * 128) + 128;
-    const b = Math.floor(Math.random() * 128) + 128;
-    
-    // Convert to hex
-    return '#' + [r, g, b].map(x => {
-        const hex = x.toString(16);
-        return hex.length === 1 ? '0' + hex : hex;
-    }).join('');
-}
-
-/**
- * Jumps to a specific date (year and subtick)
- * 
- * How it works:
- * 1. Gets the target year and subtick from input
- * 2. Updates focus year
- * 3. Calculates offset to center the target date
- * 4. Re-renders timeline
- * 
- * Possible errors:
- * - Invalid input
- * - Render failure
- */
-function jumpToDate() {
-    const input = document.getElementById('jump-to-date');
-    const value = parseFloat(input.value);
-    
-    if (isNaN(value)) return;
-    
-    const year = Math.floor(value);
-    const subtick = Math.round((value - year) * timelineState.granularity);
-    
-    // Update focus year
-    timelineState.focusYear = year;
-    
-    // Calculate offset to center the target date
-    const containerRect = container.getBoundingClientRect();
-    const centerX = containerRect.width / 2;
-    const targetX = centerX + (year + subtick / timelineState.granularity - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity;
-    timelineState.offsetPx = centerX - targetX;
-    
-    renderTimeline();
-}
-
-function closeItemSelector() {
-    const selector = document.getElementById('item-selector');
-    if (!selector) return;
-    
-    // Remove the click handler
-    selector.removeEventListener('click', handleSelectorClick);
-    selector.classList.remove('visible');
-    selector.style.display = 'none';
-}
-
-function handleSelectorClick(e) {
-    const button = e.target.closest('.item-selector-button');
-    if (!button) return;
-
-    const type = button.dataset.type;
-    const year = parseInt(this.dataset.year);
-    const subtick = parseInt(this.dataset.subtick);
-
-    // Close the item selector
-    closeItemSelector();
-
-    // Open the appropriate add item window based on type
-    if (type === 'event' || type === 'bookmark' || type === 'picture' || type === 'note') {
-        window.api.send('open-add-item-window', year, subtick, timelineState.granularity, type);
-    } else {
-        const randomColor = generatePastelColor();
-        window.api.send('open-add-item-with-range-window', year, subtick, timelineState.granularity, type, randomColor);
-    }
-}
-
-// ===== Initialization =====
-document.addEventListener("DOMContentLoaded", () => {
-    window.setTimeout(() => {
-        jumpToYear(timelineState.focusYear);
-    }, 200);
-});
-
-renderTimeline();
-// Add click handler for the timeline
-container.addEventListener('click', function(e) {
-    // Don't show selector if clicking on an existing item
-    if (e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item')) {
-        return;
-    }
-
-    // Don't show selector if we were dragging
-    if (isDragging) {
-        isDragging = false;
-        return;
-    }
-
-    const selector = document.getElementById('item-selector');
-    if (!selector) return;
-
-    // If selector is already visible, close it
-    if (selector.style.display === 'flex') {
-        closeItemSelector();
-        return;
-    }
-
-    const rect = container.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    
-    // Calculate year and subtick using the same logic as the hover marker
-    const floatYear = calculateYearFromPosition(x);
-    const step = 1 / timelineState.granularity;
-    const snapped = Math.round(floatYear / step) * step;
-
-    let year, subtick;
-    if (snapped >= 0) {
-        year = Math.floor(snapped);
-        subtick = Math.round((snapped - year) * timelineState.granularity);
-    } else {
-        year = Math.ceil(snapped);
-        subtick = Math.round((snapped - year) * timelineState.granularity);
-    }
-
-    subtick = Math.abs(subtick);
-
-    // Clamp subtick to [0, granularity-1]
-    if (subtick >= timelineState.granularity) {
-        year += (snapped >= 0 ? 1 : -1);
-        subtick = 0;
-    }
-
-    // Position the selector
-    selector.style.left = `${e.clientX}px`;
-    selector.style.top = `${e.clientY}px`;
-    selector.style.display = 'flex';
-    
-    // Add click handler before showing
-    selector.addEventListener('click', handleSelectorClick);
-    selector.classList.add('visible');
-
-    // Store the position for later use
-    selector.dataset.year = year;
-    selector.dataset.subtick = subtick;
-});
-
-// Close selector when clicking outside
-document.addEventListener('click', function(e) {
-    // Only handle clicks that are outside both the timeline and selector
-    if (!e.target.closest('#timeline-container') && !e.target.closest('#item-selector')) {
-        closeItemSelector();
-    }
-});
-
-// Add window resize handler
-window.addEventListener('resize', () => {
-    renderTimeline();
-});
-
-// Add this near the top of the file, with other event listeners
-container.addEventListener('mouseover', (e) => {
-    const item = e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item');
-    if (!item) return;
-    
+function updateTimelineMarkers() {
     const itemId = item.getAttribute('data-id');
     if (!itemId) return;
 
@@ -1742,7 +1579,7 @@ container.addEventListener('mouseover', (e) => {
         img.style.zIndex = '100'; // Higher z-index on hover
         img.style.transition = 'all 0.3s ease';
     });
-});
+}
 
 container.addEventListener('mouseout', (e) => {
     const item = e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item');
@@ -1891,4 +1728,657 @@ function openEditAgeOrPeriod(item) {
 
 // Add this to the window object so it can be called from the view modal
 window.openEditAgeOrPeriod = openEditAgeOrPeriod;
+
+// Context Menu Implementation
+let contextMenu = null;
+let contextMenuItems = [];
+
+function createContextMenu() {
+    // Remove existing context menu if it exists
+    if (contextMenu) {
+        contextMenu.remove();
+    }
+    
+    // Create new context menu
+    contextMenu = document.createElement('div');
+    contextMenu.id = 'timeline-context-menu';
+    contextMenu.className = 'context-menu';
+    contextMenu.style.display = 'none';
+    
+    // Add menu items from the contextMenuItems array
+    contextMenuItems.forEach(item => {
+        const button = document.createElement('button');
+        button.className = 'context-menu-item';
+        if (item.disabled) button.classList.add('disabled');
+        if (item.separator) {
+            button.classList.add('separator');
+            contextMenu.appendChild(button);
+            return;
+        }
+        button.innerHTML = `<i class="fas ${item.icon}"></i> ${item.label}`;
+        button.dataset.type = item.type;
+        button.addEventListener('click', (e) => {
+            e.stopPropagation();
+            // Close the context menu for any button click
+            hideContextMenu();
+            if (!item.disabled && item.action) {
+                item.action(contextMenu.dataset.year, contextMenu.dataset.subtick);
+            }
+        });
+        contextMenu.appendChild(button);
+    });
+    
+    // Add to document body
+    document.body.appendChild(contextMenu);
+}
+
+// Function to add items to the context menu
+function addContextMenuItem(item) {
+    contextMenuItems.push(item);
+    // Recreate the context menu with the new items
+    createContextMenu();
+}
+
+// Function to clear all context menu items
+function clearContextMenuItems() {
+    contextMenuItems = [];
+    createContextMenu();
+}
+
+// Initialize default context menu items
+function initializeDefaultContextMenu() {
+    // Add timeline start/end items
+    addContextMenuItem({ 
+        type: 'start', 
+        icon: 'ri-quill-pen-ai-fill', 
+        label: 'Set timeline start', 
+        action: (year, subtick) => {
+            // Only allow if no start marker exists
+            if (timelineMarkers.start === null) {
+                setTimelineStart();
+            }
+        }
+    });
+
+    addContextMenuItem({ 
+        type: 'end', 
+        icon: 'ri-book-fill', 
+        label: 'Set timeline end', 
+        action: (year, subtick) => {
+            // Only allow if no end marker exists
+            if (timelineMarkers.end === null) {
+                setTimelineEnd();
+            }
+        }
+    });
+}
+
+// Add this to ensure context menu is properly initialized
+document.addEventListener('DOMContentLoaded', () => {
+    initializeDefaultContextMenu();
+});
+
+function showContextMenu(x, y, year, subtick) {
+    if (!contextMenu) {
+        createContextMenu();
+    }
+    
+    // Close item selector if it's open
+    closeItemSelector();
+    
+    // Get viewport dimensions
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    
+    // Show menu temporarily to get dimensions
+    contextMenu.style.display = 'block';
+    const menuWidth = contextMenu.offsetWidth;
+    const menuHeight = contextMenu.offsetHeight;
+    
+    // Calculate position to ensure menu stays within viewport
+    let left = x;
+    let top = y;
+    
+    // Adjust horizontal position if menu would go off right edge
+    if (left + menuWidth > viewportWidth) {
+        left = viewportWidth - menuWidth - 5;
+    }
+    
+    // Adjust vertical position if menu would go off bottom edge
+    if (top + menuHeight > viewportHeight) {
+        top = viewportHeight - menuHeight - 5;
+    }
+    
+    // Ensure menu doesn't go off left or top edges
+    left = Math.max(5, left);
+    top = Math.max(5, top);
+    
+    // Position the context menu
+    contextMenu.style.left = `${left}px`;
+    contextMenu.style.top = `${top}px`;
+    
+    // Store the position for later use
+    contextMenu.dataset.year = year;
+    contextMenu.dataset.subtick = subtick;
+
+    // Step 3: Check for existing markers and update menu items
+    const menuItems = contextMenu.querySelectorAll('.context-menu-item');
+    menuItems.forEach(item => {
+        const type = item.dataset.type;
+        if (type === 'start') {
+            // Disable if start marker exists
+            item.classList.toggle('disabled', timelineMarkers.start !== null);
+        } else if (type === 'end') {
+            // Disable if end marker exists
+            item.classList.toggle('disabled', timelineMarkers.end !== null);
+        }
+    });
+}
+
+function hideContextMenu() {
+    if (contextMenu) {
+        contextMenu.style.display = 'none';
+    }
+}
+
+function handleContextMenuClick(type) {
+    const year = parseInt(contextMenu.dataset.year);
+    const subtick = parseInt(contextMenu.dataset.subtick);
+    
+    hideContextMenu();
+    
+    // Open the appropriate add item window based on type
+    if (type === 'event' || type === 'bookmark' || type === 'picture' || type === 'note') {
+        window.api.send('open-add-item-window', year, subtick, timelineState.granularity, type);
+    } else {
+        const randomColor = generatePastelColor();
+        window.api.send('open-add-item-with-range-window', year, subtick, timelineState.granularity, type, randomColor);
+    }
+}
+
+// Add context menu event listener to the timeline container
+container.addEventListener('contextmenu', function(e) {
+    e.preventDefault();
+    
+    // If context menu is already open, close it and return
+    if (contextMenu && contextMenu.style.display === 'block') {
+        hideContextMenu();
+        return;
+    }
+    
+    // Don't show context menu if clicking on an existing item
+    if (e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item')) {
+        return;
+    }
+    
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    
+    // Calculate year and subtick using the same logic as the hover marker
+    const floatYear = calculateYearFromPosition(x);
+    const step = 1 / timelineState.granularity;
+    const snapped = Math.round(floatYear / step) * step;
+    
+    let year, subtick;
+    if (snapped >= 0) {
+        year = Math.floor(snapped);
+        subtick = Math.round((snapped - year) * timelineState.granularity);
+    } else {
+        year = Math.ceil(snapped);
+        subtick = Math.round((snapped - year) * timelineState.granularity);
+    }
+    
+    subtick = Math.abs(subtick);
+    
+    // Clamp subtick to [0, granularity-1]
+    if (subtick >= timelineState.granularity) {
+        year += (snapped >= 0 ? 1 : -1);
+        subtick = 0;
+    }
+    
+    showContextMenu(e.clientX, e.clientY, year, subtick);
+});
+
+// Close context menu when clicking outside
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('#timeline-context-menu')) {
+        hideContextMenu();
+    }
+});
+
+// Function to set timeline start marker
+function setTimelineStart() {
+    // Get year and subtick from the context menu's dataset
+    const year = parseInt(contextMenu.dataset.year);
+    const subtick = parseInt(contextMenu.dataset.subtick);
+
+    // Check if there's an end marker and validate position
+    if (timelineMarkers.end) {
+        const endYear = timelineMarkers.end.year;
+        const endSubtick = timelineMarkers.end.subtick;
+        
+        // Convert to comparable values (year.subtick format)
+        const startValue = year + (subtick / timelineState.granularity);
+        const endValue = endYear + (endSubtick / timelineState.granularity);
+        
+        // Start must be before end
+        if (startValue >= endValue) {
+            // Calculate the latest valid position (one year before end)
+            const validYear = endYear - 1;
+            const validSubtick = 0;
+            
+            // Show error message
+            alert(`Timeline start must be before the end marker. The latest valid position is ${validYear}.${validSubtick}`);
+            return;
+        }
+    }
+
+    // Create a new item for the timeline start
+    const item = {
+        title: 'Timeline Start',
+        description: 'The beginning of this timeline',
+        type: 'Timeline_start',
+        year: year,
+        subtick: subtick,
+        color: '#4CAF50' // Green color to distinguish it
+    };
+
+    // Update the timelineMarkers state immediately
+    timelineMarkers.start = {
+        year: year,
+        subtick: subtick
+    };
+
+    // Send the item to the main process
+    window.api.send('addTimelineItem', item);
+    
+    // Refresh timeline to update markers
+    refreshTimeline();
+}
+
+// Function to remove timeline start marker
+function removeTimelineStart() {
+    // Find the start marker in the items array
+    const startMarker = timelineState.items.find(item => item.type === 'Timeline_start');
+    if (startMarker) {
+        // Send delete request to main process using the correct channel
+        window.api.send('removeItem', startMarker.id);
+        // Update state immediately
+        timelineMarkers.start = null;
+        // Refresh timeline
+        refreshTimeline();
+        // Reinitialize the default context menu
+        clearContextMenuItems();
+        initializeDefaultContextMenu();
+    }
+}
+
+// Function to remove timeline end marker
+function removeTimelineEnd() {
+    // Find the end marker in the items array
+    const endMarker = timelineState.items.find(item => item.type === 'Timeline_end');
+    if (endMarker) {
+        // Send delete request to main process using the correct channel
+        window.api.send('removeItem', endMarker.id);
+        // Update state immediately
+        timelineMarkers.end = null;
+        // Refresh timeline
+        refreshTimeline();
+        // Reinitialize the default context menu
+        clearContextMenuItems();
+        initializeDefaultContextMenu();
+    }
+}
+
+// Add these functions to the window object
+window.removeTimelineStart = removeTimelineStart;
+window.removeTimelineEnd = removeTimelineEnd;
+
+// Function to set timeline end marker
+function setTimelineEnd() {
+    // Get year and subtick from the context menu's dataset
+    const year = parseInt(contextMenu.dataset.year);
+    const subtick = parseInt(contextMenu.dataset.subtick);
+
+    // Check if there's a start marker and validate position
+    if (timelineMarkers.start) {
+        const startYear = timelineMarkers.start.year;
+        const startSubtick = timelineMarkers.start.subtick;
+        
+        // Convert to comparable values (year.subtick format)
+        const startValue = startYear + (startSubtick / timelineState.granularity);
+        const endValue = year + (subtick / timelineState.granularity);
+        
+        // End must be after start
+        if (endValue <= startValue) {
+            // Calculate the earliest valid position (one year after start)
+            const validYear = startYear + 1;
+            const validSubtick = 0;
+            
+            // Show error message
+            alert(`Timeline end must be after the start marker. The earliest valid position is ${validYear}.${validSubtick}`);
+            return;
+        }
+    }
+
+    // Create a new item for the timeline end
+    const item = {
+        title: 'Timeline End',
+        description: 'The end of this timeline',
+        type: 'Timeline_end',
+        year: year,
+        subtick: subtick,
+        color: '#FF5252' // Red color to distinguish it
+    };
+
+    // Update the timelineMarkers state immediately
+    timelineMarkers.end = {
+        year: year,
+        subtick: subtick
+    };
+
+    // Send the item to the main process
+    window.api.send('addTimelineItem', item);
+    
+    // Refresh timeline to update markers
+    refreshTimeline();
+}
+
+// Function to refresh timeline items
+function refreshTimeline() {
+    // Send request to get all items
+    window.api.send('get-all-items');
+}
+
+// Add listener for the response
+window.api.receive('all-items', (items) => {
+    timelineState.items = items;
+    checkTimelineMarkers(); // Check markers after items are refreshed
+    renderTimeline();
+});
+
+/**
+ * Jumps to a specific date (year and subtick)
+ * 
+ * How it works:
+ * 1. Gets the target year and subtick from input
+ * 2. Updates focus year
+ * 3. Calculates offset to center the target date
+ * 4. Re-renders timeline
+ * 
+ * Possible errors:
+ * - Invalid input
+ * - Render failure
+ */
+function jumpToDate() {
+    const input = document.getElementById('jump-to-date');
+    const value = parseFloat(input.value);
+    
+    if (isNaN(value)) return;
+    
+    const year = Math.floor(value);
+    const subtick = Math.round((value - year) * timelineState.granularity);
+    
+    // Update focus year
+    timelineState.focusYear = year;
+    
+    // Calculate offset to center the target date
+    const containerRect = container.getBoundingClientRect();
+    const centerX = containerRect.width / 2;
+    const targetX = centerX + (year + subtick / timelineState.granularity - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity;
+    timelineState.offsetPx = centerX - targetX;
+    
+    renderTimeline();
+}
+
+/**
+ * Gets the nearest year from a position
+ * @param {number|null} x - X position (null for center)
+ * @param {number} direction - Direction to round (-1, 0, 1)
+ * @returns {number} Nearest year
+ */
+function getNearestYearFromPosition(x = null, direction = 0) {
+    const containerRect = container.getBoundingClientRect();
+    const centerX = containerRect.width / 2;
+    
+    if (x === null) {
+        x = centerX;
+    }
+    
+    const year = calculateYearFromPosition(x);
+    
+    if (direction > 0) {
+        return Math.ceil(year);
+    } else if (direction < 0) {
+        return Math.floor(year);
+    } else {
+        return Math.round(year);
+    }
+}
+
+/**
+ * Checks if position is at a whole year
+ * @param {number|null} x - X position (null for center)
+ * @param {number} tolerance - Tolerance in pixels
+ * @returns {boolean} Whether position is at whole year
+ */
+function isPositionWholeYear(x = null, tolerance = 2) {
+    const containerRect = container.getBoundingClientRect();
+    const centerX = containerRect.width / 2;
+    
+    if (x === null) {
+        x = centerX;
+    }
+    
+    // Calculate the year at the given position
+    const year = calculateYearFromPosition(x);
+    
+    // Get the position of the nearest whole year
+    const nearestYear = Math.round(year);
+    const yearPosition = calculatePositionFromYear(nearestYear);
+    
+    // Check if we're within tolerance of the whole year position
+    return Math.abs(x - yearPosition) <= tolerance;
+}
+
+/**
+ * Generates a random pastel color
+ * @returns {string} Hex color code
+ */
+function generatePastelColor() {
+    // Generate random RGB values between 128 and 255 for pastel effect
+    const r = Math.floor(Math.random() * 128) + 128;
+    const g = Math.floor(Math.random() * 128) + 128;
+    const b = Math.floor(Math.random() * 128) + 128;
+    
+    // Convert to hex
+    return '#' + [r, g, b].map(x => {
+        const hex = x.toString(16);
+        return hex.length === 1 ? '0' + hex : hex;
+    }).join('');
+}
+
+// Add these functions to the window object so they can be called from HTML
+window.jumpToDate = jumpToDate;
+window.jumpToYear = jumpToYear;
+window.scrollBy = scrollBy;
+window.setInitialSettings = setInitialSettings;
+window.openEditAgeOrPeriod = openEditAgeOrPeriod;
+window.setTimelineStart = setTimelineStart;
+window.setTimelineEnd = setTimelineEnd;
+
+function closeItemSelector() {
+    const selector = document.getElementById('item-selector');
+    if (!selector) return;
+    
+    // Remove the click handler
+    selector.removeEventListener('click', handleSelectorClick);
+    selector.classList.remove('visible');
+    selector.style.display = 'none';
+}
+
+function handleSelectorClick(e) {
+    const button = e.target.closest('.item-selector-button');
+    if (!button) return;
+
+    const type = button.dataset.type;
+    const year = parseInt(this.dataset.year);
+    const subtick = parseInt(this.dataset.subtick);
+
+    // Close the item selector
+    closeItemSelector();
+
+    // Open the appropriate add item window based on type
+    if (type === 'event' || type === 'bookmark' || type === 'picture' || type === 'note') {
+        window.api.send('open-add-item-window', year, subtick, timelineState.granularity, type);
+    } else {
+        const randomColor = generatePastelColor();
+        window.api.send('open-add-item-with-range-window', year, subtick, timelineState.granularity, type, randomColor);
+    }
+}
+
+// Add click handler for the timeline
+container.addEventListener('click', function(e) {
+    // Hide context menu if it's open
+    hideContextMenu();
+    
+    // Don't show selector if clicking on an existing item
+    if (e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item')) {
+        return;
+    }
+
+    // Don't show selector if we were dragging
+    if (isDragging) {
+        isDragging = false;
+        return;
+    }
+
+    const selector = document.getElementById('item-selector');
+    if (!selector) return;
+
+    // If selector is already visible, close it
+    if (selector.style.display === 'flex') {
+        closeItemSelector();
+        return;
+    }
+
+    const rect = container.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    
+    // Calculate year and subtick using the same logic as the hover marker
+    const floatYear = calculateYearFromPosition(x);
+    const step = 1 / timelineState.granularity;
+    const snapped = Math.round(floatYear / step) * step;
+
+    let year, subtick;
+    if (snapped >= 0) {
+        year = Math.floor(snapped);
+        subtick = Math.round((snapped - year) * timelineState.granularity);
+    } else {
+        year = Math.ceil(snapped);
+        subtick = Math.round((snapped - year) * timelineState.granularity);
+    }
+
+    subtick = Math.abs(subtick);
+
+    // Clamp subtick to [0, granularity-1]
+    if (subtick >= timelineState.granularity) {
+        year += (snapped >= 0 ? 1 : -1);
+        subtick = 0;
+    }
+
+    // Position the selector
+    selector.style.left = `${e.clientX}px`;
+    selector.style.top = `${e.clientY}px`;
+    selector.style.display = 'flex';
+    
+    // Add click handler before showing
+    selector.addEventListener('click', handleSelectorClick);
+    selector.classList.add('visible');
+
+    // Store the position for later use
+    selector.dataset.year = year;
+    selector.dataset.subtick = subtick;
+});
+
+// Close selector when clicking outside
+document.addEventListener('click', function(e) {
+    // Only handle clicks that are outside both the timeline and selector
+    if (!e.target.closest('#timeline-container') && !e.target.closest('#item-selector')) {
+        closeItemSelector();
+        hideContextMenu();
+    }
+});
+
+/**
+ * Adds a new timeline item
+ * @param {number} year - Year to add item at
+ * @param {number} subtick - Subtick to add item at
+ * @returns {Object} New item
+ */
+function addItem(year, subtick, granularity) {
+    let newItem = openAddItemWindow(year, subtick, granularity);
+    return newItem;
+}
+
+/**
+ * Opens the add item window
+ * @param {number} year - Year to add item at
+ * @param {number} subtick - Subtick to add item at
+ * @param {number} granularity - Timeline granularity
+ */
+function openAddItemWindow(year, subtick, granularity) {
+    year = Math.floor(year);
+    // Pass granularity as a third argument
+    window.api.send('open-add-item-window', year, subtick, granularity);
+}
+
+// Add window resize handler
+window.addEventListener('resize', () => {
+    renderTimeline();
+});
+
+// Add this near the top of the file, with other event listeners
+container.addEventListener('mouseover', (e) => {
+    const item = e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item');
+    if (!item) return;
+    
+    const itemId = item.getAttribute('data-id');
+    if (!itemId) return;
+
+    const images = document.querySelectorAll(`.cascading-image[data-item-id="${itemId}"]`);
+    images.forEach(img => {
+        img.style.zIndex = '100'; // Higher z-index on hover
+        img.style.transition = 'all 0.3s ease';
+    });
+});
+
+container.addEventListener('mouseout', (e) => {
+    const item = e.target.closest('.timeline-item-box, .timeline-age-item, .timeline-period-item');
+    if (!item) return;
+    
+    const itemId = item.getAttribute('data-id');
+    if (!itemId) return;
+
+    const images = document.querySelectorAll(`.cascading-image[data-item-id="${itemId}"]`);
+    images.forEach(img => {
+        // Reset z-index based on item type
+        if (img.classList.contains('age-image')) {
+            img.style.zIndex = '1'; // Reset to lowest z-index for age images
+        } else {
+            img.style.zIndex = ''; // Reset to default for other images
+        }
+        img.style.transform = '';
+    });
+});
+
+// ===== Initialization =====
+document.addEventListener("DOMContentLoaded", () => {
+    window.setTimeout(() => {
+        jumpToYear(timelineState.focusYear);
+    }, 200);
+});
+
+// Initial render
+renderTimeline();
 
