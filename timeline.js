@@ -1321,12 +1321,80 @@ function updateHoverMarker(x, y) {
     hoverMarkerStick.style.display = 'block';
 }
 
+/**
+ * Checks if timeline position is before start marker and corrects if needed
+ * @returns {boolean} True if position was corrected
+ */
+function checkAndCorrectStartBoundary() {
+    // If no start marker, no correction needed
+    if (!timelineMarkers.start) return false;
+
+    const containerRect = container.getBoundingClientRect();
+    const centerX = containerRect.width / 2;
+    const currentYear = calculateYearFromPosition(centerX + containerRect.left);
+    
+    // Convert start marker to comparable value
+    const startYear = timelineMarkers.start.year;
+    const startSubtick = timelineMarkers.start.subtick;
+    const startValue = startYear + (startSubtick / timelineState.granularity);
+    
+    // If current position is before start marker
+    if (currentYear < startValue) {
+        // Calculate offset needed to center on start marker
+        const targetX = centerX + (startValue - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        timelineState.offsetPx = centerX - targetX;
+        return true;
+    }
+    
+    return false;
+}
+
+/**
+ * Checks if timeline position is after end marker and corrects if needed
+ * @returns {boolean} True if position was corrected
+ */
+function checkAndCorrectEndBoundary() {
+    // If no end marker, no correction needed
+    if (!timelineMarkers.end) return false;
+
+    const containerRect = container.getBoundingClientRect();
+    const centerX = containerRect.width / 2;
+    const currentYear = calculateYearFromPosition(centerX + containerRect.left);
+    
+    // Convert end marker to comparable value
+    const endYear = timelineMarkers.end.year;
+    const endSubtick = timelineMarkers.end.subtick;
+    const endValue = endYear + (endSubtick / timelineState.granularity);
+    
+    // If current position is after end marker
+    if (currentYear > endValue) {
+        // Calculate offset needed to center on end marker
+        const targetX = centerX + (endValue - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        timelineState.offsetPx = centerX - targetX;
+        return true;
+    }
+    
+    return false;
+}
+
 function middleMouseScrollStep() {
     if (!isMiddleMouseDragging) return;
     const dx = middleMouseCurrentX - middleMouseStartX;
     // Speed factor: px per second, scaled down for smoothness
     const speed = dx * -5; // adjust 0.5 for desired sensitivity
     timelineState.offsetPx = timelineState.offsetPx + speed / 60; // 60fps
+    
+    // Check and correct position if needed
+    if (checkAndCorrectStartBoundary() || checkAndCorrectEndBoundary()) {
+        // If position was corrected, stop the animation
+        isMiddleMouseDragging = false;
+        container.style.cursor = '';
+        if (middleMouseScrollAnim) {
+            cancelAnimationFrame(middleMouseScrollAnim);
+            middleMouseScrollAnim = null;
+        }
+    }
+    
     renderTimeline();
     middleMouseScrollAnim = requestAnimationFrame(middleMouseScrollStep);
 }
@@ -1347,6 +1415,13 @@ container.addEventListener("mousemove", (e) => {
         }
         if (isDragging) {
             timelineState.offsetPx = initialOffset + dx;
+            // Check and correct position if needed
+            if (checkAndCorrectStartBoundary() || checkAndCorrectEndBoundary()) {
+                // If position was corrected, stop dragging
+                isDragging = false;
+                mouseDown = false;
+                dragStartX = null;
+            }
             renderTimeline();
         }
     }
@@ -1458,6 +1533,10 @@ container.addEventListener("wheel", (event) => {
         }
     }
     
+    // Check and correct position if needed
+    checkAndCorrectStartBoundary();
+    checkAndCorrectEndBoundary();
+    
     renderTimeline();
 });
 
@@ -1466,15 +1545,46 @@ container.addEventListener("wheel", (event) => {
  * @param {number} year - Year to jump to
  * 
  * How it works:
- * 1. Updates focus year
- * 2. Resets offset
- * 3. Re-renders timeline
+ * 1. Checks if target is before start marker
+ * 2. Updates focus year
+ * 3. Resets offset
+ * 4. Re-renders timeline
  * 
  * Possible errors:
  * - Invalid year
  * - Render failure
  */
 function jumpToYear(year) {
+    // Check if there's a start marker and if target is before it
+    if (timelineMarkers.start) {
+        const startYear = timelineMarkers.start.year;
+        const startSubtick = timelineMarkers.start.subtick;
+        
+        // Convert to comparable values (year.subtick format)
+        const targetValue = year;
+        const startValue = startYear + (startSubtick / timelineState.granularity);
+        
+        // If target is before start marker, reroute to start marker
+        if (targetValue < startValue) {
+            year = startYear;
+        }
+    }
+
+    // Check if there's an end marker and if target is after it
+    if (timelineMarkers.end) {
+        const endYear = timelineMarkers.end.year;
+        const endSubtick = timelineMarkers.end.subtick;
+        
+        // Convert to comparable values (year.subtick format)
+        const targetValue = year;
+        const endValue = endYear + (endSubtick / timelineState.granularity);
+        
+        // If target is after end marker, reroute to end marker
+        if (targetValue > endValue) {
+            year = endYear;
+        }
+    }
+    
     timelineState.focusYear = year;
     timelineState.offsetPx = 0;
     renderTimeline();
@@ -2102,9 +2212,10 @@ window.api.receive('all-items', (items) => {
  * 
  * How it works:
  * 1. Gets the target year and subtick from input
- * 2. Updates focus year
- * 3. Calculates offset to center the target date
- * 4. Re-renders timeline
+ * 2. Checks if target is before start marker
+ * 3. Updates focus year
+ * 4. Calculates offset to center the target date
+ * 5. Re-renders timeline
  * 
  * Possible errors:
  * - Invalid input
@@ -2116,8 +2227,44 @@ function jumpToDate() {
     
     if (isNaN(value)) return;
     
-    const year = Math.floor(value);
-    const subtick = Math.round((value - year) * timelineState.granularity);
+    let year = Math.floor(value);
+    let subtick = Math.round((value - year) * timelineState.granularity);
+    
+    // Check if there's a start marker and if target is before it
+    if (timelineMarkers.start) {
+        const startYear = timelineMarkers.start.year;
+        const startSubtick = timelineMarkers.start.subtick;
+        
+        // Convert to comparable values (year.subtick format)
+        const targetValue = year + (subtick / timelineState.granularity);
+        const startValue = startYear + (startSubtick / timelineState.granularity);
+        
+        // If target is before start marker, reroute to start marker
+        if (targetValue < startValue) {
+            year = startYear;
+            subtick = startSubtick;
+            // Update input value to show the actual position
+            input.value = `${year}.${subtick.toString().padStart(2, '0')}`;
+        }
+    }
+
+    // Check if there's an end marker and if target is after it
+    if (timelineMarkers.end) {
+        const endYear = timelineMarkers.end.year;
+        const endSubtick = timelineMarkers.end.subtick;
+        
+        // Convert to comparable values (year.subtick format)
+        const targetValue = year + (subtick / timelineState.granularity);
+        const endValue = endYear + (endSubtick / timelineState.granularity);
+        
+        // If target is after end marker, reroute to end marker
+        if (targetValue > endValue) {
+            year = endYear;
+            subtick = endSubtick;
+            // Update input value to show the actual position
+            input.value = `${year}.${subtick.toString().padStart(2, '0')}`;
+        }
+    }
     
     // Update focus year
     timelineState.focusYear = year;
