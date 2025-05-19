@@ -702,7 +702,9 @@ function renderTimeline() {
 
     // First pass: render all items to calculate positions
     visibleItems.forEach((item, idx) => {
-        if(!item){ return; }
+        if (!item) return;
+        // Skip rendering the box for Timeline_start and Timeline_end
+        if (item.type === 'Timeline_start' || item.type === 'Timeline_end') return;
 
         if (item.type === 'Age') {
             // Calculate start and end positions
@@ -1254,6 +1256,112 @@ function renderTimeline() {
             // Show context menu
             showContextMenu(e.clientX, e.clientY, endMarker.dataset.year, endMarker.dataset.subtick);
         });
+    }
+
+    // Remove any existing start marker triangles before adding a new one
+    const oldStartMarkers = container.querySelectorAll('.timeline-start-marker-triangle');
+    oldStartMarkers.forEach(el => el.remove());
+
+    // Add start marker as a right-pointing triangle if it exists and is visible
+    if (timelineMarkers.start) {
+        const startYear = timelineMarkers.start.year;
+        const startSubtick = timelineMarkers.start.subtick;
+        const startValue = startYear + (startSubtick / granularity);
+        const startX = centerX + (startValue - focusYear) * pixelsPerSubtick * granularity + offsetPx;
+        if (startX >= 0 && startX <= containerRect.width) {
+            // Create the triangle
+            const triangle = document.createElement('div');
+            triangle.className = 'timeline-start-marker-triangle';
+            triangle.style.left = `${startX}px`;
+            triangle.style.top = `calc(50% - 12px)`;
+            triangle.style.pointerEvents = 'all';
+            triangle.style.cursor = 'pointer';
+            triangle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Clear existing menu items
+                clearContextMenuItems();
+                // Add remove option
+                addContextMenuItem({
+                    type: 'remove_start',
+                    icon: 'ri-delete-bin-line',
+                    label: 'Remove timeline start',
+                    action: () => removeTimelineStart()
+                });
+                // Show context menu
+                showContextMenu(e.clientX, e.clientY, startYear, startSubtick);
+            });
+            container.appendChild(triangle);
+        }
+    }
+
+    // Remove any existing end marker triangles before adding a new one
+    const oldEndMarkers = container.querySelectorAll('.timeline-end-marker-triangle');
+    oldEndMarkers.forEach(el => el.remove());
+
+    // Add end marker as a left-pointing triangle if it exists and is visible
+    if (timelineMarkers.end) {
+        const endYear = timelineMarkers.end.year;
+        const endSubtick = timelineMarkers.end.subtick;
+        const endValue = endYear + (endSubtick / granularity);
+        const endX = centerX + (endValue - focusYear) * pixelsPerSubtick * granularity + offsetPx;
+        if (endX >= 0 && endX <= containerRect.width) {
+            // Create the triangle
+            const triangle = document.createElement('div');
+            triangle.className = 'timeline-end-marker-triangle';
+            triangle.style.left = `${endX}px`;
+            triangle.style.top = `calc(50% - 12px)`;
+            triangle.style.pointerEvents = 'all';
+            triangle.style.cursor = 'pointer';
+            triangle.addEventListener('click', (e) => {
+                e.stopPropagation();
+                // Clear existing menu items
+                clearContextMenuItems();
+                // Add remove option
+                addContextMenuItem({
+                    type: 'remove_end',
+                    icon: 'ri-delete-bin-line',
+                    label: 'Remove timeline end',
+                    action: () => removeTimelineEnd()
+                });
+                // Show context menu
+                showContextMenu(e.clientX, e.clientY, endYear, endSubtick);
+            });
+            container.appendChild(triangle);
+        }
+    }
+
+    // Remove any existing boundary overlays
+    const oldOverlays = container.querySelectorAll('.timeline-boundary-overlay');
+    oldOverlays.forEach(el => el.remove());
+
+    // Add start boundary overlay if start marker exists
+    if (timelineMarkers.start) {
+        const startYear = timelineMarkers.start.year;
+        const startSubtick = timelineMarkers.start.subtick;
+        const startValue = startYear + (startSubtick / granularity);
+        const startX = centerX + (startValue - focusYear) * pixelsPerSubtick * granularity + offsetPx;
+        
+        // Create overlay for area before start marker
+        const startOverlay = document.createElement('div');
+        startOverlay.className = 'timeline-boundary-overlay';
+        startOverlay.style.left = '0';
+        startOverlay.style.width = `${startX}px`;
+        container.appendChild(startOverlay);
+    }
+
+    // Add end boundary overlay if end marker exists
+    if (timelineMarkers.end) {
+        const endYear = timelineMarkers.end.year;
+        const endSubtick = timelineMarkers.end.subtick;
+        const endValue = endYear + (endSubtick / granularity);
+        const endX = centerX + (endValue - focusYear) * pixelsPerSubtick * granularity + offsetPx;
+        
+        // Create overlay for area after end marker
+        const endOverlay = document.createElement('div');
+        endOverlay.className = 'timeline-boundary-overlay end';
+        endOverlay.style.left = `${endX}px`;
+        endOverlay.style.width = `${containerRect.width - endX}px`;
+        container.appendChild(endOverlay);
     }
 }
 
@@ -2045,6 +2153,23 @@ container.addEventListener('contextmenu', function(e) {
         year += (snapped >= 0 ? 1 : -1);
         subtick = 0;
     }
+
+    // Check if position is within timeline boundaries
+    const position = year + (subtick / timelineState.granularity);
+    
+    if (timelineMarkers.start) {
+        const startValue = timelineMarkers.start.year + (timelineMarkers.start.subtick / timelineState.granularity);
+        if (position < startValue) {
+            return; // Don't show menu if before start marker
+        }
+    }
+    
+    if (timelineMarkers.end) {
+        const endValue = timelineMarkers.end.year + (timelineMarkers.end.subtick / timelineState.granularity);
+        if (position > endValue) {
+            return; // Don't show menu if after end marker
+        }
+    }
     
     showContextMenu(e.clientX, e.clientY, year, subtick);
 });
@@ -2432,6 +2557,23 @@ container.addEventListener('click', function(e) {
     if (subtick >= timelineState.granularity) {
         year += (snapped >= 0 ? 1 : -1);
         subtick = 0;
+    }
+
+    // Check if position is within timeline boundaries
+    const position = year + (subtick / timelineState.granularity);
+    
+    if (timelineMarkers.start) {
+        const startValue = timelineMarkers.start.year + (timelineMarkers.start.subtick / timelineState.granularity);
+        if (position < startValue) {
+            return; // Don't show selector if before start marker
+        }
+    }
+    
+    if (timelineMarkers.end) {
+        const endValue = timelineMarkers.end.year + (timelineMarkers.end.subtick / timelineState.granularity);
+        if (position > endValue) {
+            return; // Don't show selector if after end marker
+        }
     }
 
     // Position the selector
