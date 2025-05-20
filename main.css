@@ -1131,3 +1131,12 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     rgba(75, 46, 46, 0)       /* Fade to transparent */
   );
 }
+
+.padr-5 {
+    display: inline-block;
+    padding-right: 5px;
+}
+
+.log-entry {
+    font-size: 12px;
+}

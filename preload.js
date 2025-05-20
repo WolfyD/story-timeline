@@ -92,7 +92,8 @@ contextBridge.exposeInMainWorld('api', {
             'item-data',
             'data-ready',
             'test-items-generated',
-            'recalculate-period-stacks'
+            'recalculate-period-stacks',
+            'log-message'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
@@ -100,5 +101,11 @@ contextBridge.exposeInMainWorld('api', {
     },
     readFile: (filename) => ipcRenderer.invoke('read-file', filename),
     getDevVersion: () => DEV_VERSION,
-    getCurrentTimelineId: () => ipcRenderer.invoke('get-current-timeline-id')
+    getCurrentTimelineId: () => ipcRenderer.invoke('get-current-timeline-id'),
+    log: {
+        error: (message) => ipcRenderer.send('log-message', { level: 'error', message }),
+        warn: (message) => ipcRenderer.send('log-message', { level: 'warn', message }),
+        info: (message) => ipcRenderer.send('log-message', { level: 'info', message }),
+        debug: (message) => ipcRenderer.send('log-message', { level: 'debug', message })
+    }
 });

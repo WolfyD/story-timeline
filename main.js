@@ -745,8 +745,6 @@ function setupIpcHandlers() {
         granularity: newData.granularity
     };
 
-
-
     // Save settings to database
     const dbSettings = {
         font: updatedSettings.font || 'Arial',
@@ -838,15 +836,18 @@ function setupIpcHandlers() {
   });
 
   ipcMain.on('addTimelineItem', (event, data) => {
-    console.log("[main.js] Received timeline item:", data);
-    console.log("[main.js] Current timeline_id in data state:", data.timeline_id);
-    const newItem = dbManager.addItem(data);
-    // Get items only for the current timeline
-    const items = dbManager.getItemsByTimeline(data.timeline_id);
-    console.log("[main.js] Retrieved items for timeline:", items);
-    mainWindow.webContents.send('items', items);
-    // Send the created item's ID back to the sender window
-    event.sender.send('item-created', { id: newItem.id });
+    try {
+      console.log("[main.js] Received timeline item:", data);
+      console.log("[main.js] Current timeline_id in data state:", data.timeline_id);
+      const newItem = dbManager.addItem(data);
+      const items = dbManager.getItemsByTimeline(data.timeline_id);
+      console.log("[main.js] Retrieved items for timeline:", items);
+      mainWindow.webContents.send('items', items);
+      event.sender.send('item-created', { id: newItem.id });
+    } catch (error) {
+      logToRenderer('error', `Error adding timeline item: ${error.message}`);
+      event.sender.send('item-created', { error: error.message });
+    }
   });
 
   ipcMain.on('add-item-window-closing', (event) => {
@@ -1407,6 +1408,11 @@ function setupIpcHandlers() {
       mainWindow.webContents.send('recalculate-period-stacks');
     }
   });
+
+  // Add error logging handler
+  ipcMain.on('log-message', (event, { level, message }) => {
+    logToRenderer(level, message);
+  });
 }
 
 // ===== Application Lifecycle =====
@@ -1420,3 +1426,10 @@ app.on('window-all-closed', () => {
     app.quit();
   }
 });
+
+// Add this near the top of the file, after the imports
+function logToRenderer(level, message) {
+    if (mainWindow) {
+        mainWindow.webContents.send('log-message', { level, message });
+    }
+}

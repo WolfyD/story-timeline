@@ -92,4 +92,87 @@
 .context-menu-item:focus {
     outline: 1px solid #0078d7;
     outline-offset: -1px;
+}
+
+/* Terminal Panel */
+.terminal-panel {
+    position: fixed;
+    top: -400px; /* Start hidden above the viewport */
+    left: 0;
+    width: 100%;
+    height: 350px;
+    background-color: #1e1e1e;
+    color: #00ff00;
+    font-family: 'Consolas', 'Monaco', monospace;
+    z-index: 1000;
+    transition: top 0.3s ease-in-out;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+    overflow-y: hidden;
+}
+
+.terminal-panel.visible {
+    top: 0;
+}
+
+.terminal-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background-color: #2d2d2d;
+    border-bottom: 1px solid #3d3d3d;
+}
+
+.terminal-header span {
+    color: #fff;
+    font-weight: bold;
+}
+
+.close-terminal {
+    background: none;
+    border: none;
+    color: #fff;
+    font-size: 20px;
+    cursor: pointer;
+    padding: 0 8px;
+}
+
+.close-terminal:hover {
+    color: #ff0000;
+}
+
+.terminal-content {
+    padding: 16px;
+    height: calc(100% - 70px);
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+
+}
+
+.terminal-content .log-entry {
+    margin: 4px 0;
+    padding: 4px 0;
+    border-bottom: 1px solid #3d3d3d;
+}
+
+.terminal-content .error {
+    color: #ff4444;
+}
+
+.terminal-content .warn {
+    color: #ffaa00;
+}
+
+.terminal-content .info {
+    color: #00ff00;
+}
+
+.terminal-content .debug {
+    color: #8888ff;
+}
+
+.terminal-content .timestamp {
+    color: #888;
+    margin-right: 8px;
 } 

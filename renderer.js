@@ -1232,3 +1232,81 @@ window.api.receive('data-ready', () => {
     isDataReady = true;
     checkAllLoaded();
 });
+
+// Terminal functionality
+const terminalPanel = document.getElementById('terminal-panel');
+const terminalContent = document.getElementById('terminal-content');
+const closeTerminal = document.getElementById('close-terminal');
+
+// Log levels
+const LOG_LEVELS = {
+    ERROR: 'error',
+    WARN: 'warn',
+    INFO: 'info',
+    DEBUG: 'debug'
+};
+
+// Terminal state
+let isTerminalVisible = false;
+
+// Toggle terminal visibility
+function toggleTerminal() {
+    isTerminalVisible = !isTerminalVisible;
+    terminalPanel.classList.toggle('visible', isTerminalVisible);
+}
+
+// Close terminal
+function closeTerminalPanel() {
+    isTerminalVisible = false;
+    terminalPanel.classList.remove('visible');
+}
+
+// Add log entry to terminal
+function addLogEntry(level, message) {
+    const timestamp = new Date().toLocaleTimeString();
+    const entry = document.createElement('div');
+    entry.className = `log-entry ${level}`;
+    entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+    terminalContent.appendChild(entry);
+    terminalContent.scrollTop = terminalContent.scrollHeight;
+}
+
+// Logger object
+const logger = {
+    error: (message) => {
+        console.error(message);
+        addLogEntry(LOG_LEVELS.ERROR, '<i class="ri-error-warning-fill padr-5"></i>' + message);
+    },
+    warn: (message) => {
+        console.warn(message);
+        addLogEntry(LOG_LEVELS.WARN, '<i class="ri-error-warning-line padr-5"></i>' + message);
+    },
+    info: (message) => {
+        console.info(message);
+        addLogEntry(LOG_LEVELS.INFO, '<i class="ri-information-2-line padr-5"></i>' + message);
+    },
+    debug: (message) => {
+        console.debug(message);
+        addLogEntry(LOG_LEVELS.DEBUG, '<i class="ri-message-2-line padr-5"></i>' + message);
+    }
+};
+
+// Event listeners
+document.addEventListener('keydown', (e) => {
+    // Toggle terminal with Ctrl + ` (backtick)
+    if (e.ctrlKey && e.key === '0') {
+        e.preventDefault();
+        toggleTerminal();
+    }
+});
+
+closeTerminal.addEventListener('click', closeTerminalPanel);
+
+// Expose logger to window
+window.logger = logger;
+
+// Example usage:
+// window.logger.error('This is an error message');
+// window.logger.warn('This is a warning message');
+// window.logger.info('This is an info message');
+// window.logger.debug('This is a debug message');
