@@ -17,6 +17,7 @@ build/
 
 # Test coverage
 coverage/
+test_data/*
 
 # Test documentation
 existing_tests.txt
