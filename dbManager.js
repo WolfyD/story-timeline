@@ -1,8 +1,16 @@
 const path = require('path');
-const { app } = require('electron');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const sharp = require('sharp');
+
+// Try to get Electron app, but don't fail if not in Electron environment
+let app;
+try {
+    app = require('electron').app;
+} catch (e) {
+    // Not in Electron environment
+    app = null;
+}
 
 class DatabaseManager {
     // Epic title generation
@@ -49,11 +57,20 @@ class DatabaseManager {
     }
 
     constructor() {
-        // Get the user data path from Electron
-        const userDataPath = app.getPath('userData');
+        // Get the user data path from Electron or use a local path
+        let userDataPath;
+        if (app) {
+            userDataPath = app.getPath('userData');
+        } else {
+            // Use a local directory for testing
+            userDataPath = path.join(__dirname, 'test_data');
+            if (!fs.existsSync(userDataPath)) {
+                fs.mkdirSync(userDataPath, { recursive: true });
+            }
+        }
+        
         const dbPath = path.join(userDataPath, 'timeline.db');
-
-        console.log(dbPath);
+        console.log('Database path:', dbPath);
         
         this.db = require('better-sqlite3')(dbPath);
         this.initializeTables();
@@ -834,9 +851,6 @@ class DatabaseManager {
 
     addItem(item) {
         try {
-            // Start a transaction
-            this.db.prepare('BEGIN').run();
-
             // Generate a new ID if one isn't provided
             const itemId = item.id || require('uuid').v4();
 
@@ -912,13 +926,8 @@ class DatabaseManager {
                 }
             }
 
-            // Commit the transaction
-            this.db.prepare('COMMIT').run();
-
             return { id: itemId };
         } catch (error) {
-            // Rollback on error
-            this.db.prepare('ROLLBACK').run();
             console.error('Error adding item:', error);
             throw error;
         }
@@ -1572,14 +1581,21 @@ class DatabaseManager {
     async saveImageFile(base64Data, itemId) {
         const fs = require('fs');
         const path = require('path');
-        const { app } = require('electron');
 
         // Get the timeline ID for this item
         const item = this.getItem(itemId);
         const timelineId = item.timeline_id;
 
+        // Get the base directory for media
+        let baseDir;
+        if (app) {
+            baseDir = path.join(app.getPath('userData'), 'media', 'pictures');
+        } else {
+            baseDir = path.join(__dirname, 'test_data', 'media', 'pictures');
+        }
+
         // Create media directory if it doesn't exist
-        const mediaDir = path.join(app.getPath('userData'), 'media', 'pictures', timelineId);
+        const mediaDir = path.join(baseDir, timelineId.toString());
         if (!fs.existsSync(mediaDir)) {
             fs.mkdirSync(mediaDir, { recursive: true });
         }
@@ -1731,7 +1747,6 @@ class DatabaseManager {
     }
 
     async saveNewImage(fileInfo) {
-        const { app } = require('electron');
         const path = require('path');
         const fs = require('fs');
 
@@ -1742,8 +1757,16 @@ class DatabaseManager {
                 throw new Error('No active timeline found or timeline ID is missing');
             }
 
+            // Get the base directory for media
+            let baseDir;
+            if (app) {
+                baseDir = path.join(app.getPath('userData'), 'media', 'pictures');
+            } else {
+                baseDir = path.join(__dirname, 'test_data', 'media', 'pictures');
+            }
+
             // Create media directory if it doesn't exist
-            const timelineMediaDir = path.join(app.getPath('userData'), 'media', 'pictures', timeline.id.toString());
+            const timelineMediaDir = path.join(baseDir, timeline.id.toString());
             if (!fs.existsSync(timelineMediaDir)) {
                 fs.mkdirSync(timelineMediaDir, { recursive: true });
             }
