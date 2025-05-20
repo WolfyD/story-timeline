@@ -77,6 +77,11 @@ class DatabaseManager {
         this.migrateDatabase();
         this.initializeDefaultData();
         this.createIndexes();
+
+        // Initialize currentTimelineId with the first timeline
+        const firstTimeline = this.db.prepare('SELECT id FROM timelines ORDER BY id ASC LIMIT 1').get();
+        this.currentTimelineId = firstTimeline ? firstTimeline.id : null;
+        console.log('[dbManager.js] Initialized current timeline ID to:', this.currentTimelineId);
     }
 
     initializeTables() {
@@ -628,11 +633,12 @@ class DatabaseManager {
 
     // Universe data operations
     getUniverseData() {
-        // Get the first timeline instead of universe_data
-        const stmt = this.db.prepare('SELECT * FROM timelines ORDER BY id DESC LIMIT 1');
-        const data = stmt.get();
+        // Get the current timeline by ID
+        const stmt = this.db.prepare('SELECT * FROM timelines WHERE id = ?');
+        const data = stmt.get(this.currentTimelineId);
         
         if (!data) {
+            console.error('[dbManager.js] No timeline found with ID:', this.currentTimelineId);
             return null;
         }
 
@@ -649,6 +655,12 @@ class DatabaseManager {
             granularity: data.granularity,
             settings: settings
         };
+    }
+
+    // Add a method to set the current timeline
+    setCurrentTimeline(timelineId) {
+        this.currentTimelineId = timelineId;
+        console.log('[dbManager.js] Set current timeline ID to:', timelineId);
     }
 
     updateUniverseData(data) {
@@ -694,11 +706,13 @@ class DatabaseManager {
 
     // Settings operations
     getSettings() {
+        
         // Get the first timeline's settings
         const timeline = this.getUniverseData();
+        let timeline_id = this.currentTimelineId;
         if (!timeline) return null;
-
-        const settings = this.getTimelineSettings(timeline.id);
+        
+        const settings = this.getTimelineSettings(timeline_id);
         if (!settings) return null;
 
         // Convert database snake_case to camelCase for frontend
@@ -735,8 +749,6 @@ class DatabaseManager {
             console.error('No timeline ID found in settings');
             return;
         }
-
-        console.log('Updating settings for timeline:', timelineId);
 
         // First check if settings exist for this timeline
         const checkStmt = this.db.prepare('SELECT id FROM settings WHERE timeline_id = ?');
@@ -861,7 +873,7 @@ class DatabaseManager {
 
             // Get the next index for this timeline
             const getMaxIndex = this.db.prepare('SELECT MAX(item_index) as max_index FROM items WHERE timeline_id = ?');
-            const maxIndexResult = getMaxIndex.get(this.getUniverseData().id);
+            const maxIndexResult = getMaxIndex.get(item.timeline_id);
             const nextIndex = (maxIndexResult.max_index || 0) + 1;
 
             // Insert the item
@@ -894,7 +906,7 @@ class DatabaseManager {
                 page: item.page || '',
                 type_id: typeId,
                 color: item.color || null,
-                timeline_id: this.getUniverseData().id,
+                timeline_id: item.timeline_id,
                 item_index: nextIndex
             });
 

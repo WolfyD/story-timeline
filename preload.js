@@ -99,5 +99,6 @@ contextBridge.exposeInMainWorld('api', {
         }
     },
     readFile: (filename) => ipcRenderer.invoke('read-file', filename),
-    getDevVersion: () => DEV_VERSION
+    getDevVersion: () => DEV_VERSION,
+    getCurrentTimelineId: () => ipcRenderer.invoke('get-current-timeline-id')
 });

@@ -32,6 +32,13 @@ const images = [];
 let storySuggestions = [];
 let tagSuggestions = []; // Add tag suggestions array
 let type; // Declare type in global scope
+let timeline_id; // Add timeline_id to global scope
+
+// Get the current timeline ID when window loads
+window.addEventListener('DOMContentLoaded', async function() {
+    timeline_id = await window.api.getCurrentTimelineId();
+    console.log('[addItem.js] Got timeline ID on load:', timeline_id);
+});
 
 // Get story suggestions from main window
 window.api.send('getStorySuggestions');
@@ -454,6 +461,9 @@ if (isEditMode && editItemId) {
     document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         e.preventDefault();
         
+        // Use the stored timeline ID
+        console.log('[addItem.js] Using stored timeline ID:', timeline_id);
+        
         // Get form data with null checks
         const formData = {
             id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
@@ -481,8 +491,11 @@ if (isEditMode && editItemId) {
             story: '',
             'story-id': '',
             type: (urlParams.get('type') || 'event').charAt(0).toUpperCase() + (urlParams.get('type') || 'event').slice(1),
-            color: document.getElementById('colorInput')?.value || null
+            color: document.getElementById('colorInput')?.value || null,
+            timeline_id: timeline_id
         };
+
+        console.log('[addItem.js] Form data being submitted:', formData);
 
         try {
             if (formData.story_refs.length > 0) {
@@ -597,12 +610,14 @@ function initializeForm() {
     const subtick = urlParams.get('subtick');
     const granularity = urlParams.get('granularity');
     type = urlParams.get('type'); // Get type from URL parameters
+    const timeline_id = urlParams.get('timeline_id');
 
     console.log('[addItem.js] Initializing form with URL parameters:', {
         year,
         subtick,
         granularity,
-        type
+        type,
+        timeline_id
     });
 
     // Validate type parameter

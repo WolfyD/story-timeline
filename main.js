@@ -210,6 +210,7 @@ function createWindow() {
 
     // Wait for the page to load
     mainWindow.webContents.on('did-finish-load', () => {
+        console.log('[main.js] Main window loaded with timeline_id:', data.timeline_id);
         // Load settings and data
         loadSettings();
         loadData().then(() => {
@@ -221,7 +222,7 @@ function createWindow() {
     // Listen for the renderer's confirmation that it's ready to display
     ipcMain.once('renderer-ready', () => {
         // Apply window position and size from settings
-        console.log('[main.js] settings:', settings);
+        console.log('[main.js] settings:', settings.id);
 
         if (settings) {
             // Set window size
@@ -252,8 +253,6 @@ function createWindow() {
         // Now we can safely show the window
         mainWindow.show();
 
-        console.log('[main.js] CUSTOM SCALE:', settings.useCustomScaling);
-        
         // Close the splash window if it exists
         if (splashWindow && CLOSE_SPLASH_WINDOW) {
             splashWindow.close();
@@ -319,12 +318,15 @@ function createAddItemWindow(year, subtick, granularity, type) {
     }
   });
 
+  console.log('[main.js] Creating add item window with timeline_id:', data.timeline_id);
+
   newItemWindow.loadFile('addItem.html', {
     query: {
       year: year,
       subtick: subtick,
       granularity: granularity,
-      type: type
+      type: type,
+      timeline_id: data.timeline_id
     }
   });
   
@@ -465,7 +467,8 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrD
       subtick: subtick,
       granularity: granularity,
       type: type,
-      color: color
+      color: color,
+      timeline_id: data.timeline_id
     }
   });
   
@@ -532,8 +535,6 @@ function loadSettings() {
       }
     };
 
-    console.log('[main.js] settings:XXXX', settings);
-
     // Load templates if CSS fields are empty
     if (!settings.customCSS || settings.customCSS === "") {
       settings.customCSS = fs.readFileSync(path.join(__dirname, 'customCSSTemplate.txt'), 'utf8');
@@ -570,8 +571,6 @@ function saveSettings(newSettings) {
     return false;
   }
 
-  console.log('[main.js] saving settings:', newSettings);
-
   // Save settings to database
   const dbSettings = {
     font: newSettings.font || 'Arial',
@@ -594,9 +593,7 @@ function saveSettings(newSettings) {
     timeline_id: data.timeline_id
   };
   
-  console.log("Saving settings to database:", dbSettings);
   const result = dbManager.updateSettings(dbSettings);
-  console.log("Settings save result:", result);
 
   // Apply window scaling if enabled
   if (newSettings.useCustomScaling) {
@@ -614,7 +611,6 @@ function saveSettings(newSettings) {
     granularity: parseInt(data.granularity || 4)
   };
   
-  console.log("Saving universe data:", universeData);
   const universeResult = dbManager.updateUniverseData(universeData);
   
   // Update our settings state
@@ -663,7 +659,14 @@ function loadData() {
                 items: dbManager.getAllItems() || []
             };
 
-            console.log("loadData", data);
+            console.log("[main.js] Timeline data loaded:", {
+                timeline_id: data.timeline_id,
+                title: data.title,
+                author: data.author,
+                description: data.description,
+                start: data.start,
+                granularity: data.granularity
+            });
             mainWindow.webContents.send('call-load-data', data);
         }
         resolve();
@@ -705,7 +708,6 @@ function saveData(newData) {
   // Send updated data to renderer
   mainWindow.webContents.send('call-load-data', newData);
   
-  console.log("Data saved:", dbData);
   return true;
 }
 
@@ -720,6 +722,11 @@ function saveData(newData) {
  * - IPC setup failure
  */
 function setupIpcHandlers() {
+  ipcMain.handle('get-current-timeline-id', () => {
+    console.log('[main.js] Getting current timeline ID:', data.timeline_id);
+    return data.timeline_id;
+  });
+
   ipcMain.on('save-settings', (event, newSettings, newData) => {
     // Merge new settings with current settings
     const updatedSettings = {
@@ -739,7 +746,6 @@ function setupIpcHandlers() {
     };
 
 
-    console.log('[main.js] updatedSettings:', updatedSettings);
 
     // Save settings to database
     const dbSettings = {
@@ -832,9 +838,12 @@ function setupIpcHandlers() {
   });
 
   ipcMain.on('addTimelineItem', (event, data) => {
-    console.log("Received timeline item:", data);
+    console.log("[main.js] Received timeline item:", data);
+    console.log("[main.js] Current timeline_id in data state:", data.timeline_id);
     const newItem = dbManager.addItem(data);
-    const items = dbManager.getAllItems();
+    // Get items only for the current timeline
+    const items = dbManager.getItemsByTimeline(data.timeline_id);
+    console.log("[main.js] Retrieved items for timeline:", items);
     mainWindow.webContents.send('items', items);
     // Send the created item's ID back to the sender window
     event.sender.send('item-created', { id: newItem.id });
@@ -1067,6 +1076,9 @@ function setupIpcHandlers() {
         event.reply('error', 'Timeline not found');
         return;
     }
+
+    // Set the current timeline in dbManager
+    dbManager.setCurrentTimeline(timelineId);
 
     // Update the data state with the timeline ID
     data = {

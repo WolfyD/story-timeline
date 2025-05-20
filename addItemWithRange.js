@@ -3,6 +3,13 @@ const images = [];
 let storySuggestions = [];
 let tagSuggestions = []; // Add tag suggestions array
 let type; // Declare type in global scope
+let timeline_id; // Add timeline_id to global scope
+
+// Get the current timeline ID when window loads
+window.addEventListener('DOMContentLoaded', async function() {
+    timeline_id = await window.api.getCurrentTimelineId();
+    console.log('[addItemWithRange.js] Got timeline ID on load:', timeline_id);
+});
 
 // Get story suggestions from main window
 window.api.send('getStorySuggestions');
@@ -482,6 +489,9 @@ function collectStoryRefs() {
 document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
+    // Use the stored timeline ID
+    console.log('[addItemWithRange.js] Using stored timeline ID:', timeline_id);
+    
     const formData = {
         id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
         title: document.getElementById('titleInput').value,
@@ -500,6 +510,7 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         story_refs: collectStoryRefs(),
         story: '',
         'story-id': '',
+        timeline_id: timeline_id,
         pictures: images.map((imageInfo, index) => ({
             id: imageInfo.id,
             file_path: imageInfo.file_path,
@@ -512,6 +523,8 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
             description: imageInfo.description || ''
         }))
     };
+
+    console.log('[addItemWithRange.js] Form data being submitted:', formData);
 
     try {
         if (formData.story_refs.length > 0) {
