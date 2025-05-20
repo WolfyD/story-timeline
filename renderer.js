@@ -1238,12 +1238,44 @@ const terminalPanel = document.getElementById('terminal-panel');
 const terminalContent = document.getElementById('terminal-content');
 const closeTerminal = document.getElementById('close-terminal');
 
+// Create terminal controls
+const terminalControls = document.createElement('div');
+terminalControls.className = 'terminal-controls';
+terminalControls.innerHTML = `
+    <button id="clear-terminal" class="terminal-button" title="Clear terminal">
+        <i class="ri-delete-bin-line"></i>
+    </button>
+    <button id="copy-terminal" class="terminal-button" title="Copy terminal contents">
+        <i class="ri-file-copy-line"></i>
+    </button>
+`;
+terminalPanel.insertBefore(terminalControls, terminalContent);
+
+// Add event listeners for terminal controls
+document.getElementById('clear-terminal').addEventListener('click', () => {
+    terminalContent.innerHTML = '';
+    console.log('Terminal cleared');
+});
+
+document.getElementById('copy-terminal').addEventListener('click', () => {
+    const text = Array.from(terminalContent.children)
+        .map(entry => entry.textContent)
+        .join('\n');
+    
+    navigator.clipboard.writeText(text).then(() => {
+        console.log('Terminal contents copied to clipboard');
+    }).catch(err => {
+        console.error('Failed to copy terminal contents:', err);
+    });
+});
+
 // Log levels
 const LOG_LEVELS = {
     ERROR: 'error',
     WARN: 'warn',
     INFO: 'info',
-    DEBUG: 'debug'
+    DEBUG: 'debug',
+    LOG: 'info'  // Regular console.log will be treated as info level
 };
 
 // Terminal state
@@ -1266,34 +1298,165 @@ function addLogEntry(level, message) {
     const timestamp = new Date().toLocaleTimeString();
     const entry = document.createElement('div');
     entry.className = `log-entry ${level}`;
-    entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+    
+    // Handle different types of messages
+    let formattedMessage = message;
+    if (typeof message === 'object' || Array.isArray(message)) {
+        try {
+            // If it's an array of objects, stringify each object
+            if (Array.isArray(message)) {
+                formattedMessage = message.map(item => {
+                    if (typeof item === 'object') {
+                        return JSON.stringify(item, null, 2);
+                    }
+                    return item;
+                }).join(', ');
+            } else {
+                // Single object
+                formattedMessage = JSON.stringify(message, null, 2);
+            }
+            
+            // Add syntax highlighting
+            formattedMessage = formattedMessage
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+                    let cls = 'number';
+                    if (/^"/.test(match)) {
+                        if (/:$/.test(match)) {
+                            cls = 'key';
+                        } else {
+                            cls = 'string';
+                        }
+                    } else if (/true|false/.test(match)) {
+                        cls = 'boolean';
+                    } else if (/null/.test(match)) {
+                        cls = 'null';
+                    }
+                    return '<span class="' + cls + '">' + match + '</span>';
+                });
+        } catch (e) {
+            formattedMessage = message.toString();
+        }
+    }
+    
+    // Add appropriate icon based on level
+    let icon = '';
+    switch(level) {
+        case 'error':
+            icon = '<i class="ri-error-warning-fill padr-5"></i>';
+            break;
+        case 'warn':
+            icon = '<i class="ri-error-warning-line padr-5"></i>';
+            break;
+        case 'info':
+            icon = '<i class="ri-information-2-line padr-5"></i>';
+            break;
+        case 'debug':
+            icon = '<i class="ri-message-2-line padr-5"></i>';
+            break;
+    }
+    
+    entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${icon}${formattedMessage}`;
     terminalContent.appendChild(entry);
     terminalContent.scrollTop = terminalContent.scrollHeight;
 }
 
+// Override console methods
+const originalConsole = {
+    log: console.log,
+    error: console.error,
+    warn: console.warn,
+    info: console.info,
+    debug: console.debug
+};
+
 // Logger object
 const logger = {
-    error: (message) => {
-        console.error(message);
-        addLogEntry(LOG_LEVELS.ERROR, '<i class="ri-error-warning-fill padr-5"></i>' + message);
+    error: (...args) => {
+        originalConsole.error.apply(console, args);
+        // Convert each argument to a string if it's an object
+        const formattedArgs = args.map(arg => {
+            if (typeof arg === 'object') {
+                try {
+                    return JSON.stringify(arg, null, 2);
+                } catch (e) {
+                    return arg.toString();
+                }
+            }
+            return arg;
+        });
+        addLogEntry(LOG_LEVELS.ERROR, formattedArgs.join(' '));
     },
-    warn: (message) => {
-        console.warn(message);
-        addLogEntry(LOG_LEVELS.WARN, '<i class="ri-error-warning-line padr-5"></i>' + message);
+    warn: (...args) => {
+        originalConsole.warn.apply(console, args);
+        const formattedArgs = args.map(arg => {
+            if (typeof arg === 'object') {
+                try {
+                    return JSON.stringify(arg, null, 2);
+                } catch (e) {
+                    return arg.toString();
+                }
+            }
+            return arg;
+        });
+        addLogEntry(LOG_LEVELS.WARN, formattedArgs.join(' '));
     },
-    info: (message) => {
-        console.info(message);
-        addLogEntry(LOG_LEVELS.INFO, '<i class="ri-information-2-line padr-5"></i>' + message);
+    info: (...args) => {
+        originalConsole.info.apply(console, args);
+        const formattedArgs = args.map(arg => {
+            if (typeof arg === 'object') {
+                try {
+                    return JSON.stringify(arg, null, 2);
+                } catch (e) {
+                    return arg.toString();
+                }
+            }
+            return arg;
+        });
+        addLogEntry(LOG_LEVELS.INFO, formattedArgs.join(' '));
     },
-    debug: (message) => {
-        console.debug(message);
-        addLogEntry(LOG_LEVELS.DEBUG, '<i class="ri-message-2-line padr-5"></i>' + message);
+    debug: (...args) => {
+        originalConsole.debug.apply(console, args);
+        const formattedArgs = args.map(arg => {
+            if (typeof arg === 'object') {
+                try {
+                    return JSON.stringify(arg, null, 2);
+                } catch (e) {
+                    return arg.toString();
+                }
+            }
+            return arg;
+        });
+        addLogEntry(LOG_LEVELS.DEBUG, formattedArgs.join(' '));
+    },
+    log: (...args) => {
+        originalConsole.log.apply(console, args);
+        const formattedArgs = args.map(arg => {
+            if (typeof arg === 'object') {
+                try {
+                    return JSON.stringify(arg, null, 2);
+                } catch (e) {
+                    return arg.toString();
+                }
+            }
+            return arg;
+        });
+        addLogEntry(LOG_LEVELS.LOG, formattedArgs.join(' '));
     }
 };
 
+// Override console methods
+console.log = logger.log;
+console.error = logger.error;
+console.warn = logger.warn;
+console.info = logger.info;
+console.debug = logger.debug;
+
 // Event listeners
 document.addEventListener('keydown', (e) => {
-    // Toggle terminal with Ctrl + ` (backtick)
+    // Toggle terminal with Ctrl + 0
     if (e.ctrlKey && e.key === '0') {
         e.preventDefault();
         toggleTerminal();
@@ -1305,8 +1468,5 @@ closeTerminal.addEventListener('click', closeTerminalPanel);
 // Expose logger to window
 window.logger = logger;
 
-// Example usage:
-// window.logger.error('This is an error message');
-// window.logger.warn('This is a warning message');
-// window.logger.info('This is an info message');
-// window.logger.debug('This is a debug message');
+// Add a welcome message
+console.log('Terminal initialized. Press Ctrl + ` to toggle visibility.');

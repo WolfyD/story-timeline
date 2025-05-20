@@ -154,6 +154,8 @@
     margin: 4px 0;
     padding: 4px 0;
     border-bottom: 1px solid #3d3d3d;
+    font-family: 'Consolas', 'Monaco', monospace;
+    white-space: pre;
 }
 
 .terminal-content .error {
@@ -175,4 +177,44 @@
 .terminal-content .timestamp {
     color: #888;
     margin-right: 8px;
+}
+
+/* JSON Syntax Highlighting */
+.terminal-content .string { color: #a8ff60; }
+.terminal-content .number { color: #ff9d00; }
+.terminal-content .boolean { color: #ff628c; }
+.terminal-content .null { color: #ff628c; }
+.terminal-content .key { color: #5ccfe6; }
+
+.terminal-controls {
+    display: flex;
+    gap: 8px;
+    padding: 8px;
+    border-bottom: 1px solid #3d3d3d;
+    background: #2d2d2d;
+}
+
+.terminal-button {
+    background: #3d3d3d;
+    border: none;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s;
+}
+
+.terminal-button:hover {
+    background: #4d4d4d;
+}
+
+.terminal-button i {
+    font-size: 16px;
+}
+
+.terminal-button:active {
+    background: #5d5d5d;
 } 
