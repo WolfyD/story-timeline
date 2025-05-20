@@ -330,20 +330,21 @@ function getHoverLabel(v, granularity) {
  */
 function updateMainContent(centerX, centerYear) {
     const mainContentRight = document.querySelector('.main-content-right');
-    if (!mainContentRight) return;
-
-    // Find items that overlap with the center position
-    const centerItems = timelineState.items.filter(item => {
-        if (!item) return false;
-        const itemYear = parseFloat(item.year || item.date || 0);
-        const itemEndYear = parseFloat(item.end_year || item.year || 0);
-        return centerYear >= itemYear && centerYear <= itemEndYear;
-    });
-
-    // Clear existing content
     mainContentRight.innerHTML = '';
 
-    // Check for a note within 10px of center
+    // Get items at center position
+    const centerItems = timelineState.items.filter(item => {
+        if (!item || !item.type) return false;
+        const itemYear = parseFloat(item.year || item.date || 0);
+        const itemSubtick = parseInt(item.subtick || 0);
+        const endYear = parseFloat(item.end_year || item.year || 0);
+        const endSubtick = parseInt(item.end_subtick || item.subtick || 0);
+        const itemPosition = itemYear + (itemSubtick / timelineState.granularity);
+        const itemEndPosition = endYear + (endSubtick / timelineState.granularity);
+        return centerYear >= itemPosition && centerYear <= itemEndPosition;
+    });
+
+    // Find the closest note to center
     const closestNote = findClosestNote(centerX);
     
     if (closestNote) {
@@ -368,6 +369,31 @@ function updateMainContent(centerX, centerYear) {
             }
 
             mainContentRight.appendChild(ageDiv);
+        }
+
+        // Add periods if they exist
+        if (periodItems.length > 0) {
+            const periodsDiv = document.createElement('div');
+            periodsDiv.className = 'center-periods';
+
+            periodItems.forEach((period, index) => {
+                const periodDiv = document.createElement('div');
+                periodDiv.className = 'center-period';
+
+                const title = document.createElement(`h${Math.min(index + 2, 6)}`);
+                title.textContent = period.title || '(No Title)';
+                periodDiv.appendChild(title);
+
+                if (period.description) {
+                    const description = document.createElement('p');
+                    description.textContent = period.description;
+                    periodDiv.appendChild(description);
+                }
+
+                periodsDiv.appendChild(periodDiv);
+            });
+
+            mainContentRight.appendChild(periodsDiv);
         }
 
         // Add the note content
@@ -397,36 +423,6 @@ function updateMainContent(centerX, centerYear) {
             noteDiv.appendChild(description);
         }
 
-        // Add content
-        if (closestNote.content) {
-            const content = document.createElement('p');
-            content.className = 'note-content';
-            content.textContent = closestNote.content;
-            noteDiv.appendChild(content);
-        }
-
-        // Add first image if exists
-        if (closestNote.pictures && closestNote.pictures.length > 0) {
-            const img = document.createElement('img');
-            img.className = 'note-image';
-            img.src = 'file://' + closestNote.pictures[0].file_path.replace(/\\/g, '/');
-            img.alt = closestNote.title || 'Note Image';
-            noteDiv.appendChild(img);
-        }
-
-        // Add tags if they exist
-        if (closestNote.tags && closestNote.tags.length > 0) {
-            const tagsDiv = document.createElement('div');
-            tagsDiv.className = 'note-tags';
-            closestNote.tags.forEach(tag => {
-                const tagSpan = document.createElement('span');
-                tagSpan.className = 'note-tag';
-                tagSpan.textContent = tag;
-                tagsDiv.appendChild(tagSpan);
-            });
-            noteDiv.appendChild(tagsDiv);
-        }
-
         mainContentRight.appendChild(noteDiv);
     } else {
         // Find age and period items
@@ -450,31 +446,31 @@ function updateMainContent(centerX, centerYear) {
             }
 
             mainContentRight.appendChild(ageDiv);
+        }
 
-            // Add periods if they exist
-            if (periodItems.length > 0) {
-                const periodsDiv = document.createElement('div');
-                periodsDiv.className = 'center-periods';
+        // Add periods if they exist
+        if (periodItems.length > 0) {
+            const periodsDiv = document.createElement('div');
+            periodsDiv.className = 'center-periods';
 
-                periodItems.forEach((period, index) => {
-                    const periodDiv = document.createElement('div');
-                    periodDiv.className = 'center-period';
+            periodItems.forEach((period, index) => {
+                const periodDiv = document.createElement('div');
+                periodDiv.className = 'center-period';
 
-                    const title = document.createElement(`h${Math.min(index + 2, 6)}`);
-                    title.textContent = period.title || '(No Title)';
-                    periodDiv.appendChild(title);
+                const title = document.createElement(`h${Math.min(index + 2, 6)}`);
+                title.textContent = period.title || '(No Title)';
+                periodDiv.appendChild(title);
 
-                    if (period.description) {
-                        const description = document.createElement('p');
-                        description.textContent = period.description;
-                        periodDiv.appendChild(description);
-                    }
+                if (period.description) {
+                    const description = document.createElement('p');
+                    description.textContent = period.description;
+                    periodDiv.appendChild(description);
+                }
 
-                    periodsDiv.appendChild(periodDiv);
-                });
+                periodsDiv.appendChild(periodDiv);
+            });
 
-                mainContentRight.appendChild(periodsDiv);
-            }
+            mainContentRight.appendChild(periodsDiv);
         }
     }
 }
