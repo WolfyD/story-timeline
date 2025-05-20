@@ -1389,6 +1389,12 @@ function setupIpcHandlers() {
         throw error;
     }
   });
+
+  ipcMain.on('recalculate-period-stacks', (event) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('recalculate-period-stacks');
+    }
+  });
 }
 
 // ===== Application Lifecycle =====

@@ -38,7 +38,8 @@ contextBridge.exposeInMainWorld('api', {
             'save-new-image',
             'get-item-data',
             'renderer-ready',
-            'generate-test-items'
+            'generate-test-items',
+            'recalculate-period-stacks'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -90,7 +91,8 @@ contextBridge.exposeInMainWorld('api', {
             'new-image-saved',
             'item-data',
             'data-ready',
-            'test-items-generated'
+            'test-items-generated',
+            'recalculate-period-stacks'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

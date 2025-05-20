@@ -2667,3 +2667,10 @@ document.addEventListener("DOMContentLoaded", () => {
 // Initial render
 renderTimeline();
 
+// Add handler for period stack recalculation
+window.api.receive('recalculate-period-stacks', () => {
+    console.log('Recalculating period stacks...');
+    computePeriodStackLevels();
+    renderTimeline();
+});
+

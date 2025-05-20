@@ -520,6 +520,12 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         }
         // Send data through IPC
         window.api.send('addTimelineItem', formData);
+        
+        // If this is a period, trigger stack recalculation
+        if (type.toLowerCase() === 'period') {
+            window.api.send('recalculate-period-stacks');
+        }
+        
         window.api.send('add-item-window-closing');
         window.close();
     } catch (error) {
