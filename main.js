@@ -199,9 +199,11 @@ function createWindow() {
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js')
+            preload: path.join(__dirname, 'preload.js'),
         },
-        show: false  // Keep window hidden initially
+        show: false,  // Keep window hidden initially
+        autoHideMenuBar: true,
+        menuBarVisible: false
     });
 
     mainWindow.loadFile('index.html');
@@ -417,8 +419,8 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrD
   });
 
   let newItemWindow = new BrowserWindow({
-    width: 500,
-    height: 400,
+    width: mainWindow.getSize()[0] * 0.8,
+    height: mainWindow.getSize()[1] * 0.8,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       parent: mainWindow,
@@ -432,7 +434,10 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrD
       fullscreenable: false,
       alwaysOnTop: true,
       title: "Add Item with Range"
-    }
+    },
+    alwaysOnTop: true,
+    autoHideMenuBar: true,
+    parent: mainWindow
   });
 
   newItemWindow.webContents.on("before-input-event", (event, input) => {
