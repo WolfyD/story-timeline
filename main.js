@@ -1377,12 +1377,13 @@ function setupIpcHandlers() {
   });
 
   // Handle new image uploads
-  ipcMain.on('save-new-image', async (event, fileInfo) => {
+  ipcMain.handle('save-new-image', async (event, fileInfo) => {
     try {
         const result = await dbManager.saveNewImage(fileInfo);
-        event.reply('new-image-saved', result);
+        return result;
     } catch (error) {
-        event.reply('new-image-saved', { error: error.message });
+        console.error('Error saving new image:', error);
+        throw error;
     }
   });
 

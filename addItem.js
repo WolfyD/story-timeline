@@ -462,7 +462,27 @@ if (isEditMode && editItemId) {
                     file_size: imageInfo.file_size,
                     file_type: imageInfo.file_type
                 });
-                processedImages.push(result);
+
+                // Check if result is valid
+                if (!result || typeof result !== 'object') {
+                    throw new Error('Invalid response from image processing');
+                }
+
+                // Ensure all required fields are present
+                const processedImage = {
+                    id: result.id || `IMG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    file_path: result.file_path || imageInfo.temp_path,
+                    file_name: result.file_name || imageInfo.file_name,
+                    file_size: result.file_size || imageInfo.file_size,
+                    file_type: result.file_type || imageInfo.file_type,
+                    width: result.width || 0,
+                    height: result.height || 0,
+                    title: result.title || imageInfo.file_name,
+                    description: result.description || '',
+                    created_at: result.created_at || new Date().toISOString()
+                };
+
+                processedImages.push(processedImage);
             } catch (error) {
                 console.error('Error processing image:', error);
                 alert('Error processing image: ' + error.message);
@@ -477,17 +497,7 @@ if (isEditMode && editItemId) {
             description: document.getElementById('description')?.value || '',
             content: document.getElementById('content')?.value || '',
             tags: Array.from(tags),
-            pictures: processedImages.map((imageInfo, index) => ({
-                id: imageInfo.id,
-                file_path: imageInfo.file_path,
-                file_name: imageInfo.file_name,
-                file_size: imageInfo.file_size,
-                file_type: imageInfo.file_type,
-                width: imageInfo.width,
-                height: imageInfo.height,
-                title: imageInfo.title || `Image ${index + 1}`,
-                description: imageInfo.description || ''
-            })),
+            pictures: processedImages,
             bookTitle: document.getElementById('bookTitle')?.value || '',
             chapter: document.getElementById('chapter')?.value || '',
             page: document.getElementById('page')?.value || '',

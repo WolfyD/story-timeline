@@ -50,7 +50,8 @@ contextBridge.exposeInMainWorld('api', {
         const validChannels = [
             'export-timeline-data',
             'import-timeline-data',
-            'save-temp-file'
+            'save-temp-file',
+            'save-new-image'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
