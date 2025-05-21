@@ -312,7 +312,7 @@ function handleImageUpload(event) {
     event.target.value = '';
 }
 
-// Add image button click handler
+// Handle image uploads
 document.getElementById('addImageBtn').addEventListener('click', function() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -328,17 +328,26 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
                     data: await file.arrayBuffer()
                 });
 
-                // Get the item ID from the form
-                const itemId = document.getElementById('addItemForm').dataset.itemId || null;
-
-                // Send file to main process to save it and get metadata
-                window.api.send('save-new-image', {
-                    file_path: tempPath,
+                // Store temporary file info
+                const tempImageInfo = {
+                    temp_path: tempPath,
                     file_name: file.name,
                     file_size: file.size,
-                    file_type: file.type,
-                    item_id: itemId
-                });
+                    file_type: file.type
+                };
+
+                // Add to images array
+                images.push(tempImageInfo);
+
+                // Create preview
+                const container = document.querySelector('.image-upload-container');
+                const preview = document.createElement('div');
+                preview.className = 'image-preview';
+                preview.innerHTML = `
+                    <img src="file://${tempPath}">
+                    <button class="remove-image" onclick="removeImage(this, '${tempPath}')">&times;</button>
+                `;
+                container.insertBefore(preview, document.getElementById('addImageBtn'));
             } catch (error) {
                 console.error('Error saving temporary file:', error);
                 alert('Error preparing image for upload. Please try again.');
@@ -348,41 +357,9 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
     input.click();
 });
 
-// Handle response from main process with saved image info
-window.api.receive('new-image-saved', (imageInfo) => {
-    if (imageInfo.error) {
-        alert('Error saving image: ' + imageInfo.error);
-        return;
-    }
-    // Store the complete image info including the ID
-    images.push({
-        id: imageInfo.id,
-        file_path: imageInfo.file_path,
-        file_name: imageInfo.file_name,
-        file_size: imageInfo.file_size,
-        file_type: imageInfo.file_type,
-        width: imageInfo.width,
-        height: imageInfo.height,
-        title: imageInfo.title || '',
-        description: imageInfo.description || ''
-    });
-    addImagePreview(imageInfo);
-});
-
-function addImagePreview(imageInfo) {
-    const container = document.querySelector('.image-upload-container');
-    const preview = document.createElement('div');
-    preview.className = 'image-preview';
-    preview.innerHTML = `
-        <img src="file://${imageInfo.file_path}">
-        <button class="remove-image" onclick="removeImage(this, '${imageInfo.file_path}')">&times;</button>
-    `;
-    container.insertBefore(preview, document.getElementById('addImageBtn'));
-}
-
 function removeImage(button, filePath) {
     button.parentElement.remove();
-    const index = images.findIndex(img => img.file_path === filePath);
+    const index = images.findIndex(img => img.temp_path === filePath);
     if (index > -1) {
         images.splice(index, 1);
     }
@@ -485,33 +462,39 @@ function collectStoryRefs() {
     return refs;
 }
 
-// Update the form submission to include images
+// Handle form submission for new items
 document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
     // Use the stored timeline ID
     console.log('[addItemWithRange.js] Using stored timeline ID:', timeline_id);
     
+    // Process all images before submitting
+    const processedImages = [];
+    for (const imageInfo of images) {
+        try {
+            const result = await window.api.invoke('save-new-image', {
+                file_path: imageInfo.temp_path,
+                file_name: imageInfo.file_name,
+                file_size: imageInfo.file_size,
+                file_type: imageInfo.file_type
+            });
+            processedImages.push(result);
+        } catch (error) {
+            console.error('Error processing image:', error);
+            alert('Error processing image: ' + error.message);
+            return; // Stop form submission if image processing fails
+        }
+    }
+    
+    // Get form data with null checks
     const formData = {
         id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
-        title: document.getElementById('titleInput').value,
-        description: document.getElementById('descriptionInput').value,
-        content: document.getElementById('contentInput').value,
-        year: parseInt(document.getElementById('yearInput').value),
-        subtick: parseInt(document.getElementById('subtickInput').value),
-        end_year: parseInt(document.getElementById('endYearInput').value),
-        end_subtick: parseInt(document.getElementById('endSubtickInput').value),
-        book_title: document.getElementById('bookTitleInput').value,
-        chapter: document.getElementById('chapterInput').value,
-        page: document.getElementById('pageInput').value,
-        color: document.getElementById('colorInput').value,
-        type: type.charAt(0).toUpperCase() + type.slice(1),
+        title: document.getElementById('title')?.value || '',
+        description: document.getElementById('description')?.value || '',
+        content: document.getElementById('content')?.value || '',
         tags: Array.from(tags),
-        story_refs: collectStoryRefs(),
-        story: '',
-        'story-id': '',
-        timeline_id: timeline_id,
-        pictures: images.map((imageInfo, index) => ({
+        pictures: processedImages.map((imageInfo, index) => ({
             id: imageInfo.id,
             file_path: imageInfo.file_path,
             file_name: imageInfo.file_name,
@@ -521,30 +504,23 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
             height: imageInfo.height,
             title: imageInfo.title || `Image ${index + 1}`,
             description: imageInfo.description || ''
-        }))
+        })),
+        bookTitle: document.getElementById('bookTitle')?.value || '',
+        chapter: document.getElementById('chapter')?.value || '',
+        page: document.getElementById('page')?.value || '',
+        year: parseInt(document.getElementById('yearInput')?.value || '0'),
+        subtick: parseInt(document.getElementById('subtickInput')?.value || '0'),
+        story_refs: collectStoryRefs(),
+        story: '',
+        'story-id': '',
+        type: (urlParams.get('type') || 'event').charAt(0).toUpperCase() + (urlParams.get('type') || 'event').slice(1),
+        color: document.getElementById('colorInput')?.value || null,
+        timeline_id: timeline_id
     };
 
-    console.log('[addItemWithRange.js] Form data being submitted:', formData);
-
-    try {
-        if (formData.story_refs.length > 0) {
-            formData.story = formData.story_refs[0].story_title;
-            formData['story-id'] = formData.story_refs[0].story_id;
-        }
-        // Send data through IPC
-        window.api.send('addTimelineItem', formData);
-        
-        // If this is a period, trigger stack recalculation
-        if (type.toLowerCase() === 'period') {
-            window.api.send('recalculate-period-stacks');
-        }
-        
-        window.api.send('add-item-window-closing');
-        window.close();
-    } catch (error) {
-        console.error('Error submitting form:', error);
-        alert('An error occurred. Please try again.');
-    }
+    // Send the form data
+    window.api.send('addTimelineItem', formData);
+    window.close();
 });
 
 // Test fill button

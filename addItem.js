@@ -195,17 +195,26 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
                     data: await file.arrayBuffer()
                 });
 
-                // Get the item ID from the form
-                const itemId = document.getElementById('addItemForm').dataset.itemId || null;
-
-                // Send file to main process to save it and get metadata
-                window.api.send('save-new-image', {
-                    file_path: tempPath,
+                // Store temporary file info
+                const tempImageInfo = {
+                    temp_path: tempPath,
                     file_name: file.name,
                     file_size: file.size,
-                    file_type: file.type,
-                    item_id: itemId
-                });
+                    file_type: file.type
+                };
+
+                // Add to images array
+                images.push(tempImageInfo);
+
+                // Create preview
+                const container = document.querySelector('.image-upload-container');
+                const preview = document.createElement('div');
+                preview.className = 'image-preview';
+                preview.innerHTML = `
+                    <img src="file://${tempPath}">
+                    <button class="remove-image" onclick="removeImage(this, '${tempPath}')">&times;</button>
+                `;
+                container.insertBefore(preview, document.getElementById('addImageBtn'));
             } catch (error) {
                 console.error('Error saving temporary file:', error);
                 alert('Error preparing image for upload. Please try again.');
@@ -215,30 +224,9 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
     input.click();
 });
 
-// Handle response from main process with saved image info
-window.api.receive('new-image-saved', (imageInfo) => {
-    if (imageInfo.error) {
-        alert('Error saving image: ' + imageInfo.error);
-        return;
-    }
-    addImagePreview(imageInfo);
-    images.push(imageInfo);
-});
-
-function addImagePreview(imageInfo) {
-    const container = document.querySelector('.image-upload-container');
-    const preview = document.createElement('div');
-    preview.className = 'image-preview';
-    preview.innerHTML = `
-        <img src="file://${imageInfo.file_path}">
-        <button class="remove-image" onclick="removeImage(this, '${imageInfo.file_path}')">&times;</button>
-    `;
-    container.insertBefore(preview, document.getElementById('addImageBtn'));
-}
-
 function removeImage(button, filePath) {
     button.parentElement.remove();
-    const index = images.findIndex(img => img.file_path === filePath);
+    const index = images.findIndex(img => img.temp_path === filePath);
     if (index > -1) {
         images.splice(index, 1);
     }
@@ -464,6 +452,24 @@ if (isEditMode && editItemId) {
         // Use the stored timeline ID
         console.log('[addItem.js] Using stored timeline ID:', timeline_id);
         
+        // Process all images before submitting
+        const processedImages = [];
+        for (const imageInfo of images) {
+            try {
+                const result = await window.api.invoke('save-new-image', {
+                    file_path: imageInfo.temp_path,
+                    file_name: imageInfo.file_name,
+                    file_size: imageInfo.file_size,
+                    file_type: imageInfo.file_type
+                });
+                processedImages.push(result);
+            } catch (error) {
+                console.error('Error processing image:', error);
+                alert('Error processing image: ' + error.message);
+                return; // Stop form submission if image processing fails
+            }
+        }
+        
         // Get form data with null checks
         const formData = {
             id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
@@ -471,7 +477,7 @@ if (isEditMode && editItemId) {
             description: document.getElementById('description')?.value || '',
             content: document.getElementById('content')?.value || '',
             tags: Array.from(tags),
-            pictures: images.map((imageInfo, index) => ({
+            pictures: processedImages.map((imageInfo, index) => ({
                 id: imageInfo.id,
                 file_path: imageInfo.file_path,
                 file_name: imageInfo.file_name,
