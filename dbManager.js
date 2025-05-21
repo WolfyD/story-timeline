@@ -1454,6 +1454,20 @@ class DatabaseManager {
             // Finally delete the timeline itself
             this.db.prepare('DELETE FROM timelines WHERE id = ?').run(timelineId);
 
+            // Delete the timeline's images folder
+            const fs = require('fs');
+            const path = require('path');
+            let baseDir;
+            if (app) {
+                baseDir = path.join(app.getPath('userData'), 'media', 'pictures');
+            } else {
+                baseDir = path.join(__dirname, 'test_data', 'media', 'pictures');
+            }
+            const timelineMediaDir = path.join(baseDir, timelineId.toString());
+            if (fs.existsSync(timelineMediaDir)) {
+                fs.rmSync(timelineMediaDir, { recursive: true, force: true });
+            }
+
             // Commit the transaction
             this.db.prepare('COMMIT').run();
             return true;
