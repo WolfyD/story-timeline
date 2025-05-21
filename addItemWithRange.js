@@ -35,6 +35,9 @@ function initializeForm() {
     const color = urlParams.get('color');
     type = urlParams.get('type'); // Assign to global type variable
 
+    // Store granularity globally
+    window.granularity = granularity;
+
     console.log('[addItemWithRange.js] Initializing form with URL parameters:', {
         year,
         subtick,
@@ -328,8 +331,12 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
                     data: await file.arrayBuffer()
                 });
 
+                // Generate a unique ID for this image
+                const imageId = crypto.randomUUID();
+
                 // Store temporary file info
                 const tempImageInfo = {
+                    id: imageId,
                     temp_path: tempPath,
                     file_name: file.name,
                     file_size: file.size,
@@ -345,7 +352,7 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
                 preview.className = 'image-preview';
                 preview.innerHTML = `
                     <img src="file://${tempPath}">
-                    <button class="remove-image" onclick="removeImage(this, '${tempPath}')">&times;</button>
+                    <button class="remove-image" onclick="removeImage(this, '${imageId}')">&times;</button>
                 `;
                 container.insertBefore(preview, document.getElementById('addImageBtn'));
             } catch (error) {
@@ -357,15 +364,21 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
     input.click();
 });
 
-function removeImage(button, filePath) {
-    console.log('[addItemWithRange.js] Removing image with path:', filePath);
+function removeImage(button, imageId) {
+    console.log('[addItemWithRange.js] Removing image with ID:', imageId);
     console.log('[addItemWithRange.js] Images before removal:', [...images]);
-    button.parentElement.remove();
-    const index = images.findIndex(img => img.temp_path === filePath);
+    
+    const index = images.findIndex(img => img.id === imageId);
+    console.log('[addItemWithRange.js] Found index to remove:', index);
+    
     if (index > -1) {
         images.splice(index, 1);
         console.log('[addItemWithRange.js] Images after removal:', [...images]);
+    } else {
+        console.log('[addItemWithRange.js] No matching image found to remove');
     }
+    
+    button.parentElement.remove();
 }
 
 // Story References Logic
@@ -469,8 +482,12 @@ function collectStoryRefs() {
 document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    // Use the stored timeline ID
-    console.log('[addItemWithRange.js] Using stored timeline ID:', timeline_id);
+    // Ensure we have a valid timeline ID
+    if (!timeline_id) {
+        console.error('[addItemWithRange.js] No timeline ID available');
+        alert('Error: No active timeline found. Please try again.');
+        return;
+    }
     
     // Process all images before submitting
     const processedImages = [];
@@ -508,33 +525,58 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
             }
         } catch (error) {
             console.error('Error processing image:', error);
-            throw new Error('Failed to process image: ' + error.message);
+            alert('Error processing image: ' + error.message);
+            return;
         }
     }
     
     // Get form data with null checks
     const formData = {
         id: 'ITEM-' + Date.now() + '-' + Math.floor(Math.random() * 10000),
-        title: document.getElementById('title')?.value || '',
-        description: document.getElementById('description')?.value || '',
-        content: document.getElementById('content')?.value || '',
+        title: document.getElementById('titleInput')?.value || '',
+        description: document.getElementById('descriptionInput')?.value || '',
+        content: document.getElementById('contentInput')?.value || '',
         tags: Array.from(tags),
         pictures: processedImages,
-        bookTitle: document.getElementById('bookTitle')?.value || '',
-        chapter: document.getElementById('chapter')?.value || '',
-        page: document.getElementById('page')?.value || '',
+        bookTitle: document.getElementById('bookTitleInput')?.value || '',
+        chapter: document.getElementById('chapterInput')?.value || '',
+        page: document.getElementById('pageInput')?.value || '',
         year: parseInt(document.getElementById('yearInput')?.value || '0'),
         subtick: parseInt(document.getElementById('subtickInput')?.value || '0'),
+        original_subtick: parseInt(document.getElementById('subtickInput')?.value || '0'),
+        end_year: parseInt(document.getElementById('endYearInput')?.value || '0'),
+        end_subtick: parseInt(document.getElementById('endSubtickInput')?.value || '0'),
+        original_end_subtick: parseInt(document.getElementById('endSubtickInput')?.value || '0'),
         story_refs: collectStoryRefs(),
         story: '',
         'story-id': '',
-        type: (urlParams.get('type') || 'event').charAt(0).toUpperCase() + (urlParams.get('type') || 'event').slice(1),
+        type: type.charAt(0).toUpperCase() + type.slice(1),
         color: document.getElementById('colorInput')?.value || null,
-        timeline_id: timeline_id
+        timeline_id: timeline_id,
+        creation_granularity: parseInt(window.granularity || '4'),
+        item_index: 0 // This will be set by the database manager
     };
+
+    // If this is a period, ensure end year/subtick are set
+    if (type.toLowerCase() === 'period') {
+        if (!formData.end_year) {
+            formData.end_year = formData.year;
+        }
+        if (!formData.end_subtick) {
+            formData.end_subtick = formData.subtick;
+        }
+    }
+
+    console.log('[addItemWithRange.js] Submitting form data:', formData);
 
     // Send the form data
     window.api.send('addTimelineItem', formData);
+    
+    // If this is a period, trigger stack recalculation
+    if (type.toLowerCase() === 'period') {
+        window.api.send('recalculate-period-stacks');
+    }
+    
     window.close();
 });
 
