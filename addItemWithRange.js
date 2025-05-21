@@ -358,10 +358,13 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
 });
 
 function removeImage(button, filePath) {
+    console.log('[addItemWithRange.js] Removing image with path:', filePath);
+    console.log('[addItemWithRange.js] Images before removal:', [...images]);
     button.parentElement.remove();
     const index = images.findIndex(img => img.temp_path === filePath);
     if (index > -1) {
         images.splice(index, 1);
+        console.log('[addItemWithRange.js] Images after removal:', [...images]);
     }
 }
 
@@ -473,30 +476,36 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     const processedImages = [];
     for (const image of images) {
         try {
-            const result = await window.api.invoke('save-new-image', {
-                file_path: image.temp_path,
-                file_name: image.file_name,
-                file_size: image.file_size,
-                file_type: image.file_type
-            });
+            // Only process images that have a temp_path (newly added images)
+            if (image.temp_path) {
+                const result = await window.api.invoke('save-new-image', {
+                    file_path: image.temp_path,
+                    file_name: image.file_name,
+                    file_size: image.file_size,
+                    file_type: image.file_type
+                });
 
-            if (!result || typeof result !== 'object') {
-                throw new Error('Invalid response from image processing');
+                if (!result || typeof result !== 'object') {
+                    throw new Error('Invalid response from image processing');
+                }
+
+                // Create processed image object with all required fields
+                const processedImage = {
+                    id: result.id || null,
+                    file_path: result.file_path || '',
+                    file_name: result.file_name || image.file_name,
+                    file_size: result.file_size || image.file_size,
+                    file_type: result.file_type || image.file_type,
+                    width: result.width || 0,
+                    height: result.height || 0,
+                    created_at: result.created_at || new Date().toISOString()
+                };
+
+                processedImages.push(processedImage);
+            } else {
+                // For existing images, just add them to processedImages
+                processedImages.push(image);
             }
-
-            // Create processed image object with all required fields
-            const processedImage = {
-                id: result.id || null,
-                file_path: result.file_path || '',
-                file_name: result.file_name || image.file_name,
-                file_size: result.file_size || image.file_size,
-                file_type: result.file_type || image.file_type,
-                width: result.width || 0,
-                height: result.height || 0,
-                created_at: result.created_at || new Date().toISOString()
-            };
-
-            processedImages.push(processedImage);
         } catch (error) {
             console.error('Error processing image:', error);
             throw new Error('Failed to process image: ' + error.message);
