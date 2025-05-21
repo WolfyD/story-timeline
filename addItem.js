@@ -384,7 +384,7 @@ if (isEditMode && editItemId) {
             document.getElementById('description').value = item.description || '';
             document.getElementById('content').value = item.content || '';
             document.getElementById('yearInput').value = item.year || '';
-            document.getElementById('subtickInput').value = item.subtick || '';
+            document.getElementById('subtickInput').value = item.subtick !== undefined ? item.subtick : '';
             document.getElementById('bookTitle').value = item.book_title || '';
             document.getElementById('chapter').value = item.chapter || '';
             document.getElementById('page').value = item.page || '';
