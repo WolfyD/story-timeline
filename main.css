@@ -99,7 +99,7 @@ body {
     width: 100vw;
     display: grid;
     grid-template-rows: 80px 1fr 400px 100px; /* Header, main content, timeline, jump-to-date */
-    grid-template-columns: 1fr 1fr 1fr; /* Three columns for main content */
+    grid-template-columns: 2fr 1fr 2fr; /* Three columns for main content */
     grid-template-areas: 
         "header header header"
         "left middle right"

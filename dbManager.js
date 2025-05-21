@@ -1789,25 +1789,55 @@ class DatabaseManager {
             const fileName = `img_${timestamp}_${randomStr}${path.extname(fileInfo.file_name)}`;
             const filePath = path.join(timelineMediaDir, fileName);
 
-            // If we have a full file path, copy the file
+            // Define maximum dimensions
+            const MAX_WIDTH = 1920;
+            const MAX_HEIGHT = 1080;
+            const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+            let imageBuffer;
             if (fileInfo.file_path && fileInfo.file_path !== fileInfo.file_name) {
-                await fs.promises.copyFile(fileInfo.file_path, filePath);
+                // Read the source file
+                imageBuffer = await fs.promises.readFile(fileInfo.file_path);
             } else {
                 // If we only have a filename, create an empty file
                 await fs.promises.writeFile(filePath, '');
+                return null;
             }
 
-            // Get image dimensions using sharp
-            const metadata = await sharp(filePath).metadata();
+            // Process the image with sharp
+            let sharpImage = sharp(imageBuffer);
+            const metadata = await sharpImage.metadata();
+
+            // Check if image needs resizing
+            if (metadata.width > MAX_WIDTH || metadata.height > MAX_HEIGHT) {
+                sharpImage = sharpImage.resize({
+                    width: Math.min(metadata.width, MAX_WIDTH),
+                    height: Math.min(metadata.height, MAX_HEIGHT),
+                    fit: 'inside',
+                    withoutEnlargement: true
+                });
+            }
+
+            // Check if file size needs compression
+            const fileSize = imageBuffer.length;
+            if (fileSize > MAX_FILE_SIZE) {
+                sharpImage = sharpImage.jpeg({ quality: 80 }); // Convert to JPEG with 80% quality
+            }
+
+            // Save the processed image
+            await sharpImage.toFile(filePath);
+
+            // Get final metadata after processing
+            const finalMetadata = await sharp(filePath).metadata();
 
             // Create the file info object
             const fileInfoObj = {
                 file_path: filePath,
                 file_name: fileName,
-                file_size: fileInfo.file_size,
-                file_type: fileInfo.file_type,
-                width: metadata.width,
-                height: metadata.height,
+                file_size: finalMetadata.size || fileSize,
+                file_type: 'image/jpeg', // Always JPEG after processing
+                width: finalMetadata.width,
+                height: finalMetadata.height,
                 title: path.parse(fileInfo.file_name).name,
                 description: ''
             };
