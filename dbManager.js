@@ -906,7 +906,7 @@ class DatabaseManager {
                 page: item.page || '',
                 type_id: typeId,
                 color: item.color || null,
-                timeline_id: item.timeline_id,
+                timeline_id: item.timeline_id || this.currentTimelineId,
                 item_index: nextIndex
             });
 
