@@ -567,6 +567,26 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         }
     }
 
+    // Check if end date is before start date and swap if needed
+    const startValue = formData.year + (formData.subtick / formData.creation_granularity);
+    const endValue = formData.end_year + (formData.end_subtick / formData.creation_granularity);
+    
+    if (endValue < startValue) {
+        console.log('[addItemWithRange.js] End date is before start date, swapping values');
+        // Swap years and subticks
+        [formData.year, formData.end_year] = [formData.end_year, formData.year];
+        [formData.subtick, formData.end_subtick] = [formData.end_subtick, formData.subtick];
+        [formData.original_subtick, formData.original_end_subtick] = [formData.original_end_subtick, formData.original_subtick];
+    }
+
+    // Check if start and end dates are the same, convert to Event if they are
+    if ((type.toLowerCase() === 'age' || type.toLowerCase() === 'period') && 
+        formData.year === formData.end_year && 
+        formData.subtick === formData.end_subtick) {
+        formData.type = 'Event';
+        console.log('[addItemWithRange.js] Converting to Event due to same start/end dates');
+    }
+
     console.log('[addItemWithRange.js] Submitting form data:', formData);
 
     // Send the form data
