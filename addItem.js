@@ -517,7 +517,7 @@ if (isEditMode && editItemId) {
             content: document.getElementById('content')?.value || '',
             tags: Array.from(tags),
             pictures: processedImages,
-            bookTitle: document.getElementById('bookTitle')?.value || '',
+            book_title: document.getElementById('bookTitle')?.value || '',
             chapter: document.getElementById('chapter')?.value || '',
             page: document.getElementById('page')?.value || '',
             year: parseInt(document.getElementById('yearInput')?.value || '0'),

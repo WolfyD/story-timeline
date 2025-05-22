@@ -538,7 +538,7 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         content: document.getElementById('contentInput')?.value || '',
         tags: Array.from(tags),
         pictures: processedImages,
-        bookTitle: document.getElementById('bookTitleInput')?.value || '',
+        book_title: document.getElementById('bookTitleInput')?.value || '',
         chapter: document.getElementById('chapterInput')?.value || '',
         page: document.getElementById('pageInput')?.value || '',
         year: parseInt(document.getElementById('yearInput')?.value || '0'),
