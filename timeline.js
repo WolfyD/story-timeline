@@ -9,8 +9,6 @@ let debugLog = (...args) => {
         const { ipcRenderer } = window.require ? window.require('electron') : {};
         if (ipcRenderer && ipcRenderer.send) {
             ipcRenderer.send('log', args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' '));
-        } else {
-            console.log(...args);
         }
     } catch (e) {
         console.log(...args);
@@ -520,6 +518,16 @@ function getVisibleItems(centerX, centerYear) {
     });
 }
 
+// Add this function near the top of the file
+function sendTimelineUpdate() {
+    window.api.send('timeline-updated', {
+        focusYear: timelineState.focusYear,
+        granularity: timelineState.granularity,
+        offsetPx: timelineState.offsetPx,
+        pixelsPerSubtick: timelineState.pixelsPerSubtick
+    });
+}
+
 /**
  * Renders the timeline
  * 
@@ -557,6 +565,9 @@ function renderTimeline() {
     } else {
         console.warn('[Debug] Could not find center position display element');
     }
+
+    // Send timeline update
+    sendTimelineUpdate();
 
     // Find visible ages and periods
     const { ages, periods } = findVisibleAgesAndPeriods(centerX, centerYear);
@@ -1069,7 +1080,6 @@ function renderTimeline() {
                 
                 
                 if (item.type.toLowerCase() === 'picture' || (item.pictures && item.pictures.length > 0 && item.type.toLowerCase() !== 'note' && item.type.toLowerCase() !== 'event')) {
-                    console.log(item.type, item)
                     box.className = 'timeline-picture-box' + (isAbove ? ' above' : ' below');
                     const img = document.createElement('img');
                     img.src = 'file://' + item.pictures[0].file_path.replace(/\\/g, '/');
@@ -1197,7 +1207,6 @@ function renderTimeline() {
                 end_year: item.end_year
             };
         });
-        debugLog('[visiblePeriods]', visiblePeriods);
     } catch (e) {
         console.error('Error in visiblePeriods logging:', e);
     }
@@ -2669,7 +2678,6 @@ renderTimeline();
 
 // Add handler for period stack recalculation
 window.api.receive('recalculate-period-stacks', () => {
-    console.log('Recalculating period stacks...');
     computePeriodStackLevels();
     renderTimeline();
 });

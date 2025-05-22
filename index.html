@@ -355,7 +355,7 @@
 
     <div id="display-container">
       <div id="display-content">
-        Hello
+        <canvas id="display-canvas"></canvas>
       </div>
     </div>
 
@@ -386,6 +386,15 @@
 
     <script src="timeline.js"></script>
     <script src="renderer.js"></script>
+    <script src="displayRenderer.js"></script>
+    <script>
+      // Initialize the display renderer
+      document.addEventListener('DOMContentLoaded', () => {
+        if (window.displayRenderer) {
+          window.displayRenderer.start();
+        }
+      });
+    </script>
     <script type="module">
       import menubar from './menubar.js';
 

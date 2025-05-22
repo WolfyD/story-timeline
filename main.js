@@ -212,7 +212,6 @@ function createWindow() {
 
     // Wait for the page to load
     mainWindow.webContents.on('did-finish-load', () => {
-        console.log('[main.js] Main window loaded with timeline_id:', data.timeline_id);
         // Load settings and data
         loadSettings();
         loadData().then(() => {
@@ -224,7 +223,6 @@ function createWindow() {
     // Listen for the renderer's confirmation that it's ready to display
     ipcMain.once('renderer-ready', () => {
         // Apply window position and size from settings
-        console.log('[main.js] settings:', settings.id);
 
         if (settings) {
             // Set window size
@@ -319,8 +317,6 @@ function createAddItemWindow(year, subtick, granularity, type) {
       newItemWindow.webContents.openDevTools();
     }
   });
-
-  console.log('[main.js] Creating add item window with timeline_id:', data.timeline_id);
 
   newItemWindow.loadFile('addItem.html', {
     query: {
@@ -503,7 +499,6 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrD
   // If we have itemData, send it to the window after it's loaded
   if (isItemData) {
     newItemWindow.webContents.on('did-finish-load', () => {
-      console.log('[main.js] Sending itemData to window:', colorOrData);
       newItemWindow.webContents.send('item-data', colorOrData);
     });
   }
@@ -805,7 +800,6 @@ function saveData(newData) {
  */
 function setupIpcHandlers() {
   ipcMain.handle('get-current-timeline-id', () => {
-    console.log('[main.js] Getting current timeline ID:', data.timeline_id);
     return data.timeline_id;
   });
 
@@ -898,12 +892,10 @@ function setupIpcHandlers() {
   });
 
   ipcMain.on('open-add-item-window', (event, year, subtick, granularity, type) => {
-    console.log('[main.js:509] opening add item window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity, 'and type:', type);
     createAddItemWindow(year, subtick, granularity, type);
   });
 
   ipcMain.on('open-add-item-with-range-window', (event, year, subtick, granularity, type, colorOrData) => {
-    console.log('[main.js] opening add item with range window at year:', year, 'and subtick:', subtick, 'with granularity:', granularity, 'and type:', type);
     createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrData);
   });
 
@@ -919,11 +911,8 @@ function setupIpcHandlers() {
 
   ipcMain.on('addTimelineItem', (event, data) => {
     try {
-      console.log("[main.js] Received timeline item:", data);
-      console.log("[main.js] Current timeline_id in data state:", data.timeline_id);
       const newItem = dbManager.addItem(data);
       const items = dbManager.getItemsByTimeline(data.timeline_id);
-      console.log("[main.js] Retrieved items for timeline:", items);
       mainWindow.webContents.send('items', items);
       event.sender.send('item-created', { id: newItem.id });
     } catch (error) {
@@ -933,7 +922,6 @@ function setupIpcHandlers() {
   });
 
   ipcMain.on('add-item-window-closing', (event) => {
-    console.log("Add item window closing, refreshing items...");
     const items = dbManager.getAllItems();
     mainWindow.webContents.send('items', items);
   });
@@ -978,7 +966,6 @@ function setupIpcHandlers() {
   });
 
   ipcMain.on('open-edit-item-window', (event, item) => {
-    console.log('[main.js] open-edit-item-window called with item:', item);
     createEditItemWindow(item);
   });
 
@@ -1021,7 +1008,6 @@ function setupIpcHandlers() {
 
   // ===== Export/Import Handlers =====
   ipcMain.handle('export-timeline-data', async (event, loaded_data) => {
-    console.log("Exporting timeline data...", loaded_data);
     try {
         // Get the directory where the executable is located
         const exportDir = path.join(process.resourcesPath, 'export');
@@ -1061,7 +1047,6 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('import-timeline-data', async (event) => {
-    console.log("Importing timeline data...");
     try {
         const { filePaths } = await dialog.showOpenDialog(mainWindow, {
             title: 'Import Timeline Data',
@@ -1098,7 +1083,6 @@ function setupIpcHandlers() {
 
   // Add new handler for confirmed imports
   ipcMain.on('confirm-import-timeline-data', async (event, { filePath, data }) => {
-    console.log("NOW Importing timeline data...", data, filePath);
     try {
         // Get current universe data for granularity
         const universeData = dbManager.getUniverseData();
@@ -1290,7 +1274,6 @@ function setupIpcHandlers() {
   // Handle getting timeline info before deletion
   ipcMain.on('get-timeline-info', (event, timelineId) => {
     try {
-      console.log('Getting timeline info for ID:', timelineId);
       const timeline = dbManager.getTimelineWithSettings(timelineId);
       if (!timeline) {
         console.error('Timeline not found:', timelineId);
@@ -1299,7 +1282,6 @@ function setupIpcHandlers() {
       }
 
       const items = dbManager.getItemsByTimeline(timelineId);
-      console.log('Found timeline:', timeline.title, 'with', items.length, 'items');
       
       event.reply('timeline-info', {
         title: timeline.title,
@@ -1523,6 +1505,13 @@ function setupIpcHandlers() {
     } catch (error) {
       console.error('Error updating timeline item:', error);
       event.sender.send('itemUpdated', { success: false, error: error.message });
+    }
+  });
+
+  // Handle timeline updates
+  ipcMain.on('timeline-updated', (event, state) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('timeline-updated', state);
     }
   });
 }

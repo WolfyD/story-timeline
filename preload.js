@@ -8,7 +8,7 @@ ipcRenderer.on('set-dev-version', (event, value) => {
 
 contextBridge.exposeInMainWorld('api', {
     send: (channel, ...args) => {
-        console.log("preload.js: send called with channel:", channel, "and args:", args);  
+        // console.log("preload.js: send called with channel:", channel, "and args:", args);  
         const validChannels = [
             'save-settings', 
             'load-settings', 
@@ -43,14 +43,15 @@ contextBridge.exposeInMainWorld('api', {
             'recalculate-period-stacks',
             'edit-item-window-closing',
             'edit-item-with-range-window-closing',
-            'update-timeline-item-with-range'
+            'update-timeline-item-with-range',
+            'timeline-updated'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
         }
     },
     invoke: async (channel, ...args) => {
-        console.log("preload.js: invoke called with channel:", channel, "and args:", args);
+        // console.log("preload.js: invoke called with channel:", channel, "and args:", args);
         const validChannels = [
             'export-timeline-data',
             'import-timeline-data',
@@ -62,7 +63,7 @@ contextBridge.exposeInMainWorld('api', {
         }
     },
     receive: (channel, func) => {
-        console.log("preload.js: receive called with channel:", channel);
+        // console.log("preload.js: receive called with channel:", channel);
         const validChannels = [
             'settings-saved', 
             'window-resized', 
@@ -99,7 +100,8 @@ contextBridge.exposeInMainWorld('api', {
             'data-ready',
             'test-items-generated',
             'recalculate-period-stacks',
-            'log-message'
+            'log-message',
+            'timeline-updated'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
