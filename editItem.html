@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Edit Item</title>
+    <link rel="stylesheet" href="editItem.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css">
+    <style>
+        .form-line {
+            display: flex;
+            align-items: center;
+            margin-bottom: 10px;
+            gap: 10px;
+        }
+        .form-line label {
+            min-width: 100px;
+        }
+        .form-line input, .form-line select {
+            flex: 1;
+        }
+        .range-inputs {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .range-inputs input {
+            width: 100px;
+        }
+        .range-inputs label {
+            min-width: auto;
+        }
+        .color-preview {
+            width: 30px;
+            height: 30px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-left: 10px;
+        }
+        .modified {
+            color: #4CAF50;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        .error {
+            color: #f44336;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .button-group button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .button-group button[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .button-group button[type="button"] {
+            background-color: #f44336;
+            color: white;
+        }
+        .shortcut-hint {
+            font-size: 0.8em;
+            color: #666;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Edit Item <span id="modifiedIndicator" class="modified" style="display: none;">(Modified)</span></h2>
+        <form id="editItemForm" data-testid="edit-form">
+            <div class="form-line">
+                <label for="itemType">Type:</label>
+                <select id="itemType" required data-testid="item-type">
+                    <option value="Age">Age</option>
+                    <option value="Period">Period</option>
+                    <option value="Event">Event</option>
+                    <option value="Story">Story</option>
+                </select>
+            </div>
+
+            <div class="form-line">
+                <label for="title">Title:</label>
+                <input type="text" id="title" required data-testid="item-title">
+            </div>
+
+            <div class="form-line">
+                <label for="description">Description:</label>
+                <input type="text" id="description" data-testid="item-description">
+            </div>
+
+            <div class="form-line">
+                <label for="content">Content:</label>
+                <textarea id="content" rows="4" data-testid="item-content"></textarea>
+            </div>
+
+            <div class="form-line">
+                <label for="color">Color:</label>
+                <input type="color" id="color" data-testid="item-color">
+                <div id="colorPreview" class="color-preview" data-testid="color-preview"></div>
+            </div>
+
+            <div class="form-line">
+                <label>Date Range:</label>
+                <div class="range-inputs">
+                    <label for="startYear">Start Year:</label>
+                    <input type="number" id="startYear" step="any" required data-testid="start-year">
+                    <label for="startSubtick">Subtick:</label>
+                    <input type="number" id="startSubtick" min="0" max="3" required data-testid="start-subtick">
+                    <label for="endYear">End Year:</label>
+                    <input type="number" id="endYear" step="any" required data-testid="end-year">
+                    <label for="endSubtick">Subtick:</label>
+                    <input type="number" id="endSubtick" min="0" max="3" required data-testid="end-subtick">
+                </div>
+            </div>
+            <div id="rangeError" class="error" style="display: none;" data-testid="range-error"></div>
+
+            <div class="form-line">
+                <label for="tags">Tags:</label>
+                <input type="text" id="tags" placeholder="Comma-separated tags" data-testid="item-tags">
+            </div>
+
+            <div class="form-line">
+                <label for="bookTitle">Book Title:</label>
+                <input type="text" id="bookTitle" data-testid="book-title">
+            </div>
+
+            <div class="form-line">
+                <label for="chapter">Chapter:</label>
+                <input type="text" id="chapter" data-testid="chapter">
+            </div>
+
+            <div class="form-line">
+                <label for="page">Page:</label>
+                <input type="text" id="page" data-testid="page">
+            </div>
+
+            <div class="form-line">
+                <label for="storyRefs">Story References:</label>
+                <input type="text" id="storyRefs" placeholder="Comma-separated story IDs" data-testid="story-refs">
+            </div>
+
+            <div class="button-group">
+                <button type="submit" data-testid="save-button">Save Changes <span class="shortcut-hint">(Ctrl+S)</span></button>
+                <button type="button" id="cancelButton" data-testid="cancel-button">Cancel <span class="shortcut-hint">(Esc)</span></button>
+            </div>
+        </form>
+    </div>
+
+    <script>
+        // Expose functions for testing
+        window.editItemModule = {
+            validateRange,
+            checkModified,
+            getFormData,
+            formatFormData,
+            updateColorPreview,
+            handleFormSubmit,
+            handleCancel,
+            handleKeyDown,
+            handleBeforeUnload
+        };
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const itemId = urlParams.get('itemId');
+        const year = parseFloat(urlParams.get('year'));
+        const subtick = parseInt(urlParams.get('subtick'));
+        const granularity = parseInt(urlParams.get('granularity'));
+        const type = urlParams.get('type');
+        const color = urlParams.get('color');
+        let originalData = null;
+        let isModified = false;
+
+        // Get the item data
+        window.api.send('getItem', itemId);
+
+        // Handle the item data response
+        window.api.receive('itemData', (item) => {
+            if (item) {
+                originalData = { ...item };
+                populateFormFields(item);
+            }
+        });
+
+        function populateFormFields(item) {
+            document.getElementById('itemType').value = item.type || type;
+            document.getElementById('title').value = item.title || '';
+            document.getElementById('description').value = item.description || '';
+            document.getElementById('content').value = item.content || '';
+            document.getElementById('color').value = item.color || color || '#000000';
+            updateColorPreview(item.color || color || '#000000');
+            document.getElementById('startYear').value = item.year || year;
+            document.getElementById('startSubtick').value = item.subtick || subtick;
+            document.getElementById('endYear').value = item.end_year || item.year || year;
+            document.getElementById('endSubtick').value = item.end_subtick || item.subtick || subtick;
+            document.getElementById('tags').value = (item.tags || []).join(', ');
+            document.getElementById('bookTitle').value = item.book_title || '';
+            document.getElementById('chapter').value = item.chapter || '';
+            document.getElementById('page').value = item.page || '';
+            document.getElementById('storyRefs').value = (item.story_refs || []).map(ref => ref.id).join(', ');
+        }
+
+        // Update color preview
+        function updateColorPreview(color) {
+            document.getElementById('colorPreview').style.backgroundColor = color;
+        }
+
+        document.getElementById('color').addEventListener('input', (e) => {
+            updateColorPreview(e.target.value);
+            checkModified();
+        });
+
+        // Validate range inputs
+        function validateRange() {
+            const startYear = parseFloat(document.getElementById('startYear').value);
+            const startSubtick = parseInt(document.getElementById('startSubtick').value);
+            const endYear = parseFloat(document.getElementById('endYear').value);
+            const endSubtick = parseInt(document.getElementById('endSubtick').value);
+            const errorElement = document.getElementById('rangeError');
+
+            if (endYear < startYear || (endYear === startYear && endSubtick < startSubtick)) {
+                errorElement.textContent = 'End date must be after start date';
+                errorElement.style.display = 'block';
+                return false;
+            }
+
+            errorElement.style.display = 'none';
+            return true;
+        }
+
+        // Get current form data
+        function getFormData() {
+            return {
+                type: document.getElementById('itemType').value,
+                title: document.getElementById('title').value,
+                description: document.getElementById('description').value,
+                content: document.getElementById('content').value,
+                color: document.getElementById('color').value,
+                year: parseFloat(document.getElementById('startYear').value),
+                subtick: parseInt(document.getElementById('startSubtick').value),
+                end_year: parseFloat(document.getElementById('endYear').value),
+                end_subtick: parseInt(document.getElementById('endSubtick').value),
+                tags: document.getElementById('tags').value.split(',').map(tag => tag.trim()).filter(tag => tag),
+                book_title: document.getElementById('bookTitle').value,
+                chapter: document.getElementById('chapter').value,
+                page: document.getElementById('page').value,
+                story_refs: document.getElementById('storyRefs').value.split(',').map(id => id.trim()).filter(id => id).map(id => ({ id }))
+            };
+        }
+
+        // Format form data for submission
+        function formatFormData(formData) {
+            return {
+                ...formData,
+                id: itemId,
+                modified: new Date().toISOString()
+            };
+        }
+
+        // Check if form is modified
+        function checkModified() {
+            const currentData = getFormData();
+            isModified = JSON.stringify(currentData) !== JSON.stringify(originalData);
+            document.getElementById('modifiedIndicator').style.display = isModified ? 'inline' : 'none';
+            return isModified;
+        }
+
+        // Add input event listeners for modification tracking
+        const inputs = document.querySelectorAll('input, select, textarea');
+        inputs.forEach(input => {
+            input.addEventListener('input', checkModified);
+        });
+
+        // Handle form submission
+        function handleFormSubmit(e) {
+            e.preventDefault();
+
+            if (!validateRange()) {
+                return;
+            }
+
+            const formData = formatFormData(getFormData());
+            window.api.send('update-timeline-item-with-range', formData);
+            
+            // Listen for the update confirmation
+            window.api.receive('itemUpdated', (response) => {
+                if (response.success) {
+                    isModified = false;
+                    // Force close the window
+                    window.api.send('edit-item-with-range-window-closing');
+                    // Also try direct window close
+                    window.close();
+                } else {
+                    alert('Error updating item: ' + (response.error || 'Unknown error'));
+                }
+            });
+        }
+
+        document.getElementById('editItemForm').addEventListener('submit', handleFormSubmit);
+
+        // Handle cancel button
+        function handleCancel() {
+            if (isModified) {
+                if (!confirm('You have unsaved changes. Are you sure you want to cancel?')) {
+                    return;
+                }
+            }
+            isModified = false;
+            window.api.send('edit-item-with-range-window-closing');
+            // Also try direct window close
+            window.close();
+        }
+
+        document.getElementById('cancelButton').addEventListener('click', handleCancel);
+
+        // Handle keyboard shortcuts
+        function handleKeyDown(e) {
+            if (e.ctrlKey && e.key === 's') {
+                e.preventDefault();
+                document.getElementById('editItemForm').dispatchEvent(new Event('submit'));
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                handleCancel();
+            }
+        }
+
+        document.addEventListener('keydown', handleKeyDown);
+
+        // Handle window close
+        function handleBeforeUnload(e) {
+            if (isModified) {
+                e.preventDefault();
+                e.returnValue = '';
+                return;
+            }
+            window.api.send('edit-item-with-range-window-closing');
+            // Also try direct window close
+            window.close();
+        }
+
+        window.addEventListener('beforeunload', handleBeforeUnload);
+    </script>
+</body>
+</html> 

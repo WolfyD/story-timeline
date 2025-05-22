@@ -120,12 +120,14 @@ function generateEpicTitle() {
  * @type {BrowserWindow} mainWindow - Main application window
  * @type {BrowserWindow} addItemWindow - Add item window
  * @type {BrowserWindow} editItemWindow - Edit item window
+ * @type {BrowserWindow} editItemWithRangeWindow - Edit item with range window
  * @type {Object} settings - Current application settings
  * @type {Object} data - Current timeline data
  */
 let mainWindow = null;
 let addItemWindow;
 let editItemWindow;
+let editItemWithRangeWindow;
 let settings = DEFAULT_SETTINGS;
 let data = {
     title: '',
@@ -343,7 +345,7 @@ function createAddItemWindow(year, subtick, granularity, type) {
  * 
  * How it works:
  * 1. Creates BrowserWindow instance
- * 2. Loads add-item.html
+ * 2. Loads editItem.html
  * 3. Sets item via IPC
  * 
  * Possible errors:
@@ -368,7 +370,8 @@ function createEditItemWindow(item) {
     },
     alwaysOnTop: true,
     autoHideMenuBar: true,
-    parent: mainWindow
+    parent: mainWindow,
+    modal: true
   });
 
   editItemWindow.webContents.on("before-input-event", (event, input) => {
@@ -377,22 +380,23 @@ function createEditItemWindow(item) {
     }
   });
 
-  let query =  {
+  console.log('[main.js] editItemWindow query:', {
+    itemId: item.id,
     year: item.year,
     subtick: item.subtick,
-    edit: true,
-    itemId: item.id
-  };
-
-  console.log('[main.js] editItemWindow query:', query);
+    granularity: data.granularity,
+    type: item.type,
+    color: item.color
+  });
   
-  editItemWindow.loadFile('addItem.html', {
+  editItemWindow.loadFile('editItem.html', {
     query: {
+      itemId: item.id,
       year: item.year,
       subtick: item.subtick,
-      edit: true,
-      itemId: item.id,
-      type: item.type
+      granularity: data.granularity,
+      type: item.type,
+      color: item.color
     }
   });
   
@@ -400,7 +404,20 @@ function createEditItemWindow(item) {
     mainWindow.getPosition()[0] + 100, 
     mainWindow.getPosition()[1] + 100
   );
-  editItemWindow.show();
+
+  editItemWindow.once('ready-to-show', () => {
+    editItemWindow.show();
+  });
+
+  editItemWindow.on('closed', () => {
+    editItemWindow = null;
+  });
+
+  // Handle window close
+  editItemWindow.on('close', () => {
+    // Notify main window that edit window is closing
+    mainWindow.webContents.send('edit-item-window-closing');
+  });
 }
 
 /**
@@ -486,6 +503,59 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrD
   }
 
   newItemWindow.show();
+}
+
+function createEditItemWithRangeWindow(item) {
+    if (editItemWithRangeWindow) {
+        editItemWithRangeWindow.focus();
+        return;
+    }
+
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const windowWidth = 800;
+    const windowHeight = 900;
+
+    editItemWithRangeWindow = new BrowserWindow({
+        width: windowWidth,
+        height: windowHeight,
+        x: Math.floor((width - windowWidth) / 2),
+        y: Math.floor((height - windowHeight) / 2),
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js'),
+        },
+        show: false,
+        autoHideMenuBar: true,
+        parent: mainWindow,
+        modal: true
+    });
+
+    // Load the edit item window HTML file
+    editItemWithRangeWindow.loadFile('editItem.html', {
+        query: {
+            itemId: item.id,
+            year: item.year,
+            subtick: item.subtick,
+            granularity: data.granularity,
+            type: item.type,
+            color: item.color
+        }
+    });
+
+    editItemWithRangeWindow.once('ready-to-show', () => {
+        editItemWithRangeWindow.show();
+    });
+
+    editItemWithRangeWindow.on('closed', () => {
+        editItemWithRangeWindow = null;
+    });
+
+    // Handle window close
+    editItemWithRangeWindow.on('close', () => {
+        // Notify main window that edit window is closing
+        mainWindow.webContents.send('edit-item-window-closing');
+    });
 }
 
 // ===== File Management =====
@@ -1413,6 +1483,35 @@ function setupIpcHandlers() {
   // Add error logging handler
   ipcMain.on('log-message', (event, { level, message }) => {
     logToRenderer(level, message);
+  });
+
+  ipcMain.on('open-edit-item-with-range-window', (event, item) => {
+    createEditItemWithRangeWindow(item);
+  });
+
+  ipcMain.on('edit-item-with-range-window-closing', (event) => {
+    if (editItemWithRangeWindow) {
+      editItemWithRangeWindow.destroy();
+      editItemWithRangeWindow = null;
+    }
+  });
+
+  ipcMain.on('update-timeline-item-with-range', (event, item) => {
+    try {
+      // Use dbManager to update the item
+      const updatedItem = dbManager.updateItem(item.id, item);
+      // Get all updated items
+      const allItems = dbManager.getAllItems();
+      // Send updated items to the main window
+      if (mainWindow) {
+        mainWindow.webContents.send('items', allItems);
+      }
+      // Send success response back to the edit window
+      event.sender.send('itemUpdated', { success: true });
+    } catch (error) {
+      console.error('Error updating timeline item:', error);
+      event.sender.send('itemUpdated', { success: false, error: error.message });
+    }
   });
 }
 

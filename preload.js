@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('api', {
             'updateTimelineItem',
             'getItem',
             'open-edit-item-window',
+            'open-edit-item-with-range-window',
             'confirm-import-timeline-data',
             'new-timeline',
             'quit-app',
@@ -39,7 +40,10 @@ contextBridge.exposeInMainWorld('api', {
             'get-item-data',
             'renderer-ready',
             'generate-test-items',
-            'recalculate-period-stacks'
+            'recalculate-period-stacks',
+            'edit-item-window-closing',
+            'edit-item-with-range-window-closing',
+            'update-timeline-item-with-range'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -70,6 +74,7 @@ contextBridge.exposeInMainWorld('api', {
             'open-add-item-window', 
             'add-timeline-item',
             'item-created',
+            'itemUpdated',
             'storySuggestions',
             'tagSuggestions',
             'searchResults',

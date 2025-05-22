@@ -231,37 +231,9 @@ window.openItemViewer = function(itemId) {
         editButton.onclick = () => {
             modal.classList.remove('active');
             if (item.type === 'Age' || item.type === 'Period') {
-                const year = parseFloat(item.year || item.date || 0);
-                const subtick = parseInt(item.subtick || 0);
-                const endYear = parseFloat(item.end_year || item.year || 0);
-                const endSubtick = parseInt(item.end_subtick || item.subtick || 0);
-                
-                // Create a complete itemData object with all fields
-                const itemData = {
-                    id: item.id,
-                    type: item.type,
-                    year: year,
-                    subtick: subtick,
-                    end_year: endYear,
-                    end_subtick: endSubtick,
-                    title: item.title || '',
-                    description: item.description || '',
-                    content: item.content || '',
-                    pictures: item.pictures || [],
-                    tags: item.tags || [],
-                    book_title: item.book_title || '',
-                    chapter: item.chapter || '',
-                    page: item.page || '',
-                    color: item.color || '',
-                    story_references: item.story_references || [],
-                    story_refs: item.story_refs || [], // Include story_refs as well
-                    item_index: item.item_index || 0 // Include item_index for periods
-                };
-                
-                // Send to the range window with all data
-                window.api.send('open-add-item-with-range-window', year, subtick, timelineState.granularity, item.type, itemData);
+                openEditItemWithRangeWindow(item);
             } else {
-                window.api.send('open-edit-item-window', item);
+                openEditItemWindow(item);
             }
         };
     }
@@ -1470,3 +1442,11 @@ window.logger = logger;
 
 // Add a welcome message
 console.log('Terminal initialized. Press Ctrl + ` to toggle visibility.');
+
+function openEditItemWithRangeWindow(item) {
+    window.api.send('open-edit-item-with-range-window', item);
+}
+
+function openEditItemWindow(item) {
+    window.api.send('open-edit-item-window', item);
+}
