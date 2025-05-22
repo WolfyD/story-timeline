@@ -399,6 +399,12 @@ function createEditItemWindow(item) {
       color: item.color
     }
   });
+
+  editItemWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.key === "F12") {
+      editItemWindow.webContents.openDevTools();
+    }
+  });
   
   editItemWindow.setPosition(
     mainWindow.getPosition()[0] + 100, 
@@ -529,6 +535,12 @@ function createEditItemWithRangeWindow(item) {
         autoHideMenuBar: true,
         parent: mainWindow,
         modal: true
+    });
+
+    editItemWithRangeWindow.webContents.on("before-input-event", (event, input) => {
+      if (input.key === "F12") {
+        editItemWithRangeWindow.webContents.openDevTools();
+      }
     });
 
     // Load the edit item window HTML file

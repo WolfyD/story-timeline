@@ -1,204 +1,18 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <meta charset="UTF-8">
     <title>Edit Item</title>
     <link rel="stylesheet" href="editItem.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css">
-    <style>
-        body {
-            background-color: #f5e6d4;
-            color: #4b2e2e;
-            font-family: var(--default-font), "Times New Roman", serif;
-            padding: 20px;
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .form-group {
-            margin-bottom: 20px;
-            background: rgba(255,255,255,0.1);
-            padding: 15px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-        }
-        .form-line {
-            display: flex;
-            align-items: center;
-            margin-bottom: 10px;
-            gap: 10px;
-            width: 100%;
-            position: relative;
-        }
-        .form-line label {
-            min-width: 100px;
-            flex-shrink: 0;
-        }
-        .form-line input, .form-line select {
-            flex: 1;
-            min-width: 0;
-            width: 100%;
-        }
-        .range-inputs {
-            display: flex;
-            gap: 10px;
-            align-items: center;
-            flex: 1;
-        }
-        .range-inputs input {
-            width: 100px;
-        }
-        .range-inputs label {
-            min-width: auto;
-            flex-shrink: 0;
-        }
-        .color-preview {
-            width: 30px;
-            height: 30px;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            margin-left: 10px;
-            flex-shrink: 0;
-        }
-        .modified {
-            color: #4CAF50;
-            font-size: 0.8em;
-            margin-left: 10px;
-        }
-        .error {
-            color: #f44336;
-            font-size: 0.8em;
-            margin-top: 5px;
-        }
-        .button-group {
-            display: flex;
-            gap: 10px;
-            margin-top: 20px;
-        }
-        .button-group button {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-        .button-group button[type="submit"] {
-            background-color: #4CAF50;
-            color: white;
-        }
-        .button-group button[type="button"] {
-            background-color: #f44336;
-            color: white;
-        }
-        .shortcut-hint {
-            font-size: 0.8em;
-            color: #666;
-            margin-left: 10px;
-        }
-        /* Tag editor styles */
-        .tag-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 5px;
-            margin-top: 5px;
-            width: 100%;
-        }
-        .tag {
-            background: #4b2e2e;
-            color: #f5e6d4;
-            padding: 4px 8px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        .tag .remove-tag {
-            cursor: pointer;
-            font-size: 14px;
-        }
-        .suggestions-container {
-            position: absolute;
-            width: 100%;
-            left: 0;
-            top: 100%;
-            z-index: 1000;
-        }
-        .suggestions-dropdown {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: white;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            max-height: 200px;
-            overflow-y: auto;
-            display: none;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            width: 80%;
-            left: 16.5%;
-        }
-        .suggestion-item {
-            padding: 8px 12px;
-            cursor: pointer;
-        }
-        .suggestion-item:hover {
-            background-color: #f0f0f0;
-        }
-        .image-upload-container {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            margin-top: 10px;
-            width: 100%;
-        }
-        .image-preview {
-            position: relative;
-            width: 100%;
-            height: auto;
-            border: 2px solid #4b2e2e;
-            border-radius: 4px;
-            overflow: hidden;
-        }
-        .image-preview img {
-            width: 100%;
-            height: auto;
-            display: block;
-            object-fit: contain;
-        }
-        .image-preview .remove-image {
-            position: absolute;
-            top: 5px;
-            right: 5px;
-            background: rgba(75, 46, 46, 0.8);
-            color: #f5e6d4;
-            border: none;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-        .add-image-btn {
-            width: 100%;
-            height: 50px;
-            border: 2px dashed #4b2e2e;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            background: rgba(255,255,255,0.1);
-            color: #4b2e2e;
-        }
-        .add-image-btn:hover {
-            background: rgba(75, 46, 46, 0.1);
-        }
-    </style>
 </head>
 <body>
     <div class="container">
-        <h2>Edit Item <span id="modifiedIndicator" class="modified" style="display: none;">(Modified)</span></h2>
+        <!-- Header -->
+        <h1>Edit Item <span id="modifiedIndicator" class="modified" style="display: none;">(Modified)</span></h1>
+
         <form id="editItemForm" data-testid="edit-form">
+            <!-- Type -->
             <div class="form-line">
                 <label for="itemType">Type:</label>
                 <select id="itemType" required data-testid="item-type">
@@ -211,42 +25,53 @@
                 </select>
             </div>
 
+            <!-- Date Range -->
+            <div class="form-line">
+                <label>Date Range:</label>
+                <div class="range-inputs">
+                    <div class="range-input-container">
+                        <label class="date_range_label" for="startYear">Start Year:</label> <input type="number" id="startYear" step="any" required data-testid="start-year">
+                        <label class="date_range_label" for="startSubtick">Subtick:</label> <input type="number" id="startSubtick" min="0" max="3" required data-testid="start-subtick">
+                    </div>
+                    <div class="range-input-container">
+                        <label class="date_range_label" for="endYear">End Year:</label> <input type="number" id="endYear" step="any" required data-testid="end-year">
+                        <label class="date_range_label" for="endSubtick">Subtick:</label> <input type="number" id="endSubtick" min="0" max="3" required data-testid="end-subtick">
+                    </div>
+                </div>
+            </div>
+            <div id="rangeError" class="error" style="display: none;" data-testid="range-error"></div>
+
+
+            <div class="line"></div>
+
+            <!-- Title -->
             <div class="form-line">
                 <label for="title">Title:</label>
                 <input type="text" id="title" required data-testid="item-title">
             </div>
 
+            <!-- Description -->
             <div class="form-line">
                 <label for="description">Description:</label>
                 <input type="text" id="description" data-testid="item-description">
             </div>
 
+            <!-- Content -->
             <div class="form-line">
                 <label for="content">Content:</label>
                 <textarea id="content" rows="4" data-testid="item-content"></textarea>
             </div>
 
+            <div class="line"></div>
+
+            <!-- Color -->
             <div class="form-line">
                 <label for="color">Color:</label>
                 <input type="color" id="color" data-testid="item-color">
                 <div id="colorPreview" class="color-preview" data-testid="color-preview"></div>
             </div>
 
-            <div class="form-line">
-                <label>Date Range:</label>
-                <div class="range-inputs">
-                    <label for="startYear">Start Year:</label>
-                    <input type="number" id="startYear" step="any" required data-testid="start-year">
-                    <label for="startSubtick">Subtick:</label>
-                    <input type="number" id="startSubtick" min="0" max="3" required data-testid="start-subtick">
-                    <label for="endYear">End Year:</label>
-                    <input type="number" id="endYear" step="any" required data-testid="end-year">
-                    <label for="endSubtick">Subtick:</label>
-                    <input type="number" id="endSubtick" min="0" max="3" required data-testid="end-subtick">
-                </div>
-            </div>
-            <div id="rangeError" class="error" style="display: none;" data-testid="range-error"></div>
-
+            <!-- Tags -->
             <div class="form-group">
                 <div class="form-line">
                     <label for="tagInput">Tags:</label>
@@ -255,7 +80,8 @@
                 <div id="tagContainer" class="tag-container"></div>
             </div>
 
-            <div class="form-group">
+            <!-- Images -->
+            <div class="form-group image_form_group">
                 <div class="form-line">
                     <label>Images:</label>
                     <div class="image-upload-container">
@@ -266,26 +92,33 @@
                 </div>
             </div>
 
+            <div class="line"></div>
+
+            <!-- Book Title -->
             <div class="form-line">
                 <label for="bookTitle">Book Title:</label>
                 <input type="text" id="bookTitle" data-testid="book-title">
             </div>
 
+            <!-- Chapter -->
             <div class="form-line">
                 <label for="chapter">Chapter:</label>
                 <input type="text" id="chapter" data-testid="chapter">
             </div>
 
+            <!-- Page -->
             <div class="form-line">
                 <label for="page">Page:</label>
                 <input type="text" id="page" data-testid="page">
             </div>
 
+            <!-- Story References -->
             <div class="form-line">
                 <label for="storyRefs">Story References:</label>
                 <input type="text" id="storyRefs" placeholder="Comma-separated story IDs" data-testid="story-refs">
             </div>
 
+            <!-- Button Group -->
             <div class="button-group">
                 <button type="submit" data-testid="save-button">Save Changes <span class="shortcut-hint">(Ctrl+S)</span></button>
                 <button type="button" id="cancelButton" data-testid="cancel-button">Cancel <span class="shortcut-hint">(Esc)</span></button>
