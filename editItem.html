@@ -142,6 +142,57 @@
         .suggestion-item:hover {
             background-color: #f0f0f0;
         }
+        .image-upload-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin-top: 10px;
+            width: 100%;
+        }
+        .image-preview {
+            position: relative;
+            width: 100%;
+            height: auto;
+            border: 2px solid #4b2e2e;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+        .image-preview img {
+            width: 100%;
+            height: auto;
+            display: block;
+            object-fit: contain;
+        }
+        .image-preview .remove-image {
+            position: absolute;
+            top: 5px;
+            right: 5px;
+            background: rgba(75, 46, 46, 0.8);
+            color: #f5e6d4;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .add-image-btn {
+            width: 100%;
+            height: 50px;
+            border: 2px dashed #4b2e2e;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            background: rgba(255,255,255,0.1);
+            color: #4b2e2e;
+        }
+        .add-image-btn:hover {
+            background: rgba(75, 46, 46, 0.1);
+        }
     </style>
 </head>
 <body>
@@ -204,6 +255,17 @@
                 <div id="tagContainer" class="tag-container"></div>
             </div>
 
+            <div class="form-group">
+                <div class="form-line">
+                    <label>Images:</label>
+                    <div class="image-upload-container">
+                        <button type="button" id="addImageBtn" class="add-image-btn">
+                            <i class="ri-add-line"></i> Add Image
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div class="form-line">
                 <label for="bookTitle">Book Title:</label>
                 <input type="text" id="bookTitle" data-testid="book-title">
@@ -256,6 +318,7 @@
         let isModified = false;
         const tags = new Set();
         let tagSuggestions = [];
+        const images = [];
 
         // Get tag suggestions from main window
         window.api.send('getTagSuggestions');
@@ -363,6 +426,112 @@
             checkModified();
         }
 
+        // Get current form data
+        function getFormData() {
+            return {
+                type: document.getElementById('itemType').value,
+                title: document.getElementById('title').value,
+                description: document.getElementById('description').value,
+                content: document.getElementById('content').value,
+                color: document.getElementById('color').value,
+                year: parseFloat(document.getElementById('startYear').value),
+                subtick: parseInt(document.getElementById('startSubtick').value),
+                end_year: parseFloat(document.getElementById('endYear').value),
+                end_subtick: parseInt(document.getElementById('endSubtick').value),
+                tags: Array.from(tags),
+                pictures: images,
+                book_title: document.getElementById('bookTitle').value,
+                chapter: document.getElementById('chapter').value,
+                page: document.getElementById('page').value,
+                story_refs: document.getElementById('storyRefs').value.split(',').map(id => id.trim()).filter(id => id).map(id => ({ id }))
+            };
+        }
+
+        // Format form data for submission
+        function formatFormData(formData) {
+            return {
+                ...formData,
+                id: itemId,
+                modified: new Date().toISOString()
+            };
+        }
+
+        // Check if form is modified
+        function checkModified() {
+            const currentData = getFormData();
+            isModified = JSON.stringify(currentData) !== JSON.stringify(originalData);
+            document.getElementById('modifiedIndicator').style.display = isModified ? 'inline' : 'none';
+            return isModified;
+        }
+
+        // Handle image uploads
+        document.getElementById('addImageBtn').addEventListener('click', function() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async function(e) {
+                const file = e.target.files[0];
+                if (file) {
+                    try {
+                        // Create a temporary file path
+                        const tempPath = await window.api.invoke('save-temp-file', {
+                            name: file.name,
+                            type: file.type,
+                            data: await file.arrayBuffer()
+                        });
+
+                        // Generate a unique ID for this image
+                        const imageId = crypto.randomUUID();
+
+                        // Store temporary file info
+                        const tempImageInfo = {
+                            id: imageId,
+                            temp_path: tempPath,
+                            file_name: file.name,
+                            file_size: file.size,
+                            file_type: file.type
+                        };
+
+                        // Add to images array
+                        images.push(tempImageInfo);
+
+                        // Create preview
+                        const container = document.querySelector('.image-upload-container');
+                        const preview = document.createElement('div');
+                        preview.className = 'image-preview';
+                        preview.innerHTML = `
+                            <img src="file://${tempPath}">
+                            <button class="remove-image" onclick="removeImage(this, '${imageId}')">&times;</button>
+                        `;
+                        container.insertBefore(preview, document.getElementById('addImageBtn'));
+                        checkModified();
+                    } catch (error) {
+                        console.error('Error saving temporary file:', error);
+                        alert('Error preparing image for upload. Please try again.');
+                    }
+                }
+            };
+            input.click();
+        });
+
+        function removeImage(button, imageId) {
+            console.log('[editItem.js] Removing image with ID:', imageId);
+            console.log('[editItem.js] Images before removal:', [...images]);
+            
+            const index = images.findIndex(img => img.id === imageId);
+            console.log('[editItem.js] Found index to remove:', index);
+            
+            if (index > -1) {
+                images.splice(index, 1);
+                console.log('[editItem.js] Images after removal:', [...images]);
+            } else {
+                console.log('[editItem.js] No matching image found to remove');
+            }
+            
+            button.parentElement.remove();
+            checkModified();
+        }
+
         // Get the item data
         window.api.send('getItem', itemId);
 
@@ -393,6 +562,30 @@
             document.getElementById('chapter').value = item.chapter || '';
             document.getElementById('page').value = item.page || '';
             document.getElementById('storyRefs').value = (item.story_refs || []).map(ref => ref.id).join(', ');
+
+            // Clear existing images and add new ones
+            images.length = 0;
+            const imageContainer = document.querySelector('.image-upload-container');
+            // Remove all existing image previews except the add button
+            Array.from(imageContainer.children).forEach(child => {
+                if (child.id !== 'addImageBtn') {
+                    child.remove();
+                }
+            });
+
+            // Add existing images
+            if (item.pictures) {
+                item.pictures.forEach(pic => {
+                    images.push(pic);
+                    const preview = document.createElement('div');
+                    preview.className = 'image-preview';
+                    preview.innerHTML = `
+                        <img src="file://${pic.file_path}">
+                        <button class="remove-image" onclick="removeImage(this, '${pic.id}')">&times;</button>
+                    `;
+                    imageContainer.insertBefore(preview, document.getElementById('addImageBtn'));
+                });
+            }
         }
 
         // Update color preview
@@ -423,52 +616,63 @@
             return true;
         }
 
-        // Get current form data
-        function getFormData() {
-            return {
-                type: document.getElementById('itemType').value,
-                title: document.getElementById('title').value,
-                description: document.getElementById('description').value,
-                content: document.getElementById('content').value,
-                color: document.getElementById('color').value,
-                year: parseFloat(document.getElementById('startYear').value),
-                subtick: parseInt(document.getElementById('startSubtick').value),
-                end_year: parseFloat(document.getElementById('endYear').value),
-                end_subtick: parseInt(document.getElementById('endSubtick').value),
-                tags: Array.from(tags),
-                book_title: document.getElementById('bookTitle').value,
-                chapter: document.getElementById('chapter').value,
-                page: document.getElementById('page').value,
-                story_refs: document.getElementById('storyRefs').value.split(',').map(id => id.trim()).filter(id => id).map(id => ({ id }))
-            };
-        }
-
-        // Format form data for submission
-        function formatFormData(formData) {
-            return {
-                ...formData,
-                id: itemId,
-                modified: new Date().toISOString()
-            };
-        }
-
-        // Check if form is modified
-        function checkModified() {
-            const currentData = getFormData();
-            isModified = JSON.stringify(currentData) !== JSON.stringify(originalData);
-            document.getElementById('modifiedIndicator').style.display = isModified ? 'inline' : 'none';
-            return isModified;
-        }
-
         // Handle form submission
-        function handleFormSubmit(e) {
+        async function handleFormSubmit(e) {
             e.preventDefault();
 
             if (!validateRange()) {
                 return;
             }
 
-            const formData = formatFormData(getFormData());
+            // Process all images before submitting
+            const processedImages = [];
+            for (const imageInfo of images) {
+                try {
+                    // Only process images that have a temp_path (newly added images)
+                    if (imageInfo.temp_path) {
+                        const result = await window.api.invoke('save-new-image', {
+                            file_path: imageInfo.temp_path,
+                            file_name: imageInfo.file_name,
+                            file_size: imageInfo.file_size,
+                            file_type: imageInfo.file_type
+                        });
+
+                        // Check if result is valid
+                        if (!result || typeof result !== 'object') {
+                            throw new Error('Invalid response from image processing');
+                        }
+
+                        // Ensure all required fields are present
+                        const processedImage = {
+                            id: result.id || `IMG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                            file_path: result.file_path || imageInfo.temp_path,
+                            file_name: result.file_name || imageInfo.file_name,
+                            file_size: result.file_size || imageInfo.file_size,
+                            file_type: result.file_type || imageInfo.file_type,
+                            width: result.width || 0,
+                            height: result.height || 0,
+                            title: result.title || imageInfo.file_name,
+                            description: result.description || '',
+                            created_at: result.created_at || new Date().toISOString()
+                        };
+
+                        processedImages.push(processedImage);
+                    } else {
+                        // For existing images, just add them to processedImages
+                        processedImages.push(imageInfo);
+                    }
+                } catch (error) {
+                    console.error('Error processing image:', error);
+                    alert('Error processing image: ' + error.message);
+                    return; // Stop form submission if image processing fails
+                }
+            }
+
+            const formData = formatFormData({
+                ...getFormData(),
+                pictures: processedImages
+            });
+
             window.api.send('update-timeline-item-with-range', formData);
             
             // Listen for the update confirmation

@@ -2,6 +2,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const fs = require('fs');
 const sharp = require('sharp');
+const crypto = require('crypto');
 
 // Try to get Electron app, but don't fail if not in Electron environment
 let app;
@@ -317,79 +318,9 @@ class DatabaseManager {
     }
 
     async migrateDatabase() {
-        // Start a transaction
-        this.db.prepare('BEGIN').run();
-
         try {
-            // Define required columns for each table
-            const timelinesColumns = [
-                { name: 'id', type: 'INTEGER PRIMARY KEY AUTOINCREMENT' },
-                { name: 'title', type: 'TEXT NOT NULL' },
-                { name: 'author', type: 'TEXT NOT NULL' },
-                { name: 'description', type: 'TEXT' },
-                { name: 'start_year', type: 'INTEGER DEFAULT 0' },
-                { name: 'granularity', type: 'INTEGER DEFAULT 4' },
-                { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-                { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
-            ];
-
-            const settingsColumns = [
-                { name: 'id', type: 'INTEGER PRIMARY KEY' },
-                { name: 'timeline_id', type: 'INTEGER' },
-                { name: 'font', type: 'TEXT DEFAULT "Arial"' },
-                { name: 'font_size_scale', type: 'REAL DEFAULT 1.0' },
-                { name: 'pixels_per_subtick', type: 'INTEGER DEFAULT 20' },
-                { name: 'custom_css', type: 'TEXT' },
-                { name: 'custom_main_css', type: 'TEXT' },
-                { name: 'custom_items_css', type: 'TEXT' },
-                { name: 'use_timeline_css', type: 'INTEGER DEFAULT 0' },
-                { name: 'use_main_css', type: 'INTEGER DEFAULT 0' },
-                { name: 'use_items_css', type: 'INTEGER DEFAULT 0' },
-                { name: 'is_fullscreen', type: 'INTEGER DEFAULT 0' },
-                { name: 'show_guides', type: 'INTEGER DEFAULT 1' },
-                { name: 'window_size_x', type: 'INTEGER DEFAULT 1000' },
-                { name: 'window_size_y', type: 'INTEGER DEFAULT 700' },
-                { name: 'window_position_x', type: 'INTEGER DEFAULT 300' },
-                { name: 'window_position_y', type: 'INTEGER DEFAULT 100' },
-                { name: 'use_custom_scaling', type: 'INTEGER DEFAULT 0' },
-                { name: 'custom_scale', type: 'REAL DEFAULT 1.0' },
-                { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
-            ];
-
-            const itemsColumns = [
-                { name: 'id', type: 'TEXT PRIMARY KEY' },
-                { name: 'title', type: 'TEXT' },
-                { name: 'description', type: 'TEXT' },
-                { name: 'content', type: 'TEXT' },
-                { name: 'story_id', type: 'TEXT' },
-                { name: 'type_id', type: 'INTEGER DEFAULT 1' },
-                { name: 'year', type: 'INTEGER' },
-                { name: 'subtick', type: 'INTEGER' },
-                { name: 'original_subtick', type: 'INTEGER' },
-                { name: 'end_year', type: 'INTEGER' },
-                { name: 'end_subtick', type: 'INTEGER' },
-                { name: 'original_end_subtick', type: 'INTEGER' },
-                { name: 'book_title', type: 'TEXT' },
-                { name: 'chapter', type: 'TEXT' },
-                { name: 'page', type: 'TEXT' },
-                { name: 'color', type: 'TEXT' },
-                { name: 'creation_granularity', type: 'INTEGER' },
-                { name: 'timeline_id', type: 'INTEGER' },
-                { name: 'item_index', type: 'INTEGER' },
-                { name: 'created_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
-                { name: 'updated_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' }
-            ];
-
-            // Ensure all tables exist first
-            this.initializeTables();
-
-            // Check and add missing columns for each table
-            this.ensureTableColumns('timelines', timelinesColumns);
-            this.ensureTableColumns('settings', settingsColumns);
-            this.ensureTableColumns('items', itemsColumns);
-
-            // Ensure all items have a type_id (default to 1 for Event)
-            this.db.prepare('UPDATE items SET type_id = 1 WHERE type_id IS NULL').run();
+            // Start a transaction
+            this.db.prepare('BEGIN').run();
 
             // Check if universe_data table exists
             const tableExists = this.db.prepare(`
@@ -399,93 +330,75 @@ class DatabaseManager {
 
             if (tableExists) {
                 console.log('Found universe_data table, starting migration...');
-
-                // Get the universe data
-                const universeData = this.db.prepare('SELECT * FROM universe_data ORDER BY id DESC LIMIT 1').get();
-                if (!universeData) {
-                    console.log('No universe data found, skipping migration');
-                    return;
-                }
-
-                // Create a new timeline from universe data
-                const timelineStmt = this.db.prepare(`
-                    INSERT INTO timelines (
-                        title, author, description, start_year, granularity
-                    ) VALUES (
-                        @title, @author, @description, @start_year, @granularity
-                    )
-                `);
-
-                const timelineResult = timelineStmt.run({
-                    title: universeData.title || 'New Timeline',
-                    author: universeData.author || '',
-                    description: universeData.description || '',
-                    start_year: universeData.start_year || 0,
-                    granularity: universeData.granularity || 4
-                });
-
-                const timelineId = timelineResult.lastInsertRowid;
-                console.log('Created new timeline with ID:', timelineId);
-
-                // Update all items to use the new timeline_id
-                const updateItemsStmt = this.db.prepare(`
-                    UPDATE items 
-                    SET timeline_id = @timeline_id 
-                    WHERE timeline_id IS NULL
-                `);
-                const result = updateItemsStmt.run({ timeline_id: timelineId });
-                console.log(`Updated ${result.changes} items with new timeline_id`);
-
-                // Update item_index for all items
-                const items = this.db.prepare(`
-                    SELECT id FROM items 
-                    WHERE timeline_id = @timeline_id 
-                    ORDER BY year, subtick
-                `).all({ timeline_id: timelineId });
-
-                const updateIndexStmt = this.db.prepare(`
-                    UPDATE items 
-                    SET item_index = @item_index 
-                    WHERE id = @item_id
-                `);
-
-                items.forEach((item, index) => {
-                    updateIndexStmt.run({
-                        item_id: item.id,
-                        item_index: index
-                    });
-                });
-                console.log(`Updated item_index for ${items.length} items`);
-
-                // Get the last settings
-                const oldSettings = this.db.prepare('SELECT * FROM settings ORDER BY id DESC LIMIT 1').get();
-                if (oldSettings) {
-                    // Update existing settings with timeline_id
-                    const updateSettingsStmt = this.db.prepare(`
-                        UPDATE settings 
-                        SET timeline_id = @timeline_id 
-                        WHERE id = @settings_id
+                
+                // Get the current universe data
+                const universeData = this.db.prepare('SELECT * FROM universe_data').get();
+                
+                if (universeData) {
+                    // Create a new timeline with the universe data
+                    const timelineId = crypto.randomUUID();
+                    const insertStmt = this.db.prepare(`
+                        INSERT INTO timelines (
+                            id, title, author, description, start_year, granularity, created_at, updated_at
+                        ) VALUES (
+                            @id, @title, @author, @description, @start_year, @granularity, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                        )
                     `);
-                    updateSettingsStmt.run({
-                        timeline_id: timelineId,
-                        settings_id: oldSettings.id
+
+                    insertStmt.run({
+                        id: timelineId,
+                        title: universeData.title || 'Untitled Timeline',
+                        author: universeData.author || '',
+                        description: universeData.description || '',
+                        start_year: universeData.start_year || 0,
+                        granularity: universeData.granularity || 4
                     });
-                    console.log('Updated settings with new timeline_id');
-                } else {
-                    // Create new settings if none exist
+
+                    // Migrate items to the new timeline
+                    const itemsStmt = this.db.prepare(`
+                        INSERT INTO items (
+                            id, timeline_id, title, description, content, year, subtick, type, color, created_at, updated_at
+                        )
+                        SELECT 
+                            id, @timeline_id, title, description, content, year, subtick, type, color, created_at, updated_at
+                        FROM universe_items
+                    `);
+
+                    itemsStmt.run({ timeline_id: timelineId });
+
+                    // Migrate tags
+                    const tagsStmt = this.db.prepare(`
+                        INSERT INTO tags (name)
+                        SELECT DISTINCT tag
+                        FROM universe_item_tags
+                        WHERE tag NOT IN (SELECT name FROM tags)
+                    `);
+                    tagsStmt.run();
+
+                    // Migrate item-tag relationships
+                    const itemTagsStmt = this.db.prepare(`
+                        INSERT INTO item_tags (item_id, tag_id)
+                        SELECT uit.item_id, t.id
+                        FROM universe_item_tags uit
+                        JOIN tags t ON t.name = uit.tag
+                    `);
+                    itemTagsStmt.run();
+
+                    // Migrate pictures from base64 to files
+                    await this.migratePictures(true);
+
+                    // Create settings for the new timeline
                     const settingsStmt = this.db.prepare(`
                         INSERT INTO settings (
-                            timeline_id, font, font_size_scale, pixels_per_subtick,
-                            custom_css, custom_main_css, custom_items_css,
-                            use_timeline_css, use_main_css, use_items_css,
-                            is_fullscreen, show_guides, window_size_x, window_size_y,
-                            window_position_x, window_position_y, use_custom_scaling, custom_scale
+                            timeline_id, font, font_size_scale, pixels_per_subtick, custom_css,
+                            custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                            is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                            use_custom_scaling, custom_scale
                         ) VALUES (
-                            @timeline_id, @font, @font_size_scale, @pixels_per_subtick,
-                            @custom_css, @custom_main_css, @custom_items_css,
-                            @use_timeline_css, @use_main_css, @use_items_css,
-                            @is_fullscreen, @show_guides, @window_size_x, @window_size_y,
-                            @window_position_x, @window_position_y, @use_custom_scaling, @custom_scale
+                            @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
+                            @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                            @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
+                            @use_custom_scaling, @custom_scale
                         )
                     `);
 
@@ -516,9 +429,6 @@ class DatabaseManager {
                 this.db.prepare('DROP TABLE IF EXISTS universe_data').run();
                 console.log('Migration completed successfully');
             }
-
-            // Migrate pictures from base64 to files
-            await this.migratePictures(true);
 
             // Reindex items within the same transaction
             this.reindexItems(true);
