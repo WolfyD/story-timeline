@@ -1698,9 +1698,14 @@ function jumpToYear(year) {
         }
     }
     
+    // Update state
     timelineState.focusYear = year;
     timelineState.offsetPx = 0;
-    renderTimeline();
+
+    // Request animation frame for smooth rendering
+    requestAnimationFrame(() => {
+        renderTimeline();
+    });
 }
 
 /**

@@ -563,6 +563,60 @@ class DisplayRenderer {
         const { bookmark, startMarker, endMarker } = this.config.colors;
         const timelineY = this.canvas.height - this.config.spacing.timelinePadding;
 
+        // Add mouse move handler for hover effects
+        this.canvas.addEventListener('mousemove', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Check if mouse is over any bookmark
+            let isOverBookmark = false;
+            let hoveredBookmark = null;
+            this.timelineItems.forEach(item => {
+                if (item.type && item.type.toLowerCase() === 'bookmark') {
+                    const itemX = this.calculateItemPosition(item.year);
+                    const distance = Math.abs(x - itemX);
+                    if (distance < specialMarkerSize * 2 && 
+                        y >= timelineY - specialMarkerHeight && 
+                        y <= timelineY) {
+                        isOverBookmark = true;
+                        hoveredBookmark = item;
+                        this.canvas.style.cursor = 'pointer';
+                        return;
+                    }
+                }
+            });
+
+            if (!isOverBookmark) {
+                this.canvas.style.cursor = 'default';
+            }
+
+            // Store the hovered bookmark for rendering
+            this.hoveredBookmark = hoveredBookmark;
+            this.isDirty = true;
+        });
+
+        // Add click handler for bookmarks
+        this.canvas.addEventListener('click', (e) => {
+            const rect = this.canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            this.timelineItems.forEach(item => {
+                if (item.type && item.type.toLowerCase() === 'bookmark') {
+                    const itemX = this.calculateItemPosition(item.year);
+                    const distance = Math.abs(x - itemX);
+                    if (distance < specialMarkerSize * 2 && 
+                        y >= timelineY - specialMarkerHeight && 
+                        y <= timelineY) {
+                        // Jump to the bookmark's year
+                        window.jumpToYear(item.year);
+                        return;
+                    }
+                }
+            });
+        });
+
         this.timelineItems.forEach(item => {
             if (!item.type) return;
 
@@ -624,6 +678,63 @@ class DisplayRenderer {
             this.ctx.fill();
             this.ctx.shadowBlur = 0; // Reset shadow
         });
+
+        // Draw tooltip for hovered bookmark
+        if (this.hoveredBookmark) {
+            const x = this.calculateItemPosition(this.hoveredBookmark.year);
+            const bubblePadding = 4;
+            const bubbleRadius = 3;
+            const lineHeight = 12;
+            const bubbleY = timelineY - specialMarkerHeight - 50;
+
+            // Set up text
+            this.ctx.font = '11px Arial';
+            this.ctx.textAlign = 'center';
+            this.ctx.textBaseline = 'middle';
+
+            // Calculate text dimensions
+            const title = this.hoveredBookmark.title || 'Untitled Bookmark';
+            const year = Math.round(this.hoveredBookmark.year).toString();
+            const titleWidth = this.ctx.measureText(title).width;
+            const yearWidth = this.ctx.measureText(year).width;
+            const bubbleWidth = Math.max(titleWidth, yearWidth) + bubblePadding * 2;
+            const bubbleHeight = lineHeight * 2 + bubblePadding * 2;
+
+            // Draw connecting line
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = bookmark;
+            this.ctx.lineWidth = 1;
+            this.ctx.moveTo(x, timelineY - specialMarkerHeight);
+            this.ctx.lineTo(x, bubbleY + bubbleHeight);
+            this.ctx.stroke();
+
+            // Draw bubble background
+            this.ctx.beginPath();
+            this.ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            this.ctx.strokeStyle = bookmark;
+            this.ctx.lineWidth = 1;
+            
+            // Draw rounded rectangle
+            const bubbleX = x - bubbleWidth / 2;
+            this.ctx.moveTo(bubbleX + bubbleRadius, bubbleY);
+            this.ctx.lineTo(bubbleX + bubbleWidth - bubbleRadius, bubbleY);
+            this.ctx.quadraticCurveTo(bubbleX + bubbleWidth, bubbleY, bubbleX + bubbleWidth, bubbleY + bubbleRadius);
+            this.ctx.lineTo(bubbleX + bubbleWidth, bubbleY + bubbleHeight - bubbleRadius);
+            this.ctx.quadraticCurveTo(bubbleX + bubbleWidth, bubbleY + bubbleHeight, bubbleX + bubbleWidth - bubbleRadius, bubbleY + bubbleHeight);
+            this.ctx.lineTo(bubbleX + bubbleRadius, bubbleY + bubbleHeight);
+            this.ctx.quadraticCurveTo(bubbleX, bubbleY + bubbleHeight, bubbleX, bubbleY + bubbleHeight - bubbleRadius);
+            this.ctx.lineTo(bubbleX, bubbleY + bubbleRadius);
+            this.ctx.quadraticCurveTo(bubbleX, bubbleY, bubbleX + bubbleRadius, bubbleY);
+            this.ctx.closePath();
+            
+            this.ctx.fill();
+            this.ctx.stroke();
+
+            // Draw text
+            this.ctx.fillStyle = '#333';
+            this.ctx.fillText(title, x, bubbleY + bubblePadding + lineHeight / 2);
+            this.ctx.fillText(year, x, bubbleY + bubblePadding + lineHeight * 1.5);
+        }
     }
 
     renderYearMarkers() {
