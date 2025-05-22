@@ -5,28 +5,50 @@
     <link rel="stylesheet" href="editItem.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css">
     <style>
+        body {
+            background-color: #f5e6d4;
+            color: #4b2e2e;
+            font-family: var(--default-font), "Times New Roman", serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .form-group {
+            margin-bottom: 20px;
+            background: rgba(255,255,255,0.1);
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
         .form-line {
             display: flex;
             align-items: center;
             margin-bottom: 10px;
             gap: 10px;
+            width: 100%;
+            position: relative;
         }
         .form-line label {
             min-width: 100px;
+            flex-shrink: 0;
         }
         .form-line input, .form-line select {
             flex: 1;
+            min-width: 0;
+            width: 100%;
         }
         .range-inputs {
             display: flex;
             gap: 10px;
             align-items: center;
+            flex: 1;
         }
         .range-inputs input {
             width: 100px;
         }
         .range-inputs label {
             min-width: auto;
+            flex-shrink: 0;
         }
         .color-preview {
             width: 30px;
@@ -34,6 +56,7 @@
             border: 1px solid #ccc;
             border-radius: 4px;
             margin-left: 10px;
+            flex-shrink: 0;
         }
         .modified {
             color: #4CAF50;
@@ -69,6 +92,56 @@
             color: #666;
             margin-left: 10px;
         }
+        /* Tag editor styles */
+        .tag-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-top: 5px;
+            width: 100%;
+        }
+        .tag {
+            background: #4b2e2e;
+            color: #f5e6d4;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .tag .remove-tag {
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .suggestions-container {
+            position: absolute;
+            width: 100%;
+            left: 0;
+            top: 100%;
+            z-index: 1000;
+        }
+        .suggestions-dropdown {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            max-height: 200px;
+            overflow-y: auto;
+            display: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            width: 80%;
+            left: 16.5%;
+        }
+        .suggestion-item {
+            padding: 8px 12px;
+            cursor: pointer;
+        }
+        .suggestion-item:hover {
+            background-color: #f0f0f0;
+        }
     </style>
 </head>
 <body>
@@ -78,10 +151,12 @@
             <div class="form-line">
                 <label for="itemType">Type:</label>
                 <select id="itemType" required data-testid="item-type">
-                    <option value="Age">Age</option>
-                    <option value="Period">Period</option>
                     <option value="Event">Event</option>
-                    <option value="Story">Story</option>
+                    <option value="Period">Period</option>
+                    <option value="Age">Age</option>
+                    <option value="Picture">Picture</option>
+                    <option value="Note">Note</option>
+                    <option value="Bookmark">Bookmark</option>
                 </select>
             </div>
 
@@ -121,9 +196,12 @@
             </div>
             <div id="rangeError" class="error" style="display: none;" data-testid="range-error"></div>
 
-            <div class="form-line">
-                <label for="tags">Tags:</label>
-                <input type="text" id="tags" placeholder="Comma-separated tags" data-testid="item-tags">
+            <div class="form-group">
+                <div class="form-line">
+                    <label for="tagInput">Tags:</label>
+                    <input type="text" id="tagInput" class="input-text" placeholder="Type a tag and press Enter">
+                </div>
+                <div id="tagContainer" class="tag-container"></div>
             </div>
 
             <div class="form-line">
@@ -176,6 +254,114 @@
         const color = urlParams.get('color');
         let originalData = null;
         let isModified = false;
+        const tags = new Set();
+        let tagSuggestions = [];
+
+        // Get tag suggestions from main window
+        window.api.send('getTagSuggestions');
+
+        // Handle tag suggestions response
+        window.api.receive('tagSuggestions', (suggestions) => {
+            tagSuggestions = suggestions;
+        });
+
+        // Handle tag input
+        document.getElementById('tagInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const tag = this.value.trim();
+                if (tag && !tags.has(tag)) {
+                    tags.add(tag);
+                    // Add the new tag to suggestions if it's not already there
+                    if (!tagSuggestions.includes(tag)) {
+                        tagSuggestions.push(tag);
+                    }
+                    updateTagDisplay();
+                    checkModified();
+                }
+                this.value = '';
+                // Hide suggestions when Enter is pressed
+                const dropdown = document.getElementById('tagSuggestions');
+                if (dropdown) {
+                    dropdown.style.display = 'none';
+                }
+            }
+        });
+
+        // Add input event listener for tag suggestions
+        document.getElementById('tagInput').addEventListener('input', function() {
+            const value = this.value.toLowerCase();
+            const matches = tagSuggestions.filter(tag => 
+                tag.toLowerCase().includes(value) && !tags.has(tag)
+            );
+
+            // Get or create the suggestions container
+            let suggestionsContainer = document.getElementById('tagSuggestionsContainer');
+            if (!suggestionsContainer) {
+                suggestionsContainer = document.createElement('div');
+                suggestionsContainer.id = 'tagSuggestionsContainer';
+                suggestionsContainer.className = 'suggestions-container';
+                // Insert after the tag input
+                this.parentElement.appendChild(suggestionsContainer);
+            }
+
+            // Get or create the dropdown
+            let dropdown = document.getElementById('tagSuggestions');
+            if (!dropdown) {
+                dropdown = document.createElement('div');
+                dropdown.id = 'tagSuggestions';
+                dropdown.className = 'suggestions-dropdown';
+                suggestionsContainer.appendChild(dropdown);
+            }
+
+            if (matches.length > 0 && value.length > 0) {
+                dropdown.innerHTML = '';
+                matches.forEach(match => {
+                    const div = document.createElement('div');
+                    div.className = 'suggestion-item';
+                    div.textContent = match;
+                    div.onclick = () => {
+                        this.value = match;
+                        const event = new KeyboardEvent('keydown', { key: 'Enter' });
+                        this.dispatchEvent(event);
+                    };
+                    dropdown.appendChild(div);
+                });
+                dropdown.style.display = 'block';
+            } else {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        // Close suggestions when clicking outside
+        document.addEventListener('click', function(e) {
+            if (!e.target.closest('.suggestions-container')) {
+                const dropdown = document.getElementById('tagSuggestions');
+                if (dropdown) {
+                    dropdown.style.display = 'none';
+                }
+            }
+        });
+
+        function updateTagDisplay() {
+            const container = document.getElementById('tagContainer');
+            container.innerHTML = '';
+            tags.forEach(tag => {
+                const tagElement = document.createElement('div');
+                tagElement.className = 'tag';
+                tagElement.innerHTML = `
+                    ${tag}
+                    <span class="remove-tag" onclick="removeTag('${tag}')">&times;</span>
+                `;
+                container.appendChild(tagElement);
+            });
+        }
+
+        function removeTag(tag) {
+            tags.delete(tag);
+            updateTagDisplay();
+            checkModified();
+        }
 
         // Get the item data
         window.api.send('getItem', itemId);
@@ -199,7 +385,10 @@
             document.getElementById('startSubtick').value = item.subtick || subtick;
             document.getElementById('endYear').value = item.end_year || item.year || year;
             document.getElementById('endSubtick').value = item.end_subtick || item.subtick || subtick;
-            document.getElementById('tags').value = (item.tags || []).join(', ');
+            // Clear existing tags and add new ones
+            tags.clear();
+            (item.tags || []).forEach(tag => tags.add(tag));
+            updateTagDisplay();
             document.getElementById('bookTitle').value = item.book_title || '';
             document.getElementById('chapter').value = item.chapter || '';
             document.getElementById('page').value = item.page || '';
@@ -246,7 +435,7 @@
                 subtick: parseInt(document.getElementById('startSubtick').value),
                 end_year: parseFloat(document.getElementById('endYear').value),
                 end_subtick: parseInt(document.getElementById('endSubtick').value),
-                tags: document.getElementById('tags').value.split(',').map(tag => tag.trim()).filter(tag => tag),
+                tags: Array.from(tags),
                 book_title: document.getElementById('bookTitle').value,
                 chapter: document.getElementById('chapter').value,
                 page: document.getElementById('page').value,
@@ -270,12 +459,6 @@
             document.getElementById('modifiedIndicator').style.display = isModified ? 'inline' : 'none';
             return isModified;
         }
-
-        // Add input event listeners for modification tracking
-        const inputs = document.querySelectorAll('input, select, textarea');
-        inputs.forEach(input => {
-            input.addEventListener('input', checkModified);
-        });
 
         // Handle form submission
         function handleFormSubmit(e) {
