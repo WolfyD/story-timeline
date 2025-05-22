@@ -528,6 +528,12 @@ function sendTimelineUpdate() {
     });
 }
 
+// Add frame timing variables at the top of the file
+let lastFrameTime = 0;
+const targetFrameTime = 1000 / 60; // 60fps
+const minFrameTime = 1000 / 30;    // 30fps minimum
+let currentQuality = 1.0;          // Start at full quality
+
 /**
  * Renders the timeline
  * 
@@ -543,6 +549,21 @@ function sendTimelineUpdate() {
  * - Item rendering failure
  */
 function renderTimeline() {
+    const now = performance.now();
+    const timeSinceLastFrame = now - lastFrameTime;
+    
+    // Skip if we're rendering too fast
+    if (timeSinceLastFrame < minFrameTime) {
+        requestAnimationFrame(renderTimeline);
+        return;
+    }
+    
+    // Calculate quality based on frame time
+    currentQuality = Math.min(1, timeSinceLastFrame / targetFrameTime);
+    
+    // Store current frame time
+    lastFrameTime = now;
+
     const { focusYear, granularity, pixelsPerSubtick, offsetPx } = timelineState;
     const containerRect = container.getBoundingClientRect();
     const centerX = containerRect.width / 2;
@@ -680,27 +701,45 @@ function renderTimeline() {
     const existingPeriodItems = container.querySelectorAll('.timeline-period-item');
     existingPeriodItems.forEach(item => item.remove());
 
-    // Render ticks
-    for (let i = startSubtick; i <= endSubtick; i++) {
+    // Render ticks with quality-based detail
+    const tickInterval = Math.max(1, Math.floor(1 / currentQuality)); // Adjust tick density based on quality
+    for (let i = startSubtick; i <= endSubtick; i += tickInterval) {
         const year = i / granularity;
         const x = centerX + (year - focusYear) * pixelsPerSubtick * granularity + offsetPx;
         const isFullYear = i % granularity === 0;
-        const el = document.createElement("div");
-        el.className = isFullYear ? "tick fullyear" : "tick subtick";
-        el.style.left = `${x}px`;
-        el.style.position = 'absolute';
+        
+        // Always render full year ticks
         if (isFullYear) {
+            const el = document.createElement("div");
+            el.className = "tick fullyear";
+            el.style.left = `${x}px`;
+            el.style.position = 'absolute';
             const label = document.createElement("div");
             label.className = "tick-fullyear";
             label.innerText = year;
             el.appendChild(label);
-        }else{
+            timeline.appendChild(el);
+        } 
+        // Only render subtick labels if quality is high enough
+        else if (currentQuality > 0.5) {
+            const el = document.createElement("div");
+            el.className = "tick subtick";
+            el.style.left = `${x}px`;
+            el.style.position = 'absolute';
             const label = document.createElement("div");
             label.className = "tick-subyear";
             label.innerText = getNumberLineLabel(year, granularity);
             el.appendChild(label);
+            timeline.appendChild(el);
         }
-        timeline.appendChild(el);
+        // For low quality, just render the tick without label
+        else {
+            const el = document.createElement("div");
+            el.className = "tick subtick";
+            el.style.left = `${x}px`;
+            el.style.position = 'absolute';
+            timeline.appendChild(el);
+        }
     }
 
     // Track positions of items for stacking
@@ -883,16 +922,16 @@ function renderTimeline() {
                         
                         globalHoverBubble.style.left = `${left}px`;
                         globalHoverBubble.style.top = `${e.clientY - 25}px`;
-                        globalHoverBubble.style.opacity = '1';
-                    }
-                });
+                globalHoverBubble.style.opacity = '1';
+            }
+        });
                 
                 // Add mouseout event to hide bubble
                 periodItem.addEventListener('mouseout', () => {
                     if (globalHoverBubble) {
-                        globalHoverBubble.style.opacity = '0';
-                    }
-                });
+                globalHoverBubble.style.opacity = '0';
+            }
+        });
 
                 // Add mouseover event to show bubble
                 periodItem.addEventListener('mouseover', () => {
@@ -1177,7 +1216,7 @@ function renderTimeline() {
                 });
                 timeline.appendChild(box);
                 itemBoxes.push(box);
-                renderedItemCount++;
+        renderedItemCount++;
             }
         }
     });
