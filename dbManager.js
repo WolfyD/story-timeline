@@ -86,6 +86,24 @@ class DatabaseManager {
     }
 
     initializeTables() {
+        // Check if universe_data table exists
+        const universeDataExists = this.db.prepare(`
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='universe_data'
+        `).get();
+
+        // Check if timelines table exists
+        const timelinesExists = this.db.prepare(`
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='timelines'
+        `).get();
+
+        // If no universe_data and timelines exists, DB is already initialized
+        if (!universeDataExists && timelinesExists) {
+            console.log('Database already initialized, skipping initialization');
+            return;
+        }
+
         // Create timelines table (replacing universe_data)
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS timelines (
@@ -196,7 +214,7 @@ class DatabaseManager {
                 color TEXT,
                 creation_granularity INTEGER,
                 timeline_id INTEGER,
-                item_index INTEGER,
+                item_index INTEGER DEFAULT 0,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (story_id) REFERENCES stories(id),
@@ -267,38 +285,47 @@ class DatabaseManager {
             )
         `);
 
-        // // Create triggers for updated_at
-        // this.db.exec(`
-        //     CREATE TRIGGER IF NOT EXISTS update_universe_data_timestamp 
-        //     AFTER UPDATE ON universe_data
-        //     BEGIN
-        //         UPDATE universe_data SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-        //     END;
+        // If universe_data exists, add required columns to existing tables
+        if (universeDataExists) {
+            console.log('Adding required columns for migration...');
 
-        //     CREATE TRIGGER IF NOT EXISTS update_settings_timestamp 
-        //     AFTER UPDATE ON settings
-        //     BEGIN
-        //         UPDATE settings SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-        //     END;
+            // Helper function to check if column exists
+            const columnExists = (table, column) => {
+                const columns = this.db.prepare(`PRAGMA table_info('${table}')`).all();
+                return columns.some(col => col.name === column);
+            };
 
-        //     CREATE TRIGGER IF NOT EXISTS update_stories_timestamp 
-        //     AFTER UPDATE ON stories
-        //     BEGIN
-        //         UPDATE stories SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-        //     END;
+            // Add columns to items table
+            if (!columnExists('items', 'timeline_id')) {
+                this.db.exec('ALTER TABLE items ADD COLUMN timeline_id INTEGER');
+            }
+            if (!columnExists('items', 'item_index')) {
+                this.db.exec('ALTER TABLE items ADD COLUMN item_index INTEGER DEFAULT 0');
+            }
 
-        //     CREATE TRIGGER IF NOT EXISTS update_items_timestamp 
-        //     AFTER UPDATE ON items
-        //     BEGIN
-        //         UPDATE items SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-        //     END;
+            // Add columns to pictures table
+            const pictureColumns = [
+                { name: 'file_path', type: 'TEXT' },
+                { name: 'file_name', type: 'TEXT' },
+                { name: 'file_size', type: 'INTEGER' },
+                { name: 'file_type', type: 'TEXT' },
+                { name: 'width', type: 'INTEGER' },
+                { name: 'height', type: 'INTEGER' }
+            ];
 
-        //     CREATE TRIGGER IF NOT EXISTS update_notes_timestamp 
-        //     AFTER UPDATE ON notes
-        //     BEGIN
-        //         UPDATE notes SET updated_at = CURRENT_TIMESTAMP WHERE id = NEW.id;
-        //     END;
-        // `);
+            for (const col of pictureColumns) {
+                if (!columnExists('pictures', col.name)) {
+                    this.db.exec(`ALTER TABLE pictures ADD COLUMN ${col.name} ${col.type}`);
+                }
+            }
+
+            // Add column to settings table
+            if (!columnExists('settings', 'timeline_id')) {
+                this.db.exec('ALTER TABLE settings ADD COLUMN timeline_id INTEGER');
+            }
+
+            console.log('Added required columns for migration');
+        }
     }
 
     // Helper method to check and add missing columns
@@ -332,21 +359,19 @@ class DatabaseManager {
                 console.log('Found universe_data table, starting migration...');
                 
                 // Get the current universe data
-                const universeData = this.db.prepare('SELECT * FROM universe_data').get();
+                const universeData = this.db.prepare('SELECT * FROM universe_data ORDER BY id DESC LIMIT 1').get();
                 
                 if (universeData) {
                     // Create a new timeline with the universe data
-                    const timelineId = crypto.randomUUID();
                     const insertStmt = this.db.prepare(`
                         INSERT INTO timelines (
-                            id, title, author, description, start_year, granularity, created_at, updated_at
+                            title, author, description, start_year, granularity, created_at, updated_at
                         ) VALUES (
-                            @id, @title, @author, @description, @start_year, @granularity, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+                            @title, @author, @description, @start_year, @granularity, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
                         )
                     `);
 
                     insertStmt.run({
-                        id: timelineId,
                         title: universeData.title || 'Untitled Timeline',
                         author: universeData.author || '',
                         description: universeData.description || '',
@@ -354,75 +379,33 @@ class DatabaseManager {
                         granularity: universeData.granularity || 4
                     });
 
-                    // Migrate items to the new timeline
-                    const itemsStmt = this.db.prepare(`
-                        INSERT INTO items (
-                            id, timeline_id, title, description, content, year, subtick, type, color, created_at, updated_at
-                        )
-                        SELECT 
-                            id, @timeline_id, title, description, content, year, subtick, type, color, created_at, updated_at
-                        FROM universe_items
+                    const timelineId = this.db.prepare('SELECT id FROM timelines ORDER BY id DESC LIMIT 1').get().id;
+
+                    // Update items with timeline_id and default type_id
+                    const itemStmt = this.db.prepare(`
+                        UPDATE items 
+                        SET timeline_id = @timeline_id,
+                            type_id = CASE 
+                                WHEN type_id IS NULL THEN 1 
+                                ELSE type_id 
+                            END
+                        WHERE timeline_id IS NULL
                     `);
 
-                    itemsStmt.run({ timeline_id: timelineId });
+                    itemStmt.run({ timeline_id: timelineId });
 
-                    // Migrate tags
-                    const tagsStmt = this.db.prepare(`
-                        INSERT INTO tags (name)
-                        SELECT DISTINCT tag
-                        FROM universe_item_tags
-                        WHERE tag NOT IN (SELECT name FROM tags)
+                    // Update settings with timeline_id
+                    const settingsStmt = this.db.prepare(`
+                        UPDATE settings 
+                        SET timeline_id = @timeline_id 
+                        WHERE timeline_id IS NULL
                     `);
-                    tagsStmt.run();
 
-                    // Migrate item-tag relationships
-                    const itemTagsStmt = this.db.prepare(`
-                        INSERT INTO item_tags (item_id, tag_id)
-                        SELECT uit.item_id, t.id
-                        FROM universe_item_tags uit
-                        JOIN tags t ON t.name = uit.tag
-                    `);
-                    itemTagsStmt.run();
+                    settingsStmt.run({ timeline_id: timelineId });
+                    console.log('Updated settings with timeline_id');
 
                     // Migrate pictures from base64 to files
                     await this.migratePictures(true);
-
-                    // Create settings for the new timeline
-                    const settingsStmt = this.db.prepare(`
-                        INSERT INTO settings (
-                            timeline_id, font, font_size_scale, pixels_per_subtick, custom_css,
-                            custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
-                            is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
-                            use_custom_scaling, custom_scale
-                        ) VALUES (
-                            @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                            @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
-                            @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
-                            @use_custom_scaling, @custom_scale
-                        )
-                    `);
-
-                    settingsStmt.run({
-                        timeline_id: timelineId,
-                        font: 'Arial',
-                        font_size_scale: 1.0,
-                        pixels_per_subtick: 20,
-                        custom_css: '',
-                        custom_main_css: '',
-                        custom_items_css: '',
-                        use_timeline_css: 0,
-                        use_main_css: 0,
-                        use_items_css: 0,
-                        is_fullscreen: 0,
-                        show_guides: 1,
-                        window_size_x: 1000,
-                        window_size_y: 700,
-                        window_position_x: 300,
-                        window_position_y: 100,
-                        use_custom_scaling: 0,
-                        custom_scale: 1.0
-                    });
-                    console.log('Created new settings for timeline');
                 }
 
                 // Drop the universe_data table
