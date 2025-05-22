@@ -125,7 +125,7 @@ class DisplayRenderer {
                 height: 8px;
                 background-color: #ff0000;
                 pointer-events: none;
-                z-index: 1000;
+                z-index: 1;
             `;
             document.getElementById('display-content').appendChild(nowMarker);
         }
@@ -361,17 +361,62 @@ class DisplayRenderer {
             }
         });
 
-        // Render events
+        // Option 1: Simple dots
+        /*
         events.forEach(item => {
             const x = this.calculateItemPosition(item.year);
             this.ctx.beginPath();
-            this.ctx.fillStyle = itemMarker;
-            this.ctx.moveTo(x, timelineY);
-            this.ctx.lineTo(x - itemMarkerSize, timelineY - markerHeight);
-            this.ctx.lineTo(x + itemMarkerSize, timelineY - markerHeight);
+            this.ctx.fillStyle = item.color || itemMarker;
+            this.ctx.arc(x, timelineY - markerHeight/2, itemMarkerSize, 0, Math.PI * 2);
+            this.ctx.fill();
+        });
+        */
+
+        // Option 2: Small diamonds
+        /*
+        events.forEach(item => {
+            const x = this.calculateItemPosition(item.year);
+            this.ctx.beginPath();
+            this.ctx.fillStyle = item.color || itemMarker;
+            this.ctx.moveTo(x, timelineY - markerHeight);
+            this.ctx.lineTo(x + itemMarkerSize, timelineY - markerHeight/2);
+            this.ctx.lineTo(x, timelineY);
+            this.ctx.lineTo(x - itemMarkerSize, timelineY - markerHeight/2);
             this.ctx.closePath();
             this.ctx.fill();
         });
+        */
+
+        // Option 3: Vertical lines with dots
+        events.forEach(item => {
+            const x = this.calculateItemPosition(item.year);
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = item.color || itemMarker;
+            this.ctx.lineWidth = 1.5; // Thinner lines
+            this.ctx.moveTo(x, timelineY);
+            this.ctx.lineTo(x, timelineY - markerHeight * 1.5); // Longer line
+            this.ctx.stroke();
+            
+            // Add smaller dot at top
+            this.ctx.beginPath();
+            this.ctx.fillStyle = item.color || itemMarker;
+            this.ctx.arc(x, timelineY - markerHeight * 1.5, itemMarkerSize * 0.6, 0, Math.PI * 2); // Smaller dot
+            this.ctx.fill();
+        });
+
+        // Option 4: Small triangles pointing up
+        /*
+        events.forEach(item => {
+            const x = this.calculateItemPosition(item.year);
+            this.ctx.beginPath();
+            this.ctx.fillStyle = item.color || itemMarker;
+            this.ctx.moveTo(x, timelineY - markerHeight);
+            this.ctx.lineTo(x - itemMarkerSize, timelineY);
+            this.ctx.lineTo(x + itemMarkerSize, timelineY);
+            this.ctx.closePath();
+            this.ctx.fill();
+        });
+        */
 
         // Render ages
         ages.forEach(item => {
@@ -402,6 +447,7 @@ class DisplayRenderer {
         const { rangeItemHeight } = this.config.sizes;
         const { rangeItem } = this.config.colors;
         const timelineY = this.canvas.height - this.config.spacing.timelinePadding;
+        const lineSpacing = 4; // Space between period lines
 
         // Group items by type
         const ages = [];
@@ -446,32 +492,68 @@ class DisplayRenderer {
             );
         });
 
-        // Render periods
+        // Sort periods by start year to process them in order
+        periods.sort((a, b) => a.year - b.year);
+
+        // Track occupied spaces for stacking
+        const occupiedSpaces = [];
+        
+        // Render periods with stacking
         periods.forEach(item => {
             const startX = this.calculateItemPosition(item.year);
             const endX = this.calculateItemPosition(item.end_year);
             
-            this.ctx.beginPath();
-            this.ctx.fillStyle = item.color || rangeItem;
-            this.ctx.fillRect(
+            // Find the lowest available level
+            let level = 0;
+            let foundSpace = false;
+            
+            while (!foundSpace) {
+                // Check if this level is available for the entire period
+                const isLevelAvailable = !occupiedSpaces.some(space => 
+                    space.level === level && 
+                    ((startX >= space.startX && startX <= space.endX) || 
+                     (endX >= space.startX && endX <= space.endX) ||
+                     (startX <= space.startX && endX >= space.endX))
+                );
+                
+                if (isLevelAvailable) {
+                    foundSpace = true;
+                } else {
+                    level++;
+                }
+            }
+            
+            // Add this period to occupied spaces
+            occupiedSpaces.push({
+                level,
                 startX,
-                timelineY - rangeItemHeight,
-                endX - startX,
-                rangeItemHeight
-            );
+                endX
+            });
+            
+            // Calculate y position based on level
+            const periodY = timelineY + (level + 1) * lineSpacing;
+            
+            // Draw the period line
+            this.ctx.beginPath();
+            this.ctx.strokeStyle = item.color || rangeItem;
+            this.ctx.lineWidth = 2;
+            this.ctx.moveTo(startX, periodY);
+            this.ctx.lineTo(endX, periodY);
+            this.ctx.stroke();
 
             // Draw start and end markers
+            this.ctx.fillStyle = item.color || rangeItem;
             this.ctx.fillRect(
-                startX - 1,
-                timelineY - rangeItemHeight - 2,
-                2,
-                rangeItemHeight + 4
+                startX - 2,
+                periodY - 2,
+                4,
+                4
             );
             this.ctx.fillRect(
-                endX - 1,
-                timelineY - rangeItemHeight - 2,
-                2,
-                rangeItemHeight + 4
+                endX - 2,
+                periodY - 2,
+                4,
+                4
             );
         });
     }
