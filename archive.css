@@ -246,3 +246,62 @@ button:disabled {
     box-shadow: 0 0 8px #FFFF00;
     transition: border 0.2s, box-shadow 0.2s;
 }
+
+.modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(75, 46, 46, 0.3);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.modal.hidden {
+    display: none;
+}
+
+.modal-content {
+    background: #fff8ef;
+    border: 2px solid #a67c52;
+    border-radius: 8px;
+    padding: 32px 28px 24px 28px;
+    min-width: 340px;
+    max-width: 90vw;
+    max-height: 80vh;
+    overflow-y: auto;
+    box-shadow: 0 4px 24px 0 rgba(75, 46, 46, 0.18);
+    font-family: var(--default-font), serif;
+    color: #4b2e2e;
+    position: relative;
+}
+
+.modal-close {
+    position: absolute;
+    top: 12px;
+    right: 18px;
+    background: none;
+    border: none;
+    color: #a67c52;
+    font-size: 2rem;
+    cursor: pointer;
+    z-index: 10;
+    transition: color 0.2s;
+}
+
+.modal-close:hover {
+    color: #4b2e2e;
+}
+
+.item-date-container {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+}
+
+.item-date-separator {
+    margin-top: -2px;
+}

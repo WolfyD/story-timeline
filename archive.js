@@ -35,6 +35,18 @@ let searchQueries = {
     media: ''
 };
 
+let item_types = {
+    1: 'Event',
+    2: 'Period',
+    3: 'Age',
+    4: 'Picture',
+    5: 'Note',
+    6: 'Bookmark',
+    7: 'Character',
+    8: 'Timeline_start',
+    9: 'Timeline_end'
+};
+
 // Get the current timeline ID when window loads
 window.addEventListener('DOMContentLoaded', async function() {
     timeline_id = await window.api.getCurrentTimelineId();
@@ -196,10 +208,25 @@ function displayItems() {
 
     filteredItems.forEach(item => {
         const itemElement = document.createElement('div');
+
+        const imageCount = media.filter(file => file.item_id === item.id && file.type === 'image').length;
+        const itemType = item_types[item.item_type] || 'unknown';
+
+        let item_date = `<div class="archive-item-date">${item.year} .${item.subtick}</div>`;
+        let item_end_date = '';
+
+        if(item.type_id == 2 || item.type_id == 3) {
+            item_end_date = `<div class="archive-item-date">${item.end_year} .${item.end_subtick}</div>`;
+        }
+
         itemElement.className = 'archive-item';
         itemElement.innerHTML = `
+        <div class="item-info">
             <div class="archive-item-title">${item.title}</div>
-            <div class="archive-item-date">Year: ${item.year}, Subtick: ${item.subtick}</div>
+            <div class="item-date-container">
+                ${item_date}  ${(item_end_date ? '<span class="item-date-separator">—</span>' + item_end_date : '')} 
+            </div>
+        </div>
             ${item.description ? `<div class="archive-item-description">${item.description}</div>` : ''}
             ${item.tags && item.tags.length > 0 ? `
                 <div class="archive-item-tags">
@@ -283,7 +310,9 @@ function jumptoitem(item_id) {
     document.getElementById('items-tab').classList.add('active');
 
     // scroll to item
-    document.getElementById(item_id).scrollIntoView({ behavior: 'smooth' });
+    window.setTimeout(() => {
+        document.getElementById(item_id).scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center', offsetTop: 100 });
+    }, 100);
 
     // highlight the item briefly with a border
     highlightItem(item_id);
@@ -324,4 +353,72 @@ window.api.receive('stories', (receivedStories) => {
 window.api.receive('media', (receivedMedia) => {
     media = receivedMedia;
     filterMedia();
-}); 
+});
+
+function openArchiveModal(type, data) {
+    const modal = document.getElementById('archive-modal');
+    const content = document.getElementById('modal-content');
+    content.innerHTML = '';
+    let form;
+    if (type === 'item') {
+        form = renderItemForm(data);
+    } else if (type === 'story') {
+        form = renderStoryForm(data);
+    } else if (type === 'picture') {
+        form = renderPictureForm(data);
+    }
+    content.appendChild(form);
+    modal.classList.remove('hidden');
+}
+
+document.getElementById('modal-close').onclick = () => {
+    document.getElementById('archive-modal').classList.add('hidden');
+};
+
+function renderItemForm(item) {
+    const form = document.createElement('form');
+    for (const key in item) {
+        const label = document.createElement('label');
+        label.textContent = key;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = key;
+        input.value = item[key];
+        form.appendChild(label);
+        form.appendChild(input);
+        form.appendChild(document.createElement('br'));
+    }
+    return form;
+}
+
+function renderStoryForm(story) {
+    const form = document.createElement('form');
+    for (const key in story) {
+        const label = document.createElement('label');
+        label.textContent = key;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = key;
+        input.value = story[key];
+        form.appendChild(label);
+        form.appendChild(input);
+        form.appendChild(document.createElement('br'));
+    }
+    return form;
+}
+
+function renderPictureForm(picture) {
+    const form = document.createElement('form');
+    for (const key in picture) {
+        const label = document.createElement('label');
+        label.textContent = key;
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.name = key;
+        input.value = picture[key];
+        form.appendChild(label);
+        form.appendChild(input);
+        form.appendChild(document.createElement('br'));
+    }
+    return form;
+} 
