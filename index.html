@@ -423,7 +423,9 @@
       // Add View menu
       menubar.addMenu('View', [
         { label: 'Show Guides', action: () => toggleGuides(true) },
-        { label: 'Hide Guides', action: () => toggleGuides(false) }
+        { label: 'Hide Guides', action: () => toggleGuides(false) },
+        { separator: true },
+        { label: 'Archive', action: () => window.api.send('open-archive-window') }
       ]);
 
       // Add Help menu

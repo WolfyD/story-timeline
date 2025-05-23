@@ -732,6 +732,17 @@ class DatabaseManager {
         return stmt.all();
     }
 
+    getAllPictures() {
+        // Get all items for the current timeline
+        const items = this.getAllItems();
+
+        let itemIds_string = items.map(item => "'" + item.id + "'").join(',');
+
+        // Get all pictures for the current timeline
+        const stmt = this.db.prepare("SELECT * FROM pictures where item_id is null or item_id = '' or item_id in (" + itemIds_string + ") ORDER BY file_name");
+        return stmt.all();
+    }
+
     // Item operations
     addStoryReferencesToItem(itemId, storyRefs) {
         if (!Array.isArray(storyRefs)) return;

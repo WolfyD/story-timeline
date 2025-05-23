@@ -117,6 +117,7 @@ function generateEpicTitle() {
  * @type {BrowserWindow} addItemWindow - Add item window
  * @type {BrowserWindow} editItemWindow - Edit item window
  * @type {BrowserWindow} editItemWithRangeWindow - Edit item with range window
+ * @type {BrowserWindow} archiveWindow - Archive window
  * @type {Object} settings - Current application settings
  * @type {Object} data - Current timeline data
  */
@@ -124,6 +125,7 @@ let mainWindow = null;
 let addItemWindow;
 let editItemWindow;
 let editItemWithRangeWindow;
+let archiveWindow;
 let settings = DEFAULT_SETTINGS;
 let data = {
     title: '',
@@ -1510,6 +1512,60 @@ function setupIpcHandlers() {
       mainWindow.webContents.send('timeline-updated', state);
     }
   });
+
+  ipcMain.on('open-archive', () => {
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const windowWidth = 800;
+    const windowHeight = 900;
+
+    const archiveWindow = new BrowserWindow({
+      width: windowWidth,
+      height: windowHeight,
+      x: Math.floor((width - windowWidth) / 2),
+      y: Math.floor((height - windowHeight) / 2),
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: path.join(__dirname, 'preload.js'),
+      },
+      show: false,
+      autoHideMenuBar: true,
+      parent: mainWindow,
+      modal: true
+    });
+
+    archiveWindow.webContents.on("before-input-event", (event, input) => {
+      if (input.key === "F12") {
+        archiveWindow.webContents.openDevTools();
+      }
+    });
+
+    archiveWindow.loadFile('archive.html');
+
+    archiveWindow.once('ready-to-show', () => {
+      archiveWindow.show();
+    });
+
+    archiveWindow.on('closed', () => {
+      archiveWindow = null;
+    });
+  });
+
+  // Handle opening archive window
+  ipcMain.on('open-archive-window', (event) => {
+    createArchiveWindow();
+  });
+
+  ipcMain.on('getAllStories', (event) => {
+    const stories = dbManager.getAllStories();
+    event.sender.send('stories', stories);
+  });
+
+  ipcMain.on('getAllMedia', (event) => {
+    // Fetch all pictures from the database
+    const media = dbManager.getAllPictures();
+    event.sender.send('media', media);
+  });
 }
 
 // ===== Application Lifecycle =====
@@ -1529,4 +1585,59 @@ function logToRenderer(level, message) {
     if (mainWindow) {
         mainWindow.webContents.send('log-message', { level, message });
     }
+}
+
+/**
+ * Creates the archive window
+ * 
+ * How it works:
+ * 1. Creates BrowserWindow instance
+ * 2. Loads archive.html
+ * 3. Sets up window events
+ * 
+ * Possible errors:
+ * - Window creation failure
+ * - File load failure
+ */
+function createArchiveWindow() {
+    if (archiveWindow) {
+        archiveWindow.focus();
+        return;
+    }
+
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const windowWidth = 800;
+    const windowHeight = 900;
+
+    archiveWindow = new BrowserWindow({
+        width: windowWidth,
+        height: windowHeight,
+        x: Math.floor((width - windowWidth) / 2),
+        y: Math.floor((height - windowHeight) / 2),
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js'),
+        },
+        show: false,
+        autoHideMenuBar: true,
+        parent: mainWindow,
+        modal: true
+    });
+
+    archiveWindow.webContents.on("before-input-event", (event, input) => {
+        if (input.key === "F12") {
+            archiveWindow.webContents.openDevTools();
+        }
+    });
+
+    archiveWindow.loadFile('archive.html');
+
+    archiveWindow.once('ready-to-show', () => {
+        archiveWindow.show();
+    });
+
+    archiveWindow.on('closed', () => {
+        archiveWindow = null;
+    });
 }

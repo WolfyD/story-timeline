@@ -44,7 +44,10 @@ contextBridge.exposeInMainWorld('api', {
             'edit-item-window-closing',
             'edit-item-with-range-window-closing',
             'update-timeline-item-with-range',
-            'timeline-updated'
+            'timeline-updated',
+            'open-archive-window',
+            'getAllStories',
+            'getAllMedia'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -101,7 +104,10 @@ contextBridge.exposeInMainWorld('api', {
             'test-items-generated',
             'recalculate-period-stacks',
             'log-message',
-            'timeline-updated'
+            'timeline-updated',
+            'archive-items',
+            'stories',
+            'media'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
