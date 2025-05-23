@@ -211,6 +211,8 @@ function displayItems() {
         // Add click handler to restore item
         itemElement.addEventListener('click', () => restoreItem(item));
 
+        itemElement.id = item.id;
+
         content.appendChild(itemElement);
     });
 }
@@ -284,10 +286,17 @@ function jumptoitem(item_id) {
     document.getElementById(item_id).scrollIntoView({ behavior: 'smooth' });
 
     // highlight the item briefly with a border
-    document.getElementById(item_id).style.border = '2px solid #FFFF00';
-    setTimeout(() => {
-        document.getElementById(item_id).style.border = '';
-    }, 1000);
+    highlightItem(item_id);
+}
+
+function highlightItem(item_id) {
+    const el = document.getElementById(item_id);
+    if (el) {
+        el.classList.add('highlighted-item');
+        setTimeout(() => {
+            el.classList.remove('highlighted-item');
+        }, 1000);
+    }
 }
 
 /**
