@@ -1,8 +1,4 @@
-// TODO: Make sure tag input offers up existing tags
-// TODO: Make sure images can be deleted from the items
-// TODO: Make sure tags can be deleted from the items
-// TODO: Make sure items are not rendered when x distance from screen binding box
-
+// TODO: add new screen for handling miscellaneous things
 
 /**
  * Main Process Module
