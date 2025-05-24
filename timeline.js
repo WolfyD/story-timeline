@@ -475,112 +475,53 @@ function getHoverLabel(v, granularity) {
  */
 function updateMainContent(centerX, centerYear) {
     const mainContentRight = document.querySelector('.main-content-right');
+    if (!mainContentRight) return;
+
+    // Clear existing content
     mainContentRight.innerHTML = '';
 
-    // Get items at center position
-    const centerItems = timelineState.items.filter(item => {
-        if (!item || !item.type) return false;
-        const itemYear = parseFloat(item.year || item.date || 0);
-        const itemSubtick = parseInt(item.subtick || 0);
-        const endYear = parseFloat(item.end_year || item.year || 0);
-        const endSubtick = parseInt(item.end_subtick || item.subtick || 0);
-        const itemPosition = itemYear + (itemSubtick / timelineState.granularity);
-        const itemEndPosition = endYear + (endSubtick / timelineState.granularity);
-        return centerYear >= itemPosition && centerYear <= itemEndPosition;
+    // Find age and period items where the center point falls between start and end positions
+    const ageItems = timelineState.items.filter(item => {
+        if (!item || item.type?.toLowerCase() !== 'age') return false;
+        
+        // Calculate exact pixel positions for start and end
+        const startX = calculatePositionFromYear(item.year) + (item.subtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        const endX = calculatePositionFromYear(item.end_year || item.year) + ((item.end_subtick || item.subtick) / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        
+        // Check if centerX is between start and end positions
+        return centerX >= startX && centerX <= endX;
     });
 
-    // Find the closest note to center
-    const closestNote = findClosestNote(centerX);
-    
-    if (closestNote) {
-        // Find age and period items
-        const ageItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'age');
-        const periodItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'period')
-            .sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
-
-        if (ageItems.length > 0) {
-            const age = ageItems[0];
-            const ageDiv = document.createElement('div');
-            ageDiv.className = 'center-age';
-
-            const title = document.createElement('h1');
-            title.textContent = age.title || '(No Title)';
-            ageDiv.appendChild(title);
-
-            if (age.description) {
-                const description = document.createElement('p');
-                description.textContent = age.description;
-                ageDiv.appendChild(description);
-            }
-
-            mainContentRight.appendChild(ageDiv);
-        }
-
-        // Add periods if they exist
-        if (periodItems.length > 0) {
-            const periodsDiv = document.createElement('div');
-            periodsDiv.className = 'center-periods';
-
-            periodItems.forEach((period, index) => {
-                const periodDiv = document.createElement('div');
-                periodDiv.className = 'center-period';
-
-                const title = document.createElement(`h${Math.min(index + 2, 6)}`);
-                title.textContent = period.title || '(No Title)';
-                periodDiv.appendChild(title);
-
-                if (period.description) {
-                    const description = document.createElement('p');
-                    description.textContent = period.description;
-                    periodDiv.appendChild(description);
-                }
-
-                periodsDiv.appendChild(periodDiv);
-            });
-
-            mainContentRight.appendChild(periodsDiv);
-        }
-
-        // Add the note content
-        const noteDiv = document.createElement('div');
-        noteDiv.className = 'center-note';
+    const periodItems = timelineState.items.filter(item => {
+        if (!item || item.type?.toLowerCase() !== 'period') return false;
         
-        // Add separator if there was an h1
-        if (mainContentRight.querySelector('h1')) {
-            const hr = document.createElement('hr');
-            noteDiv.appendChild(hr);
-        }
+        // Calculate exact pixel positions for start and end
+        const startX = calculatePositionFromYear(item.year) + (item.subtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        const endX = calculatePositionFromYear(item.end_year || item.year) + ((item.end_subtick || item.subtick) / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        
+        // Check if centerX is between start and end positions
+        return centerX >= startX && centerX <= endX;
+    }).sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
 
-        // Add title
-        if (closestNote.title) {
-            const title = document.createElement('h2');
-            title.textContent = closestNote.title.split(' ')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                .join(' ');
-            noteDiv.appendChild(title);
-        }
+    // Find note items within 10px of center
+    const noteItems = timelineState.items.filter(item => {
+        if (!item || item.type?.toLowerCase() !== 'note') return false;
+        const itemYear = parseFloat(item.year || item.date || 0);
+        const itemSubtick = parseInt(item.subtick || 0);
+        const itemX = centerX + (itemYear - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity + timelineState.offsetPx + (itemSubtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        return Math.abs(itemX - centerX) <= 10;
+    }).sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
 
-        // Add description in italic
-        if (closestNote.description) {
-            const description = document.createElement('p');
-            description.className = 'note-description';
-            description.textContent = closestNote.description;
-            noteDiv.appendChild(description);
-        }
+    // Add all visible ages
+    if (ageItems.length > 0) {
+        const agesDiv = document.createElement('div');
+        agesDiv.className = 'center-ages';
 
-        mainContentRight.appendChild(noteDiv);
-    } else {
-        // Find age and period items
-        const ageItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'age');
-        const periodItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'period')
-            .sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
-
-        if (ageItems.length > 0) {
-            const age = ageItems[0];
+        ageItems.forEach((age, index) => {
             const ageDiv = document.createElement('div');
             ageDiv.className = 'center-age';
 
-            const title = document.createElement('h1');
+            const title = document.createElement(`h${Math.min(index + 1, 6)}`);
             title.textContent = age.title || '(No Title)';
             ageDiv.appendChild(title);
 
@@ -590,33 +531,84 @@ function updateMainContent(centerX, centerYear) {
                 ageDiv.appendChild(description);
             }
 
-            mainContentRight.appendChild(ageDiv);
-        }
+            agesDiv.appendChild(ageDiv);
+        });
 
-        // Add periods if they exist
-        if (periodItems.length > 0) {
-            const periodsDiv = document.createElement('div');
-            periodsDiv.className = 'center-periods';
+        mainContentRight.appendChild(agesDiv);
+    }
 
-            periodItems.forEach((period, index) => {
-                const periodDiv = document.createElement('div');
-                periodDiv.className = 'center-period';
+    // Add all visible periods
+    if (periodItems.length > 0) {
+        const periodsDiv = document.createElement('div');
+        periodsDiv.className = 'center-periods';
 
-                const title = document.createElement(`h${Math.min(index + 2, 6)}`);
-                title.textContent = period.title || '(No Title)';
-                periodDiv.appendChild(title);
+        periodItems.forEach(period => {
+            const periodDiv = document.createElement('div');
+            periodDiv.className = 'center-period';
 
-                if (period.description) {
-                    const description = document.createElement('p');
-                    description.textContent = period.description;
-                    periodDiv.appendChild(description);
-                }
+            const title = document.createElement('h2');
+            title.textContent = period.title || '(No Title)';
+            periodDiv.appendChild(title);
 
-                periodsDiv.appendChild(periodDiv);
-            });
+            if (period.description) {
+                const description = document.createElement('p');
+                description.textContent = period.description;
+                periodDiv.appendChild(description);
+            }
 
-            mainContentRight.appendChild(periodsDiv);
-        }
+            periodsDiv.appendChild(periodDiv);
+        });
+
+        mainContentRight.appendChild(periodsDiv);
+    }
+
+    // Add all visible notes
+    if (noteItems.length > 0) {
+        const notesDiv = document.createElement('div');
+        notesDiv.className = 'center-notes';
+
+        noteItems.forEach(note => {
+            const noteDiv = document.createElement('div');
+            noteDiv.className = 'center-note';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'note-content';
+
+            const title = document.createElement('h2');
+            title.textContent = note.title || '(No Title)';
+            contentDiv.appendChild(title);
+
+            if (note.description) {
+                const description = document.createElement('p');
+                description.textContent = note.description;
+                contentDiv.appendChild(description);
+            }
+
+            if (note.tags && note.tags.length > 0) {
+                const tagsDiv = document.createElement('div');
+                tagsDiv.className = 'note-tags';
+                note.tags.forEach(tag => {
+                    const tagSpan = document.createElement('span');
+                    tagSpan.className = 'note-tag';
+                    tagSpan.textContent = tag;
+                    tagsDiv.appendChild(tagSpan);
+                });
+                contentDiv.appendChild(tagsDiv);
+            }
+
+            noteDiv.appendChild(contentDiv);
+
+            if (note.pictures && note.pictures.length > 0) {
+                const img = document.createElement('img');
+                img.className = 'note-image';
+                img.src = `file://${note.pictures[0].file_path}`;
+                noteDiv.appendChild(img);
+            }
+
+            notesDiv.appendChild(noteDiv);
+        });
+
+        mainContentRight.appendChild(notesDiv);
     }
 }
 

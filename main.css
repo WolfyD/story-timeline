@@ -929,7 +929,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 .timeline-note-box .note-title,
 .timeline-note-box.above,
 .timeline-note-box.below {
-    display: none;
+    /* Removing display: none to allow notes to show */
 }
 
 .note-icon {
@@ -952,17 +952,25 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 /* Main content right area styles */
 .center-note,
 .center-age,
-.center-periods {
+.center-periods,
+.center-ages {
     margin-bottom: 20px;
 }
 
 .center-note h1,
-.center-age h1 {
+.center-age h1,
+.center-ages h1 {
     font-size: 2.5em;
     color: #4b2e2e;
     margin-bottom: 15px;
     font-weight: bold;
 }
+
+.center-ages h2 { font-size: 2.2em; }
+.center-ages h3 { font-size: 2em; }
+.center-ages h4 { font-size: 1.8em; }
+.center-ages h5 { font-size: 1.6em; }
+.center-ages h6 { font-size: 1.4em; }
 
 .center-period h2,
 .center-period h3,
@@ -991,6 +999,38 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 
 .center-note {
     margin: 20px 0;
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.center-note .note-content {
+    flex: 1;
+}
+
+.center-note .note-image {
+    max-width: 120px;
+    max-height: 120px;
+    object-fit: cover;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease-in-out;
+    flex-shrink: 0;
+}
+
+.center-note .note-image:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Add spacing between multiple ages */
+.center-ages .center-age {
+    margin-bottom: 30px;
+}
+
+.center-ages .center-age:last-child {
+    margin-bottom: 0;
 }
 
 .center-note h2 {
@@ -1028,7 +1068,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 }
 
 .center-note .note-image:hover {
-    max-width: 30%;
+    max-width: 50%;
     max-height: none;
     --position: relative;
     z-index: 100;
@@ -1160,4 +1200,57 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 
 .log-entry {
     font-size: 12px;
+}
+
+/* Center notes styles */
+.center-notes {
+    margin-bottom: 20px;
+}
+
+.center-notes .center-note {
+    margin-bottom: 30px;
+    padding: 15px;
+    background-color: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.center-notes .center-note:last-child {
+    margin-bottom: 0;
+}
+
+.center-notes .center-note h2,
+.center-notes .center-note h3,
+.center-notes .center-note h4,
+.center-notes .center-note h5,
+.center-notes .center-note h6 {
+    color: #4b2e2e;
+    margin: 0 0 10px 0;
+    font-weight: bold;
+}
+
+.center-notes .center-note .note-description {
+    font-style: italic;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.center-notes .center-note .note-content {
+    color: #333;
+    line-height: 1.5;
+    margin-bottom: 15px;
+}
+
+.center-notes .center-note .note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.center-notes .center-note .note-tag {
+    background-color: #4b2e2e;
+    color: #f5e6d4;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
 }
