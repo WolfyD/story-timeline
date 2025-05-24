@@ -47,7 +47,11 @@ contextBridge.exposeInMainWorld('api', {
             'timeline-updated',
             'open-archive-window',
             'getAllStories',
-            'getAllMedia'
+            'getAllMedia',
+            'itemRemoved',
+            'updateTimeline',
+            'force-timeline-refresh',
+            'refresh-timeline'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -107,7 +111,9 @@ contextBridge.exposeInMainWorld('api', {
             'timeline-updated',
             'archive-items',
             'stories',
-            'media'
+            'media',
+            'force-timeline-refresh',
+            'refresh-timeline'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

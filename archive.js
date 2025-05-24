@@ -47,6 +47,30 @@ let item_types = {
     9: 'Timeline_end'
 };
 
+let item_type_reverse = {
+    'event':          '1', 
+    'period':         '2', 
+    'age':            '3', 
+    'picture':        '4', 
+    'note':           '5', 
+    'bookmark':       '6', 
+    'character':      '7', 
+    'timeline_start': '8', 
+    'timeline_end':   '9'
+}; 
+
+let item_type_icons = {
+    1: 'ri-calendar-event-fill',
+    2: 'ri-calendar-2-fill',
+    3: 'ri-hourglass-fill',
+    4: 'ri-image-fill',
+    5: 'ri-sticky-note-fill',
+    6: 'ri-bookmark-fill',
+    7: 'ri-user-line',
+    8: 'ri-quill-pen-ai-fill',
+    9: 'ri-book-fill'
+};
+
 // Get the current timeline ID when window loads
 window.addEventListener('DOMContentLoaded', async function() {
     timeline_id = await window.api.getCurrentTimelineId();
@@ -130,12 +154,12 @@ function setupTabs() {
  * Filters items based on current filter and search query
  */
 function filterItems() {
-    filteredItems = items.filter(item => {
-        // Apply type filter
-        if (currentFilter !== 'all' && item.type !== currentFilter) {
-            return false;
-        }
+    let filter_id = item_type_reverse[currentFilter.toLowerCase()];
 
+    let pre_filtered_items = items.filter(item => currentFilter == 'all' || item.type_id == filter_id);
+
+    filteredItems = pre_filtered_items.filter(item => {
+        
         // Apply search filter
         if (searchQueries.items) {
             const searchableText = [
@@ -230,7 +254,7 @@ function displayItems() {
                 </button>
             </div>
             <div class="item-info">
-                <div class="archive-item-title">${item.title}</div>
+                 <div class="archive-item-title-container"><div class="archive-item-title">${item.title}</div> <div class="archive-item-type" title="${item_types[item.type_id]}"><i class="${item_type_icons[item.type_id]}"></i></div></div>
                 <div class="item-date-container">
                     ${item_date}  ${(item_end_date ? '<span class="item-date-separator">—</span>' + item_end_date : '')} 
                 </div>
@@ -263,7 +287,15 @@ function displayItems() {
         deleteButton.addEventListener('click', (e) => {
             e.stopPropagation(); // Prevent item click event
             if (confirm('Are you sure you want to delete this item?')) {
-                window.api.send('delete-item', item.id);
+                window.api.send('removeItem', item.id);
+                // Listen for the deletion confirmation
+                window.api.receive('itemRemoved', (response) => {
+                    initializeArchive();
+                });
+                
+                // make call to re-render the timeline not the items
+                window.api.send('refresh-timeline');
+
             }
         });
 

@@ -147,16 +147,22 @@ h2 {
 }
 
 .archive-item-title {
-    font-size: 18px;
+    font-size: 1.1em;
     font-weight: bold;
-    margin-bottom: 5px;
-    color: #4b2e2e;
-    font-family: 'Quintessential', var(--default-font), serif;
+    margin-bottom: 4px;
+}
+
+.archive-item-type {
+    font-size: 0.9em;
+    color: #666;
+    position: relative;
+    font-style: italic;
+    bottom: -3px;
 }
 
 .archive-item-date {
-    color: #a67c52;
-    font-size: 14px;
+    font-size: 0.9em;
+    color: #666;
 }
 
 .archive-item-description {
@@ -356,4 +362,10 @@ button:disabled {
 
 .archive-item-button i {
     font-size: 18px;
+}
+
+.archive-item-title-container {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
 }
