@@ -1420,11 +1420,11 @@ const logger = {
 };
 
 // Override console methods
-console.log = logger.log;
-console.error = logger.error;
-console.warn = logger.warn;
-console.info = logger.info;
-console.debug = logger.debug;
+// console.log = logger.log;
+// console.error = logger.error;
+// console.warn = logger.warn;
+// console.info = logger.info;
+// console.debug = logger.debug;
 
 // Event listeners
 document.addEventListener('keydown', (e) => {

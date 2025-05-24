@@ -528,11 +528,13 @@ function sendTimelineUpdate() {
     });
 }
 
-// Add frame timing variables at the top of the file
+// Frame timing variables with improved stability
 let lastFrameTime = 0;
 const targetFrameTime = 1000 / 60; // 60fps
 const minFrameTime = 1000 / 30;    // 30fps minimum
 let currentQuality = 1.0;          // Start at full quality
+let isScrolling = false;           // Track if we're currently scrolling
+let scrollTimeout = null;          // For debouncing scroll end
 
 /**
  * Renders the timeline
@@ -552,14 +554,20 @@ function renderTimeline() {
     const now = performance.now();
     const timeSinceLastFrame = now - lastFrameTime;
     
-    // Skip if we're rendering too fast
-    if (timeSinceLastFrame < minFrameTime) {
-        requestAnimationFrame(renderTimeline);
-        return;
+    // Only apply quality adjustments when not scrolling
+    if (!isScrolling) {
+        // Skip if we're rendering too fast
+        if (timeSinceLastFrame < minFrameTime) {
+            requestAnimationFrame(renderTimeline);
+            return;
+        }
+        
+        // Calculate quality based on frame time, but with a minimum threshold
+        currentQuality = Math.max(0.5, Math.min(1, timeSinceLastFrame / targetFrameTime));
+    } else {
+        // During scrolling, maintain a stable quality level
+        currentQuality = 0.5;
     }
-    
-    // Calculate quality based on frame time
-    currentQuality = Math.min(1, timeSinceLastFrame / targetFrameTime);
     
     // Store current frame time
     lastFrameTime = now;
@@ -702,8 +710,7 @@ function renderTimeline() {
     existingPeriodItems.forEach(item => item.remove());
 
     // Render ticks with quality-based detail
-    const tickInterval = Math.max(1, Math.floor(1 / currentQuality)); // Adjust tick density based on quality
-    for (let i = startSubtick; i <= endSubtick; i += tickInterval) {
+    for (let i = startSubtick; i <= endSubtick; i++) {
         const year = i / granularity;
         const x = centerX + (year - focusYear) * pixelsPerSubtick * granularity + offsetPx;
         const isFullYear = i % granularity === 0;
@@ -1531,6 +1538,22 @@ function checkAndCorrectEndBoundary() {
 
 function middleMouseScrollStep() {
     if (!isMiddleMouseDragging) return;
+
+    // Set quality control state
+    isScrolling = true;
+    currentQuality = 0.5; // Set stable quality during navigation
+    
+    // Clear any existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+    
+    // Set timeout to detect when navigation ends
+    scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+        currentQuality = 1.0; // Reset to full quality
+    }, 150); // 150ms debounce
+
     const dx = middleMouseCurrentX - middleMouseStartX;
     // Speed factor: px per second, scaled down for smoothness
     const speed = dx * -5; // adjust 0.5 for desired sensitivity
@@ -1697,16 +1720,32 @@ container.addEventListener("wheel", (event) => {
  * @param {number} year - Year to jump to
  * 
  * How it works:
- * 1. Checks if target is before start marker
- * 2. Updates focus year
- * 3. Resets offset
- * 4. Re-renders timeline
+ * 1. Set quality control state
+ * 2. Clear any existing timeout
+ * 3. Set timeout to detect when navigation ends
+ * 4. Check if there's a start marker and if target is before it
+ * 5. Updates focus year
+ * 6. Resets offset
+ * 7. Re-renders timeline
  * 
  * Possible errors:
  * - Invalid year
  * - Render failure
  */
 function jumpToYear(year) {
+    // Set quality control state
+    isScrolling = true;
+    currentQuality = 0.1; // Start with very low quality for initial jump
+    
+    // Clear any existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+
+    scrollTimeout = setTimeout(() => {
+        currentQuality = 1; // Reset to full quality
+    }, 500);
+
     // Check if there's a start marker and if target is before it
     if (timelineMarkers.start) {
         const startYear = timelineMarkers.start.year;
@@ -1741,10 +1780,21 @@ function jumpToYear(year) {
     timelineState.focusYear = year;
     timelineState.offsetPx = 0;
 
-    // Request animation frame for smooth rendering
-    requestAnimationFrame(() => {
-        renderTimeline();
-    });
+    // Progressive rendering sequence
+    let qualitySteps = [0.2, 0.4, 0.6, 0.8, 1.0];
+    let currentStep = 0;
+
+    function renderStep() {
+        if (currentStep < qualitySteps.length) {
+            currentQuality = qualitySteps[currentStep];
+            renderTimeline();
+            currentStep++;
+            requestAnimationFrame(renderStep);
+        }
+    }
+
+    // Start progressive rendering
+    requestAnimationFrame(renderStep);
 }
 
 /**
@@ -1752,14 +1802,32 @@ function jumpToYear(year) {
  * @param {number} years - Number of years to scroll
  * 
  * How it works:
- * 1. Updates offset
- * 2. Re-renders timeline
+ * 1. Set quality control state
+ * 2. Clear any existing timeout
+ * 3. Set timeout to detect when navigation ends
+ * 4. Updates offset
+ * 5. Re-renders timeline
  * 
  * Possible errors:
  * - Invalid years value
  * - Render failure
  */
 function scrollBy(years) {
+    // Set quality control state
+    isScrolling = true;
+    currentQuality = 0.5; // Set stable quality during navigation
+    
+    // Clear any existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+    
+    // Set timeout to detect when navigation ends
+    scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+        currentQuality = 1.0; // Reset to full quality
+    }, 150); // 150ms debounce
+
     timelineState.offsetPx -= years * timelineState.granularity * timelineState.pixelsPerSubtick;
     renderTimeline();
 }
@@ -2395,11 +2463,15 @@ window.api.receive('all-items', (items) => {
  * - Invalid input
  * - Render failure
  */
-function jumpToDate() {
-    const input = document.getElementById('jump-to-date');
-    const value = parseFloat(input.value);
-    
-    if (isNaN(value)) return;
+function jumpToDate(i_year = null, i_subtick = null) {
+    const floatYear = i_year + (i_subtick / timelineState.granularity);
+    let value = 0;
+    if(!i_year) {
+        const input = document.getElementById('jump-to-date');
+        value = parseFloat(input.value);
+    } else {
+        value = floatYear;
+    }
     
     let year = Math.floor(value);
     let subtick = Math.round((value - year) * timelineState.granularity);
@@ -2724,5 +2796,22 @@ renderTimeline();
 window.api.receive('recalculate-period-stacks', () => {
     computePeriodStackLevels();
     renderTimeline();
+});
+
+// Add scroll event handler to track scrolling state
+container.addEventListener('wheel', () => {
+    isScrolling = true;
+    currentQuality = 0.2; // Set stable quality during scroll
+    
+    // Clear any existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+    
+    // Set timeout to detect when scrolling ends
+    scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+        currentQuality = 1.0; // Reset to full quality
+    }, 150); // 150ms debounce
 });
 

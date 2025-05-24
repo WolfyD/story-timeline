@@ -610,7 +610,7 @@ class DisplayRenderer {
                         y >= timelineY - specialMarkerHeight && 
                         y <= timelineY) {
                         // Jump to the bookmark's year
-                        window.jumpToYear(item.year);
+                        window.jumpToDate(item.year, item.subtick);
                         return;
                     }
                 }
