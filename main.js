@@ -181,7 +181,7 @@ function createSplashWindow() {
       }
     });
 
-    splashWindow.loadFile('splash.html');
+    splashWindow.loadFile('./markdown/splash.html');
     splashWindow.once('ready-to-show', () => {
         splashWindow.show();
     });
@@ -206,7 +206,7 @@ function createWindow() {
         menuBarVisible: false
     });
 
-    mainWindow.loadFile('index.html');
+    mainWindow.loadFile('./markdown/index.html');
 
     // Wait for the page to load
     mainWindow.webContents.on('did-finish-load', () => {
@@ -316,7 +316,7 @@ function createAddItemWindow(year, subtick, granularity, type) {
     }
   });
 
-  newItemWindow.loadFile('addItem.html', {
+  newItemWindow.loadFile('./markdown/addItem.html', {
     query: {
       year: year,
       subtick: subtick,
@@ -383,7 +383,7 @@ function createEditItemWindow(item) {
     color: item.color
   });
   
-  editItemWindow.loadFile('editItem.html', {
+  editItemWindow.loadFile('./markdown/editItem.html', {
     query: {
       itemId: item.id,
       year: item.year,
@@ -478,7 +478,7 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrD
     type
   });
 
-  newItemWindow.loadFile('addItemWithRange.html', {
+  newItemWindow.loadFile('./markdown/addItemWithRange.html', {
     query: {
       year: year,
       subtick: subtick,
@@ -537,7 +537,7 @@ function createEditItemWithRangeWindow(item) {
     });
 
     // Load the edit item window HTML file
-    editItemWithRangeWindow.loadFile('editItem.html', {
+    editItemWithRangeWindow.loadFile('./markdown/editItem.html', {
         query: {
             itemId: item.id,
             year: item.year,
@@ -1362,7 +1362,7 @@ function setupIpcHandlers() {
     };
 
     if (mainWindow) {
-        mainWindow.loadFile('index.html').then(() => {
+        mainWindow.loadFile('./markdown/index.html').then(() => {
             // Send the timeline data to the main window
             mainWindow.webContents.send('timeline-data', {
                 id: newTimelineId,
@@ -1540,7 +1540,7 @@ function setupIpcHandlers() {
       }
     });
 
-    archiveWindow.loadFile('archive.html');
+    archiveWindow.loadFile('./markdown/archive.html');
 
     archiveWindow.once('ready-to-show', () => {
       archiveWindow.show();
@@ -1597,6 +1597,16 @@ function logToRenderer(level, message) {
     }
 }
 
+// return timeline data
+ipcMain.handle('get-timeline-data', async (event) => {
+  return dbManager.getAllTimelineData();
+});
+
+// return all items
+ipcMain.handle('get-all-items', async (event) => {
+  return dbManager.getAllItems();
+});
+
 /**
  * Creates the archive window
  * 
@@ -1641,7 +1651,7 @@ function createArchiveWindow() {
         }
     });
 
-    archiveWindow.loadFile('archive.html');
+    archiveWindow.loadFile('./markdown/archive.html');
 
     archiveWindow.once('ready-to-show', () => {
         archiveWindow.show();

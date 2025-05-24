@@ -1200,6 +1200,13 @@ class DatabaseManager {
         return stmt.get(title, author);
     }
 
+    // Get all timeline data
+    getAllTimelineData() {
+        let id = this.currentTimelineId;
+        const stmt = this.db.prepare('SELECT * FROM timelines where id = ?');
+        return stmt.all(id);
+    }
+
     getAllTimelines() {
         const stmt = this.db.prepare(`
             WITH timeline_years AS (

@@ -3,12 +3,11 @@
   <head>
     <meta charset="UTF-8">
     <title>Story Timeline</title>
-    <link rel="stylesheet" href="main.css" type="text/css" />
-    <link rel="stylesheet" href="timeline.css" type="text/css" />
-    <link rel="stylesheet" href="modal.css" type="text/css" />
-    <link rel="stylesheet" href="menubar.css" type="text/css" />
-    <link rel="stylesheet" href="styles.css" type="text/css" />
-    <link rel="stylesheet" href="node_modules/remixicon/fonts/remixicon.css" type="text/css" />
+    <link rel="stylesheet" href="../css/main.css" type="text/css" />
+    <link rel="stylesheet" href="../css/timeline.css" type="text/css" />
+    <link rel="stylesheet" href="../css/modal.css" type="text/css" />
+    <link rel="stylesheet" href="../css/menubar.css" type="text/css" />
+    <link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css" type="text/css" />
   </head>
   <body>
     <div id="calligraphy_container" style="display: none;">
@@ -380,20 +379,12 @@
     <dialog id="myDialog">
       <h2></h2>
       <p></p>
-      <button id="closeDialog">Close</button>
+      <button id="closeDialog">Close</button><div id="secondaryButton"></div>
     </dialog>
 
-    <div id="terminal-panel" class="terminal-panel">
-        <div class="terminal-header">
-            <span>Terminal</span>
-            <button id="close-terminal" class="close-terminal">×</button>
-        </div>
-        <div id="terminal-content" class="terminal-content"></div>
-    </div>
-
-    <script src="timeline.js"></script>
-    <script src="renderer.js"></script>
-    <script src="displayRenderer.js"></script>
+    <script src="../timeline.js"></script>
+    <script src="../renderer.js"></script>
+    <script src="../displayRenderer.js"></script>
     <script>
       // Initialize the display renderer
       document.addEventListener('DOMContentLoaded', () => {
@@ -403,8 +394,8 @@
       });
     </script>
     <script type="module">
-      import menubar from './menubar.js';
-      import exporter from './exporter.js';
+      import menubar from '../menubar.js';
+      import exporter from '../exporter.js';
 
       // Add File menu
       menubar.addMenu('File', [
