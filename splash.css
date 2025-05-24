@@ -1,3 +1,7 @@
+body * {
+    user-select: none;
+}
+
 .splash_container {
 }
 

@@ -194,7 +194,7 @@ function createSplashWindow() {
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1000,
-        height: 700,
+        height: 750,
         x: 300,
         webPreferences: {
             nodeIntegration: false,
@@ -226,7 +226,7 @@ function createWindow() {
             // Set window size
             mainWindow.setSize(
                 settings.size?.x || 1000,
-                settings.size?.y || 700
+                settings.size?.y || 750
             );
 
             // Set window position
@@ -1191,7 +1191,7 @@ function setupIpcHandlers() {
                 // Set window size
                 mainWindow.setSize(
                     timeline.settings.size.x || 1000,
-                    timeline.settings.size.y || 700
+                    timeline.settings.size.y || 750
                 );
 
                 // Set window position
@@ -1242,7 +1242,7 @@ function setupIpcHandlers() {
             // Set window size
             mainWindow.setSize(
                 timeline.settings.size.x || 1000,
-                timeline.settings.size.y || 700
+                timeline.settings.size.y || 750
             );
 
             // Set window position

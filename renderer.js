@@ -445,7 +445,7 @@ function toggleGuides(show) {
     console.log("Toggling guides:", show);
     const guides = document.getElementById('guides');
     if (guides) {
-        guides.style.display = show ? 'block' : 'none';
+        guides.style.display = show ? 'flex' : 'none';
         console.log("Guides visibility set to:", guides.style.display);
     } else {
         console.warn("Guides element not found");

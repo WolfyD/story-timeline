@@ -1,3 +1,12 @@
+body * {
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+img {
+    -webkit-user-drag: none;
+}
+
 :root {
     --default-font: var(--user-font, 'Georgia');
     --default-font-scale: 1;
@@ -325,7 +334,7 @@ select {
 }
 
 #guides.visible {
-    display: flex;
+    display: none;
 }
 
 #position_guide::before {
