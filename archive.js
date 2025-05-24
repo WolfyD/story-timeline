@@ -221,12 +221,20 @@ function displayItems() {
 
         itemElement.className = 'archive-item';
         itemElement.innerHTML = `
-        <div class="item-info">
-            <div class="archive-item-title">${item.title}</div>
-            <div class="item-date-container">
-                ${item_date}  ${(item_end_date ? '<span class="item-date-separator">—</span>' + item_end_date : '')} 
+            <div class="archive-item-buttons">
+                <button class="archive-item-button edit" title="Edit item">
+                    <i class="ri-quill-pen-line"></i>
+                </button>
+                <button class="archive-item-button delete" title="Delete item">
+                    <i class="ri-delete-bin-line"></i>
+                </button>
             </div>
-        </div>
+            <div class="item-info">
+                <div class="archive-item-title">${item.title}</div>
+                <div class="item-date-container">
+                    ${item_date}  ${(item_end_date ? '<span class="item-date-separator">—</span>' + item_end_date : '')} 
+                </div>
+            </div>
             ${item.description ? `<div class="archive-item-description">${item.description}</div>` : ''}
             ${item.tags && item.tags.length > 0 ? `
                 <div class="archive-item-tags">
@@ -236,7 +244,28 @@ function displayItems() {
         `;
 
         // Add click handler to restore item
-        itemElement.addEventListener('click', () => restoreItem(item));
+        itemElement.addEventListener('click', (e) => {
+            // Only trigger restore if the click wasn't on a button
+            if (!e.target.closest('.archive-item-button')) {
+                restoreItem(item);
+            }
+        });
+
+        // Add click handlers for edit and delete buttons
+        const editButton = itemElement.querySelector('.edit');
+        const deleteButton = itemElement.querySelector('.delete');
+
+        editButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent item click event
+            window.api.send('open-edit-item-with-range-window', item);
+        });
+
+        deleteButton.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent item click event
+            if (confirm('Are you sure you want to delete this item?')) {
+                window.api.send('delete-item', item.id);
+            }
+        });
 
         itemElement.id = item.id;
 

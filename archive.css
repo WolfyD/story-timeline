@@ -138,6 +138,7 @@ h2 {
     cursor: pointer;
     transition: box-shadow 0.2s, border-color 0.2s;
     box-shadow: 0 1px 4px 0 rgba(75, 46, 46, 0.04);
+    position: relative;
 }
 
 .archive-item:hover {
@@ -321,4 +322,38 @@ button:disabled {
 
 .item-date-separator {
     margin-top: -2px;
+}
+
+.archive-item-buttons {
+    position: absolute;
+    top: 15px;
+    right: 18px;
+    display: flex;
+    gap: 8px;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.archive-item:hover .archive-item-buttons {
+    opacity: 1;
+}
+
+.archive-item-button {
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: #a67c52;
+    transition: color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.archive-item-button:hover {
+    color: #fff8ef;
+}
+
+.archive-item-button i {
+    font-size: 18px;
 }
