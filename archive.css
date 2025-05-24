@@ -52,13 +52,30 @@ h2 {
     font-size: 16px;
     font-family: 'Quintessential', var(--default-font), serif;
     transition: border-color 0.2s, color 0.2s;
+    border-radius: 8px 8px 0 0;
+    position: relative;
+    top: 2px;
+}
+
+.archive-tab.separator {
+    flex: 1;
+    cursor: default;
+    border-bottom: 1px solid #cbb89d;
+    margin: 0 10px;
+    padding: 0;
     border-radius: 0;
+    top: 0;
 }
 
 .archive-tab.active {
     border-bottom: 3px solid #a67c52;
     color: #a67c52;
     background: none;
+    border-top: 1px solid #cbb89d;
+    border-left: 1px solid #cbb89d;
+    border-right: 1px solid #cbb89d;
+    border-bottom: none;
+    background-color: #f5e6d4;
 }
 
 /* Tab Content */
@@ -242,8 +259,8 @@ button:disabled {
 }
 
 .highlighted-item {
-    border: 2px solid #FFFF00 !important;
-    box-shadow: 0 0 8px #FFFF00;
+    border: 2px solid #008cff !important;
+    box-shadow: 0 0 8px #008cff;
     transition: border 0.2s, box-shadow 0.2s;
 }
 

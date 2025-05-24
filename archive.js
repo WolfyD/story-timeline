@@ -112,10 +112,10 @@ function setupEventListeners() {
  * Sets up tab switching functionality
  */
 function setupTabs() {
-    document.querySelectorAll('.archive-tab').forEach(tab => {
+    document.querySelectorAll('.archive-tab:not(.separator)').forEach(tab => {
         tab.addEventListener('click', () => {
             // Update active tab
-            document.querySelectorAll('.archive-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.archive-tab:not(.separator)').forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             
             // Update active content

@@ -1515,7 +1515,7 @@ function setupIpcHandlers() {
 
   ipcMain.on('open-archive', () => {
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    const windowWidth = 800;
+    const windowWidth = 1000;
     const windowHeight = 900;
 
     const archiveWindow = new BrowserWindow({
@@ -1606,7 +1606,7 @@ function createArchiveWindow() {
     }
 
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    const windowWidth = 800;
+    const windowWidth = 1050;
     const windowHeight = 900;
 
     archiveWindow = new BrowserWindow({
