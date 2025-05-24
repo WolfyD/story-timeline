@@ -3,24 +3,144 @@
  * Handles the core timeline functionality including rendering, interaction, and state management.
  */
 
-// ===== Debug Logging Utility =====
-let debugLog = (...args) => {
-    try {
-        const { ipcRenderer } = window.require ? window.require('electron') : {};
-        if (ipcRenderer && ipcRenderer.send) {
-            ipcRenderer.send('log', args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' '));
-        }
-    } catch (e) {
-        console.log(...args);
-    }
-};
-
 // ===== DOM Elements =====
 const timeline = document.getElementById("timeline");
 const container = document.getElementById("timeline-container");
 const hoverMarker = document.getElementById("timeline-hover-marker");
 const hoverMarkerStick = document.getElementById("timeline-hover-marker-stick");
 const globalHoverBubble = document.getElementById('global-hover-bubble');
+const timelineCanvas = document.getElementById('timeline-canvas');
+
+// ===== TimelineCanvas Class =====
+class TimelineCanvas {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.resizeCanvas();
+        
+        // Debug logging
+        console.log('TimelineCanvas initialized:', {
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            containerWidth: container.getBoundingClientRect().width,
+            containerHeight: container.getBoundingClientRect().height
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', () => this.resizeCanvas());
+    }
+
+    resizeCanvas() {
+        const rect = this.canvas.parentElement.getBoundingClientRect();
+        this.canvas.width = rect.width;
+        this.canvas.height = rect.height;
+        
+        // Debug logging
+        console.log('Canvas resized:', {
+            width: this.canvas.width,
+            height: this.canvas.height
+        });
+    }
+
+    drawTick(x, isFullYear, year = null) {
+        const ctx = this.ctx;
+        const containerRect = container.getBoundingClientRect();
+        const centerY = containerRect.height / 2;
+        
+        // Debug logging
+        // console.log('Drawing tick:', {
+        //     x,
+        //     isFullYear,
+        //     year,
+        //     centerY
+        // });
+        
+        // Draw tick line
+        ctx.beginPath();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = isFullYear ? 2 : 1;
+        if(isFullYear){
+            ctx.moveTo(x, centerY - 20);
+            ctx.lineTo(x, centerY + 20);
+        }
+        else{
+            ctx.moveTo(x, centerY - 10);
+            ctx.lineTo(x, centerY + 10);
+        }
+        ctx.stroke();
+
+        // get the current font used in the timeline
+        const font = document.getElementById('font-select').value;
+
+        
+
+        // Draw year label for full year ticks
+        if (isFullYear && year !== null) {
+            //ctx.font = '14px ' + timelineState.font;
+            ctx.fillStyle = '#4b2e2e';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(year.toString(), x, centerY + 25);
+        }
+    }
+
+    update() {
+        const { focusYear, granularity, pixelsPerSubtick, offsetPx } = timelineState;
+        const containerRect = container.getBoundingClientRect();
+        const centerX = containerRect.width / 2;
+
+        // Debug logging
+        console.log('Canvas update:', {
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            containerWidth: containerRect.width,
+            containerHeight: containerRect.height,
+            focusYear,
+            granularity,
+            pixelsPerSubtick,
+            offsetPx
+        });
+
+        // Clear the canvas
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        // Calculate the leftmost and rightmost visible years based on current offset and size
+        const leftYear = focusYear - ((centerX + offsetPx) / (granularity * pixelsPerSubtick));
+        const rightYear = focusYear + ((containerRect.width - centerX - offsetPx) / (granularity * pixelsPerSubtick));
+
+        // Add a buffer of subticks on both sides for edge safety
+        const bufferSubticks = granularity * (granularity < 60 ? 10 : 2);
+        const startSubtick = Math.floor(leftYear * granularity) - bufferSubticks;
+        const endSubtick = Math.ceil(rightYear * granularity) + bufferSubticks;
+
+        // Debug logging
+        // console.log('Drawing ticks:', {
+        //     startSubtick,
+        //     endSubtick,
+        //     granularity,
+        //     focusYear,
+        //     pixelsPerSubtick,
+        //     offsetPx,
+        //     leftYear,
+        //     rightYear
+        // });
+
+        // Draw ticks
+        for (let i = startSubtick; i <= endSubtick; i++) {
+            const year = i / granularity;
+            const x = centerX + (year - focusYear) * pixelsPerSubtick * granularity + offsetPx;
+            const isFullYear = i % granularity === 0;
+            
+            // Only draw if the tick is within the canvas bounds
+            if (x >= 0 && x <= this.canvas.width) {
+                this.drawTick(x, isFullYear, isFullYear ? Math.floor(year) : null);
+            }
+        }
+    }
+}
+
+// Initialize TimelineCanvas
+const canvas = new TimelineCanvas(timelineCanvas);
 
 // ===== State Management =====
 /**
@@ -572,6 +692,9 @@ function renderTimeline() {
     // Store current frame time
     lastFrameTime = now;
 
+    // Update canvas
+    canvas.update();
+
     const { focusYear, granularity, pixelsPerSubtick, offsetPx } = timelineState;
     const containerRect = container.getBoundingClientRect();
     const centerX = containerRect.width / 2;
@@ -708,46 +831,6 @@ function renderTimeline() {
     
     const existingPeriodItems = container.querySelectorAll('.timeline-period-item');
     existingPeriodItems.forEach(item => item.remove());
-
-    // Render ticks with quality-based detail
-    for (let i = startSubtick; i <= endSubtick; i++) {
-        const year = i / granularity;
-        const x = centerX + (year - focusYear) * pixelsPerSubtick * granularity + offsetPx;
-        const isFullYear = i % granularity === 0;
-        
-        // Always render full year ticks
-        if (isFullYear) {
-            const el = document.createElement("div");
-            el.className = "tick fullyear";
-            el.style.left = `${x}px`;
-            el.style.position = 'absolute';
-            const label = document.createElement("div");
-            label.className = "tick-fullyear";
-            label.innerText = year;
-            el.appendChild(label);
-            timeline.appendChild(el);
-        } 
-        // Only render subtick labels if quality is high enough
-        else if (currentQuality > 0.5) {
-            const el = document.createElement("div");
-            el.className = "tick subtick";
-            el.style.left = `${x}px`;
-            el.style.position = 'absolute';
-            const label = document.createElement("div");
-            label.className = "tick-subyear";
-            label.innerText = getNumberLineLabel(year, granularity);
-            el.appendChild(label);
-            timeline.appendChild(el);
-        }
-        // For low quality, just render the tick without label
-        else {
-            const el = document.createElement("div");
-            el.className = "tick subtick";
-            el.style.left = `${x}px`;
-            el.style.position = 'absolute';
-            timeline.appendChild(el);
-        }
-    }
 
     // Track positions of items for stacking
     const itemPositions = new Map(); // For regular items
