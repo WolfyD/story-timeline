@@ -156,6 +156,7 @@ body {
     background-color: rgba(75, 46, 46, 0.05);
     border-radius: 4px;
     white-space: nowrap;
+    z-index: 1;
 }
 
 .main-content-right {

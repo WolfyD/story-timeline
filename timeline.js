@@ -902,12 +902,6 @@ function renderTimeline() {
                 if (item.color) {
                     ageItem.style.backgroundColor = item.color;
                 }
-                
-                // Add hover bubble to document body instead of age item
-                const hoverBubble = document.createElement('div');
-                hoverBubble.className = 'age-hover-bubble';
-                hoverBubble.textContent = item.title;
-                document.body.appendChild(hoverBubble);
 
                 // Add mousemove event listener to update bubble position
                 ageItem.addEventListener('mousemove', (e) => {
@@ -1007,12 +1001,6 @@ function renderTimeline() {
                 periodItem.setAttribute('data-year', item.year);
                 periodItem.setAttribute('data-end-year', item.end_year);
                 periodItem.setAttribute('data-ystack', stackLevel);
-                
-                // Add hover bubble to document body instead of period item
-                const periodHoverBubble = document.createElement('div');
-                periodHoverBubble.className = 'period-hover-bubble';
-                periodHoverBubble.textContent = item.title;
-                document.body.appendChild(periodHoverBubble);
 
                 // Add mousemove event listener to update bubble position
                 periodItem.addEventListener('mousemove', (e) => {
@@ -2927,4 +2915,19 @@ container.addEventListener('wheel', () => {
         currentQuality = 1.0; // Reset to full quality
     }, 150); // 150ms debounce
 });
+
+/**
+ * Checks if any timeline items are currently hovered and updates the global hover bubble visibility
+ */
+function checkHoveredItems() {
+    const hoveredItems = document.querySelectorAll('.timeline-item-box:hover, .timeline-age-item:hover, .timeline-period-item:hover');
+    if (globalHoverBubble) {
+        if (hoveredItems.length === 0) {
+            globalHoverBubble.style.opacity = '0';
+        }
+    }
+}
+
+// Set up periodic check for hovered items
+setInterval(checkHoveredItems, 500);
 
