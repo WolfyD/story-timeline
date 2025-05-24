@@ -47,14 +47,6 @@ class TimelineCanvas {
         const containerRect = container.getBoundingClientRect();
         const centerY = containerRect.height / 2;
         
-        // Debug logging
-        // console.log('Drawing tick:', {
-        //     x,
-        //     isFullYear,
-        //     year,
-        //     centerY
-        // });
-        
         // Draw tick line
         ctx.beginPath();
         ctx.strokeStyle = '#000';
@@ -69,14 +61,8 @@ class TimelineCanvas {
         }
         ctx.stroke();
 
-        // get the current font used in the timeline
-        const font = document.getElementById('font-select').value;
-
-        
-
         // Draw year label for full year ticks
         if (isFullYear && year !== null) {
-            //ctx.font = '14px ' + timelineState.font;
             ctx.fillStyle = '#4b2e2e';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
@@ -84,22 +70,35 @@ class TimelineCanvas {
         }
     }
 
+    drawConnectingLine(x, startY, endY, isHighlighted = false) {
+
+        const ctx = this.ctx;
+        ctx.beginPath();
+        
+        if (isHighlighted) {
+            // Add glow effect
+            ctx.shadowColor = '#4a90e2'; // Blue glow color
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = '#4a90e2'; // Brighter blue for the line
+            ctx.lineWidth = 2;
+        } else {
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+        }
+        
+        ctx.moveTo(x, startY);
+        ctx.lineTo(x, endY);
+        ctx.stroke();
+        
+        // Reset shadow
+        ctx.shadowBlur = 0;
+    }
+
     update() {
         const { focusYear, granularity, pixelsPerSubtick, offsetPx } = timelineState;
         const containerRect = container.getBoundingClientRect();
         const centerX = containerRect.width / 2;
-
-        // Debug logging
-        console.log('Canvas update:', {
-            canvasWidth: this.canvas.width,
-            canvasHeight: this.canvas.height,
-            containerWidth: containerRect.width,
-            containerHeight: containerRect.height,
-            focusYear,
-            granularity,
-            pixelsPerSubtick,
-            offsetPx
-        });
+        const centerY = containerRect.height / 2;
 
         // Clear the canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
@@ -113,18 +112,6 @@ class TimelineCanvas {
         const startSubtick = Math.floor(leftYear * granularity) - bufferSubticks;
         const endSubtick = Math.ceil(rightYear * granularity) + bufferSubticks;
 
-        // Debug logging
-        // console.log('Drawing ticks:', {
-        //     startSubtick,
-        //     endSubtick,
-        //     granularity,
-        //     focusYear,
-        //     pixelsPerSubtick,
-        //     offsetPx,
-        //     leftYear,
-        //     rightYear
-        // });
-
         // Draw ticks
         for (let i = startSubtick; i <= endSubtick; i++) {
             const year = i / granularity;
@@ -136,6 +123,46 @@ class TimelineCanvas {
                 this.drawTick(x, isFullYear, isFullYear ? Math.floor(year) : null);
             }
         }
+
+        // get center year from center of the screen
+        const new_centerYear = calculateYearFromPosition(centerX + containerRect.left);
+
+        // Draw connecting lines for visible items
+        const visibleItems = getVisibleItems(centerX, new_centerYear);
+        visibleItems.forEach(item => {
+            if (!item || item.type === 'Age' || item.type === 'Period') return;
+
+            const itemYear = parseFloat(item.year || item.date || 0);
+            const itemSubtick = parseInt(item.subtick || 0);
+            const itemX = centerX + (itemYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (itemSubtick / granularity) * pixelsPerSubtick * granularity;
+
+
+            // Only draw if the line is within the canvas bounds
+            if (itemX >= 0 && itemX <= this.canvas.width) {
+                // Find the corresponding item box using data-id
+                const itemBox = document.querySelector(`.timeline-item-box[data-id="${item.id}"], .timeline-picture-box[data-id="${item.id}"]`);
+                if (itemBox) {
+                    const boxRect = itemBox.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    const isAbove = itemBox.classList.contains('above');
+                    const isHighlighted = itemBox.classList.contains('highlighted');
+                    
+                    // Calculate start and end points for the line
+                    const startY = centerY;
+                    let endY;
+                    
+                    if (isAbove) {
+                        // For items above the timeline, connect to the bottom of the box
+                        endY = boxRect.bottom - containerRect.top;
+                    } else {
+                        // For items below the timeline, connect to the top of the box
+                        endY = boxRect.top - containerRect.top;
+                    }
+                    
+                    this.drawConnectingLine(itemX, startY, endY, isHighlighted);
+                }
+            }
+        });
     }
 }
 
@@ -1180,29 +1207,29 @@ function renderTimeline() {
                 line.style.left = `${itemX}px`;
                 // Give the line a unique id for linking
                 const lineId = `timeline-line-${idx}`;
-                line.setAttribute('data-line-id', lineId);
-                line.id = lineId;
+                //line.setAttribute('data-line-id', lineId);
+                //line.id = lineId;
 
-                if (isAbove) {
-                    if (item.type === 'picture') {
-                        line.style.top = `${timelineY - 70}px`; // Start 70px above timeline
-                        line.style.height = '70px';
-                        boxTop = timelineY - 70 - 100; // Position box above the stem
-                    } else {
-                        line.style.top = `${boxTop + itemBoxHeight}px`;
-                        line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
-                    }
-                } else {
-                    if (item.type === 'picture') {
-                        line.style.top = `${timelineY}px`;
-                        line.style.height = '70px';
-                        boxTop = timelineY + 70; // Position box below the stem
-                    } else {
-                        line.style.top = `${timelineY}px`;
-                        line.style.height = `${boxTop - timelineY}px`;
-                    }
-                }
-                timeline.appendChild(line);
+                //if (isAbove) {
+                //    if (item.type === 'picture') {
+                //        line.style.top = `${timelineY - 70}px`; // Start 70px above timeline
+                //        line.style.height = '70px';
+                //        boxTop = timelineY - 70 - 100; // Position box above the stem
+                //    } else {
+                //        line.style.top = `${boxTop + itemBoxHeight}px`;
+                //        line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
+                //    }
+                //} else {
+                //    if (item.type === 'picture') {
+                //        line.style.top = `${timelineY}px`;
+                //        line.style.height = '70px';
+                //        boxTop = timelineY + 70; // Position box below the stem
+                //    } else {
+                //        line.style.top = `${timelineY}px`;
+                //        line.style.height = `${boxTop - timelineY}px`;
+                //    }
+                //}
+                //timeline.appendChild(line);
 
                 // Create the box
                 const box = document.createElement('div');
@@ -1294,6 +1321,8 @@ function renderTimeline() {
                         globalHoverBubble.style.top = `${boxRect.top - 25}px`;
                         globalHoverBubble.style.opacity = '1';
                     }
+                    // Update canvas to show highlight
+                    canvas.update();
                 });
                 box.addEventListener('mouseleave', function() {
                     box.classList.remove('highlighted');
@@ -1303,6 +1332,7 @@ function renderTimeline() {
                     if (globalHoverBubble) {
                         globalHoverBubble.style.opacity = '0';
                     }
+                    canvas.update();
                 });
                 timeline.appendChild(box);
                 itemBoxes.push(box);
