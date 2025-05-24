@@ -732,6 +732,12 @@ class DatabaseManager {
         return stmt.all();
     }
 
+    getAllStoryReferences() {
+        const stmt = this.db.prepare('SELECT * FROM item_story_refs ORDER BY item_id');
+        return stmt.all();
+
+    }
+
     getAllPictures() {
         // Get all items for the current timeline
         const items = this.getAllItems();

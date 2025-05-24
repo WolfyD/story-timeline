@@ -1205,6 +1205,16 @@ window.api.receive('data-ready', () => {
     checkAllLoaded();
 });
 
+// Add handler for jumpToYear message
+window.api.receive('jumpToYear', (item) => {
+    let year = item.year;
+    let subtick = item.subtick;
+    if (typeof year === 'number') {
+        window.jumpToDate(year, subtick);
+    }
+});
+
+
 // Terminal functionality
 const terminalPanel = document.getElementById('terminal-panel');
 const terminalContent = document.getElementById('terminal-content');

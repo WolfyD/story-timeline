@@ -34,6 +34,7 @@ let searchQueries = {
     stories: '',
     media: ''
 };
+let storyReferences = [];
 
 let item_types = {
     1: 'Event',
@@ -89,6 +90,8 @@ function initializeArchive() {
     window.api.send('getAllItems');
     // Get all stories
     window.api.send('getAllStories');
+    // Get all story references
+    window.api.send('getAllStoryReferences');
     // Get all media files
     window.api.send('getAllMedia');
 }
@@ -318,12 +321,73 @@ function displayStories() {
     }
 
     filteredStories.forEach(story => {
+        let story_id = story.id;
+
+        let items_referenced = storyReferences.filter(ref => ref.story_id == story_id);
+
+        let items_referenced_list = items_referenced.map(ref => {
+            const item = items.find(i => i.id === ref.item_id);
+            return item ? `
+                <div class="referenced-item">
+                    <div class="referenced-item-title"><a onclick='jumptoitem("${item.id}")' href='#${item.id}'>${item.title}</a> <span style='font-size: 12px; margin-left: 10px; color: #888;'>("${item.id}")</span></div>
+                    <div class="referenced-item-date">${item.year}.${item.subtick}</div>
+                </div>
+            ` : '';
+        }).join('');
+
         const storyElement = document.createElement('div');
         storyElement.className = 'archive-item';
         storyElement.innerHTML = `
-            <div class="archive-item-title">${story.title}</div>
-            ${story.description ? `<div class="archive-item-description">${story.description}</div>` : ''}
+            <div class="story-header">
+                <div class="story-title-container">
+                    <div class="archive-item-title">${story.title}</div>
+                    ${items_referenced.length > 0 ? `
+                        <button ${items_referenced_list !== '' ? '' : 'disabled'} class="story-toggle-button" title="Show referenced items">
+                            <i class="ri-arrow-right-s-line"></i>
+                        </button>
+                    ` : ''}
+                </div>
+                ${story.description ? `<div class="archive-item-description">${story.description}</div>` : ''}
+            </div>
+            ${items_referenced.length > 0 ? `
+                <div class="story-referenced-items" style="display: none;">
+                    <div class="referenced-items-header">Referenced in:</div>
+                    <div class="referenced-items-list">
+                        ${items_referenced_list}
+                    </div>
+                </div>
+            ` : ''}
         `;
+
+        // Add click handler for the toggle button
+        const toggleButton = storyElement.querySelector('.story-toggle-button');
+        if (toggleButton) {
+            toggleButton.addEventListener('click', (e) => {
+                if(toggleButton.disabled) {
+                    return;
+                }
+                e.stopPropagation();
+                const itemsContainer = storyElement.querySelector('.story-referenced-items');
+                const icon = toggleButton.querySelector('i');
+                
+                if (itemsContainer.style.display === 'none') {
+                    itemsContainer.style.display = 'block';
+                    icon.className = 'ri-arrow-down-s-line';
+                    toggleButton.title = 'Hide referenced items';
+                } else {
+                    itemsContainer.style.display = 'none';
+                    icon.className = 'ri-arrow-right-s-line';
+                    toggleButton.title = 'Show referenced items';
+                }
+            });
+        }
+
+        // Add click handler to restore story
+        storyElement.addEventListener('click', (e) => {
+            if (!e.target.closest('.story-toggle-button')) {
+                restoreItem(story);
+            }
+        });
 
         content.appendChild(storyElement);
     });
@@ -394,8 +458,9 @@ function highlightItem(item_id) {
  * @param {Object} item - The item to restore
  */
 function restoreItem(item) {
-    // TODO: Implement item restoration
-    console.log('Restoring item:', item);
+    // when clicking an item, close the window and jump to the item start year
+    window.api.send('jumpToYear', item);
+    window.close();
 }
 
 // Listen for items from main process
@@ -407,6 +472,12 @@ window.api.receive('items', (receivedItems) => {
 // Listen for stories from main process
 window.api.receive('stories', (receivedStories) => {
     stories = receivedStories;
+    filterStories();
+});
+
+// Listen for story references from main process
+window.api.receive('storyReferences', (receivedStoryReferences) => {
+    storyReferences = receivedStoryReferences;
     filterStories();
 });
 

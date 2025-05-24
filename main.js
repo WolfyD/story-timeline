@@ -1561,6 +1561,16 @@ function setupIpcHandlers() {
     event.sender.send('stories', stories);
   });
 
+  ipcMain.on('getAllStoryReferences', (event) => {
+    const storyReferences = dbManager.getAllStoryReferences();
+    event.sender.send('storyReferences', storyReferences);
+  });
+
+  ipcMain.on('jumpToYear', (event, item) => {
+    // send jumpToYear to timeline.js
+    mainWindow.webContents.send('jumpToYear', item);
+  });
+
   ipcMain.on('getAllMedia', (event) => {
     // Fetch all pictures from the database
     const media = dbManager.getAllPictures();

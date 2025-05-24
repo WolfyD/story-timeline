@@ -47,11 +47,14 @@ contextBridge.exposeInMainWorld('api', {
             'timeline-updated',
             'open-archive-window',
             'getAllStories',
+            'getAllStoryReferences',
             'getAllMedia',
             'itemRemoved',
             'updateTimeline',
             'force-timeline-refresh',
-            'refresh-timeline'
+            'refresh-timeline',
+            'jumpToYear',
+            'jumpToDate'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -111,9 +114,12 @@ contextBridge.exposeInMainWorld('api', {
             'timeline-updated',
             'archive-items',
             'stories',
+            'storyReferences',
             'media',
             'force-timeline-refresh',
-            'refresh-timeline'
+            'refresh-timeline',
+            'jumpToYear',
+            'jumpToDate'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
