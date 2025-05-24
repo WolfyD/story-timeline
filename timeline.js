@@ -2295,6 +2295,53 @@ function initializeDefaultContextMenu() {
             }
         }
     });
+
+    /*
+    addContextMenuItem({
+        type: 'divider',
+    });
+
+    addContextMenuItem({
+        type: 'copy_class_or_id',
+        label: 'Copy class or ID',
+        action: () => {
+            // Get the element under the cursor
+            const element = document.elementFromPoint(
+                parseInt(contextMenu.style.left),
+                parseInt(contextMenu.style.top)
+            );
+            
+            if (element) {
+                // Get the id or class
+                const id = element.id;
+                const classes = element.className;
+                
+                // Copy the id if it exists, otherwise copy the first class
+                const textToCopy = id || classes.split(' ')[0];
+                
+                // Copy to clipboard
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    // Show a temporary tooltip to indicate success
+                    const tooltip = document.createElement('div');
+                    tooltip.textContent = 'Copied!';
+                    tooltip.style.position = 'fixed';
+                    tooltip.style.left = `${parseInt(contextMenu.style.left)}px`;
+                    tooltip.style.top = `${parseInt(contextMenu.style.top) - 30}px`;
+                    tooltip.style.backgroundColor = '#333';
+                    tooltip.style.color = 'white';
+                    tooltip.style.padding = '4px 8px';
+                    tooltip.style.borderRadius = '4px';
+                    tooltip.style.fontSize = '12px';
+                    tooltip.style.zIndex = '1001';
+                    document.body.appendChild(tooltip);
+                    
+                    // Remove the tooltip after 1 second
+                    setTimeout(() => tooltip.remove(), 1000);
+                });
+            }
+        }
+    });
+    */
 }
 
 // Add this to ensure context menu is properly initialized

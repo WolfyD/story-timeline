@@ -382,12 +382,12 @@ function displayStories() {
             });
         }
 
-        // Add click handler to restore story
-        storyElement.addEventListener('click', (e) => {
-            if (!e.target.closest('.story-toggle-button')) {
-                restoreItem(story);
-            }
-        });
+        // // Add click handler to restore story
+        // storyElement.addEventListener('click', (e) => {
+        //     if (!e.target.closest('.story-toggle-button')) {
+        //         restoreItem(story);
+        //     }
+        // });
 
         content.appendChild(storyElement);
     });
