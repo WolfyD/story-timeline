@@ -1,6 +1,6 @@
 {
   "name": "story-timeline",
-  "version": "0.2.1",
+  "version": "0.3.2",
   "description": "Timeline builder for your stories",
   "main": "main.js",
   "scripts": {
