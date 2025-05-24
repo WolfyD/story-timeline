@@ -505,7 +505,7 @@ function updateMainContent(centerX, centerYear) {
 
     // Find note items within 10px of center
     const noteItems = timelineState.items.filter(item => {
-        if (!item || item.type?.toLowerCase() !== 'note') return false;
+        if (!item || (item.type?.toLowerCase() !== 'note' && item.type?.toLowerCase() !== 'picture')) return false;
         const itemYear = parseFloat(item.year || item.date || 0);
         const itemSubtick = parseInt(item.subtick || 0);
         const itemX = centerX + (itemYear - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity + timelineState.offsetPx + (itemSubtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
@@ -562,12 +562,68 @@ function updateMainContent(centerX, centerYear) {
         mainContentRight.appendChild(periodsDiv);
     }
 
+    let pictureItems = [];
+    let newNoteItems = [];
+
+    if(noteItems.length > 0){
+        pictureItems = noteItems.filter(item => item.type?.toLowerCase() === 'picture');
+        newNoteItems = noteItems.filter(item => item.type?.toLowerCase() !== 'picture');
+    }
+
+    if(pictureItems.length > 0){
+        const picturesDiv = document.createElement('div');
+        picturesDiv.className = 'center-notes';
+
+        pictureItems.forEach(picture => {
+            const pictureDiv = document.createElement('div');
+            pictureDiv.className = 'center-note picture-note';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'note-content';
+
+            const title = document.createElement('h2');
+            title.textContent = picture.title || '(No Title)';
+            contentDiv.appendChild(title);
+
+            pictureDiv.appendChild(contentDiv);
+
+            if (picture.pictures && picture.pictures.length > 0) {
+                if (picture.pictures.length === 1) {
+                    const img = document.createElement('img');
+                    img.className = 'note-image';
+                    img.src = `file://${picture.pictures[0].file_path}`;
+                    pictureDiv.appendChild(img);
+                } else {
+                    const imagesContainer = document.createElement('div');
+                    imagesContainer.className = 'note-images-container';
+                    imagesContainer.style.display = 'flex';
+                    imagesContainer.style.flexDirection = 'row';
+                    imagesContainer.style.gap = '10px';
+                    imagesContainer.style.alignItems = 'center';
+
+                    picture.pictures.forEach(pic => {
+                        const img = document.createElement('img');
+                        img.className = 'note-image';
+                        img.src = `file://${pic.file_path}`;
+                        imagesContainer.appendChild(img);
+                    });
+
+                    pictureDiv.appendChild(imagesContainer);
+                }
+            }
+
+            picturesDiv.appendChild(pictureDiv);
+        });
+
+        mainContentRight.appendChild(picturesDiv);
+    }
+
     // Add all visible notes
-    if (noteItems.length > 0) {
+    if (newNoteItems.length > 0) {
         const notesDiv = document.createElement('div');
         notesDiv.className = 'center-notes';
 
-        noteItems.forEach(note => {
+        newNoteItems.forEach(note => {
             const noteDiv = document.createElement('div');
             noteDiv.className = 'center-note';
 
