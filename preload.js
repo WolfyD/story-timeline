@@ -61,14 +61,15 @@ contextBridge.exposeInMainWorld('api', {
         }
     },
     invoke: async (channel, ...args) => {
-        // console.log("preload.js: invoke called with channel:", channel, "and args:", args);
+        console.log("preload.js: invoke called with channel:", channel, "and args:", args);
         const validChannels = [
             'export-timeline-data',
             'import-timeline-data',
             'save-temp-file',
             'save-new-image',
             'get-timeline-data',
-            'get-all-items'
+            'get-all-items',
+            'removeStory'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);

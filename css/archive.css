@@ -338,7 +338,7 @@ button:disabled {
     margin-top: -2px;
 }
 
-.archive-item-buttons {
+.archive-item-buttons, .archive-story-buttons {
     position: absolute;
     top: 15px;
     right: 18px;
@@ -348,11 +348,11 @@ button:disabled {
     transition: opacity 0.2s;
 }
 
-.archive-item:hover .archive-item-buttons {
+.archive-item:hover .archive-item-buttons, .archive-story:hover .archive-story-buttons {
     opacity: 1;
 }
 
-.archive-item-button {
+.archive-item-button, .archive-story-button {
     background: none;
     border: none;
     padding: 4px;
@@ -364,11 +364,11 @@ button:disabled {
     justify-content: center;
 }
 
-.archive-item-button:hover {
+.archive-item-button:hover, .archive-story-button:hover {
     color: #fff8ef;
 }
 
-.archive-item-button i {
+.archive-item-button i, .archive-story-button i {
     font-size: 18px;
 }
 

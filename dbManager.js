@@ -1022,6 +1022,12 @@ class DatabaseManager {
         return stmt.run(id);
     }
 
+    deleteStory(id) {
+        // Delete related records first
+        this.db.prepare('DELETE FROM item_story_refs WHERE story_id = ?').run(id);
+        this.db.prepare('DELETE FROM stories WHERE id = ?').run(id);
+    }
+
     // Tag operations
     addTagsToItem(itemId, tags) {
         const addTag = this.db.prepare('INSERT OR IGNORE INTO tags (name) VALUES (?)');

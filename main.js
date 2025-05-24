@@ -1576,6 +1576,20 @@ function setupIpcHandlers() {
     const media = dbManager.getAllPictures();
     event.sender.send('media', media);
   });
+
+  // Add handler for removing stories
+  ipcMain.handle('removeStory', async (event, storyId) => {
+    try {
+      const success = dbManager.deleteStory(storyId);
+      // Refresh the stories list
+      const stories = dbManager.getAllStories();
+      mainWindow.webContents.send('stories', stories);
+      return success;
+    } catch (error) {
+      console.error('Error removing story:', error);
+      throw error;
+    }
+  });
 }
 
 // ===== Application Lifecycle =====
@@ -1659,5 +1673,11 @@ function createArchiveWindow() {
 
     archiveWindow.on('closed', () => {
         archiveWindow = null;
+    });
+
+    archiveWindow.webContents.on('removeStory', (event, storyId) => {
+        console.log('removeStory', storyId);
+        dbManager.deleteStory(storyId);
+        initializeArchive();
     });
 }

@@ -336,8 +336,13 @@ function displayStories() {
         }).join('');
 
         const storyElement = document.createElement('div');
-        storyElement.className = 'archive-item';
+        storyElement.className = 'archive-item archive-story';
         storyElement.innerHTML = `
+            <div class="archive-story-buttons">
+                <button class="archive-story-button delete" title="Delete story">
+                    <i class="ri-delete-bin-line"></i>
+                </button>
+            </div>
             <div class="story-header">
                 <div class="story-title-container">
                     <div class="archive-item-title">${story.title}</div>
@@ -382,12 +387,16 @@ function displayStories() {
             });
         }
 
-        // // Add click handler to restore story
-        // storyElement.addEventListener('click', (e) => {
-        //     if (!e.target.closest('.story-toggle-button')) {
-        //         restoreItem(story);
-        //     }
-        // });
+        // Add click handler for the delete button
+        const deleteButton = storyElement.querySelector('.delete');
+        deleteButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm('Are you sure you want to delete this story?')) {
+                console.log('deleting story', story.id);
+                window.api.invoke('removeStory', story.id);
+                initializeArchive();
+            }
+        });
 
         content.appendChild(storyElement);
     });
