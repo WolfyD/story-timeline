@@ -1263,3 +1263,47 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
     border-radius: 12px;
     font-size: 0.8em;
 }
+
+/* Dialog styling */
+#myDialog {
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    background-color: #f5e6d4;
+    color: #4b2e2e;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 500px;
+    width: 90%;
+}
+
+#myDialog::backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+#myDialog h2 {
+    margin: 0 0 15px 0;
+    font-size: 1.5em;
+    color: #4b2e2e;
+    font-family: var(--default-font), "Times New Roman", serif;
+}
+
+#myDialog p {
+    margin: 0 0 20px 0;
+    line-height: 1.5;
+    font-family: var(--default-font), "Times New Roman", serif;
+}
+
+#myDialog #closeDialog {
+    background-color: #4b2e2e;
+    color: #f5e6d4;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--default-font), "Times New Roman", serif;
+    transition: background-color 0.3s ease;
+}
+
+#myDialog #closeDialog:hover {
+    background-color: #6a3e3e;
+}

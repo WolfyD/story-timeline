@@ -377,6 +377,12 @@
       </div>
     </div>
 
+    <dialog id="myDialog">
+      <h2></h2>
+      <p></p>
+      <button id="closeDialog">Close</button>
+    </dialog>
+
     <div id="terminal-panel" class="terminal-panel">
         <div class="terminal-header">
             <span>Terminal</span>
@@ -398,6 +404,7 @@
     </script>
     <script type="module">
       import menubar from './menubar.js';
+      import exporter from './exporter.js';
 
       // Add File menu
       menubar.addMenu('File', [
@@ -419,6 +426,11 @@
           openAddItemWindow(year, subtick, timelineState.granularity);
         }},
         { label: 'Settings', action: () => openSettings() }
+      ]);
+
+      // Add Export menu
+      menubar.addMenu('Export', [
+        { label: 'Export Document', action: () => exporter.exportAsDocument() }
       ]);
 
       // Add View menu
