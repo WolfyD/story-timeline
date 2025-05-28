@@ -76,7 +76,7 @@
             <!-- Color -->
             <div class="form-line">
                 <label for="color">Color:</label>
-                <input type="color" id="color" name="color" class="input-text" value="#37F2AE">
+                <input type="color" id="color" name="color" class="input-text" value="#111111">
                 <input type="text" id="colorHex" class="input-text" placeholder="#RRGGBB" maxlength="7" style="width: 80px; margin-left: 10px;">
                 <div id="colorPreview" style="width: 20px; height: 20px; border: 1px solid #ccc; display: inline-block; vertical-align: middle; margin-left: 10px;"></div>
             </div>
@@ -110,6 +110,15 @@
                 window.close();
             }
         });
+
+        function getRandomColor() {
+            let color = '#' + Math.floor(Math.random()*16777215).toString(16);
+            document.getElementById('color').value = color;
+            document.getElementById('colorHex').value = color;
+            document.getElementById('colorPreview').style.backgroundColor = color;
+        }
+
+        getRandomColor();
     </script>   
 
     <script src="../addItem.js"></script>

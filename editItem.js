@@ -307,7 +307,7 @@ function addImagePreview(imageInfo) {
     const preview = document.createElement('div');
     preview.className = 'image-preview';
     preview.innerHTML = `
-        <img src="file://${imageInfo.file_path || imageInfo.temp_path}">
+        <img src="file://${imageInfo.file_path || imageInfo.temp_path}" alt="${imageInfo.file_name || 'Image'}">
         <button class="remove-image" onclick="removeImage(this, '${imageInfo.id}')">&times;</button>
     `;
     container.insertBefore(preview, document.getElementById('addImageBtn'));
@@ -332,6 +332,7 @@ document.getElementById('editItemForm').addEventListener('submit', async (e) => 
     // Process all images before submitting
     const processedImages = [];
     for (const imageInfo of images) {
+        console.log('Processing image:', imageInfo);
         try {
             if (imageInfo.temp_path) {
                 const result = await window.api.invoke('save-new-image', {
