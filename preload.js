@@ -49,12 +49,13 @@ contextBridge.exposeInMainWorld('api', {
             'getAllStories',
             'getAllStoryReferences',
             'getAllMedia',
+            'getAllTags',
             'itemRemoved',
             'updateTimeline',
             'force-timeline-refresh',
             'refresh-timeline',
             'jumpToYear',
-            'jumpToDate'
+            'jumpToDate',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -69,7 +70,8 @@ contextBridge.exposeInMainWorld('api', {
             'save-new-image',
             'get-timeline-data',
             'get-all-items',
-            'removeStory'
+            'removeStory',
+            'removeTag'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
@@ -119,6 +121,7 @@ contextBridge.exposeInMainWorld('api', {
             'stories',
             'storyReferences',
             'media',
+            'tags',
             'force-timeline-refresh',
             'refresh-timeline',
             'jumpToYear',

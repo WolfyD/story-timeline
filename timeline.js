@@ -103,6 +103,16 @@ class TimelineCanvas {
         // Clear the canvas
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
 
+        if(timelineState.displayRadius % 2 == 0){
+            this.ctx.fillStyle = '#eedd0011';
+            this.ctx.fillRect(
+                centerX - timelineState.displayRadius,
+                -500,
+                timelineState.displayRadius * 2,
+                1000
+            );
+        }
+
         // Calculate the leftmost and rightmost visible years based on current offset and size
         const leftYear = focusYear - ((centerX + offsetPx) / (granularity * pixelsPerSubtick));
         const rightYear = focusYear + ((containerRect.width - centerX - offsetPx) / (granularity * pixelsPerSubtick));
@@ -2622,6 +2632,8 @@ function jumpToDate(i_year = null, i_subtick = null) {
             year = startYear;
             subtick = startSubtick;
             // Update input value to show the actual position
+            input = document.getElementById('jump-to-date');
+            if(!input) return;
             input.value = `${year}.${subtick.toString().padStart(2, '0')}`;
         }
     }

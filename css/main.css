@@ -170,7 +170,7 @@ body {
 
 .main-content-right {
     grid-area: right;
-    padding: 20px;
+    padding: 10px;
     overflow-y: auto;
     min-height: 0;
     font-family: var(--default-font), "Times New Roman", serif;
@@ -963,23 +963,23 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 .center-age,
 .center-periods,
 .center-ages {
-    margin-bottom: 20px;
+    margin-bottom: 10px;
 }
 
 .center-note h1,
 .center-age h1,
 .center-ages h1 {
-    font-size: 2.5em;
+    font-size: 2em;
     color: #4b2e2e;
     margin-bottom: 15px;
     font-weight: bold;
 }
 
-.center-ages h2 { font-size: 2.2em; }
-.center-ages h3 { font-size: 2em; }
-.center-ages h4 { font-size: 1.8em; }
-.center-ages h5 { font-size: 1.6em; }
-.center-ages h6 { font-size: 1.4em; }
+.center-ages h2 { font-size: 1.8em; }
+.center-ages h3 { font-size: 1.6em; }
+.center-ages h4 { font-size: 1.4em; }
+.center-ages h5 { font-size: 1.2em; }
+.center-ages h6 { font-size: 1em; }
 
 .center-period h2,
 .center-period h3,
@@ -987,7 +987,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 .center-period h5,
 .center-period h6 {
     color: #4b2e2e;
-    margin: 15px 0 10px 0;
+    margin: 10px 0 10px 0;
     font-weight: normal;
 }
 
@@ -1007,7 +1007,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 }
 
 .center-note {
-    margin: 20px 0;
+    margin: 10px 0;
     display: flex;
     flex-direction: row;
     gap: 20px;
@@ -1035,7 +1035,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 
 /* Add spacing between multiple ages */
 .center-ages .center-age {
-    margin-bottom: 30px;
+    margin-bottom: 10px;
 }
 
 .center-ages .center-age:last-child {
@@ -1213,11 +1213,11 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 
 /* Center notes styles */
 .center-notes {
-    margin-bottom: 20px;
+    margin-bottom: 0px;
 }
 
 .center-notes .center-note {
-    margin-bottom: 30px;
+    margin-bottom: 10px;
     padding: 15px;
     background-color: rgba(255, 255, 255, 0.7);
     border-radius: 8px;
@@ -1306,4 +1306,15 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 
 #myDialog #closeDialog:hover {
     background-color: #6a3e3e;
+}
+
+.center-ages, .center-age {
+    margin: 0;
+    padding: 0;
+}
+
+.center-ages h1, .center-ages h2 {
+    margin: 0;
+    padding: 0;
+    text-decoration: underline;
 }

@@ -24,15 +24,18 @@ let timeline_id;
 let items = [];
 let stories = [];
 let media = [];
+let tags = [];
 let filteredItems = [];
 let filteredStories = [];
 let filteredMedia = [];
+let filteredTags = [];
 let currentFilter = 'all';
 let currentTab = 'items';
 let searchQueries = {
     items: '',
     stories: '',
-    media: ''
+    media: '',
+    tags: ''
 };
 let storyReferences = [];
 
@@ -94,6 +97,8 @@ function initializeArchive() {
     window.api.send('getAllStoryReferences');
     // Get all media files
     window.api.send('getAllMedia');
+    // Get all tags
+    window.api.send('getAllTags');
 }
 
 /**
@@ -132,6 +137,11 @@ function setupEventListeners() {
     document.getElementById('media-search').addEventListener('input', (e) => {
         searchQueries.media = e.target.value.toLowerCase();
         filterMedia();
+    });
+
+    document.getElementById('tags-search').addEventListener('input', (e) => {
+        searchQueries.tags = e.target.value.toLowerCase();
+        filterTags();
     });
 }
 
@@ -204,7 +214,6 @@ function filterStories() {
  * Filters media files based on search query
  */
 function filterMedia() {
-    console.log("Filtering media", media);
     filteredMedia = media.filter(file => {
         if (searchQueries.media) {
             const searchableText = [
@@ -219,6 +228,14 @@ function filterMedia() {
     });
 
     displayMedia();
+}
+
+function filterTags() {
+    filteredTags = tags.filter(tag => {
+        return tag.name.toLowerCase().includes(searchQueries.tags);
+    });
+
+    displayTags();
 }
 
 /**
@@ -433,6 +450,18 @@ function displayMedia() {
     });
 }
 
+function displayTags() {
+    const content = document.getElementById('tags-content');
+    content.innerHTML = '';
+
+    filteredTags.forEach(tag => {
+        const tagElement = document.createElement('div');
+        tagElement.className = 'archive-item archive-tag';
+        tagElement.innerHTML = `<div class="archive-item-title">${tag.name} (${tag.item_count}) <div class="archive-tag-buttons"><button class="archive-tag-button" id="delete-tag-${tag.id}" onclick='deleteTag("${tag.id}")'><i class="ri-delete-bin-line"></i></button></div></div>`;
+        content.appendChild(tagElement);
+    });
+}
+
 function jumptoitem(item_id) {
     // switch to items tab
     currentTab = 'items';
@@ -450,6 +479,16 @@ function jumptoitem(item_id) {
 
     // highlight the item briefly with a border
     highlightItem(item_id);
+}
+
+function deleteTag(tag_id) {
+
+    if (confirm('Are you sure you want to delete this tag?')) {
+        window.api.invoke('removeTag', tag_id);
+        initializeArchive();
+        filterTags();
+    }
+
 }
 
 function highlightItem(item_id) {
@@ -494,6 +533,12 @@ window.api.receive('storyReferences', (receivedStoryReferences) => {
 window.api.receive('media', (receivedMedia) => {
     media = receivedMedia;
     filterMedia();
+});
+
+// Listen for tags from main process
+window.api.receive('tags', (receivedTags) => {
+    tags = receivedTags;
+    filterTags();
 });
 
 function openArchiveModal(type, data) {

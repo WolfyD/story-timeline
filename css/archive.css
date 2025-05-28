@@ -338,7 +338,7 @@ button:disabled {
     margin-top: -2px;
 }
 
-.archive-item-buttons, .archive-story-buttons {
+.archive-item-buttons, .archive-story-buttons, .archive-tag-buttons {
     position: absolute;
     top: 15px;
     right: 18px;
@@ -348,11 +348,11 @@ button:disabled {
     transition: opacity 0.2s;
 }
 
-.archive-item:hover .archive-item-buttons, .archive-story:hover .archive-story-buttons {
+.archive-item:hover .archive-item-buttons, .archive-story:hover .archive-story-buttons, .archive-tag:hover .archive-tag-buttons {
     opacity: 1;
 }
 
-.archive-item-button, .archive-story-button {
+.archive-item-button, .archive-story-button, .archive-tag-button {
     background: none;
     border: none;
     padding: 4px;
@@ -364,11 +364,11 @@ button:disabled {
     justify-content: center;
 }
 
-.archive-item-button:hover, .archive-story-button:hover {
+.archive-item-button:hover, .archive-story-button:hover, .archive-tag-button:hover {
     color: #fff8ef;
 }
 
-.archive-item-button i, .archive-story-button i {
+.archive-item-button i, .archive-story-button i, .archive-tag-button i {
     font-size: 18px;
 }
 
@@ -443,4 +443,16 @@ button:disabled {
 .referenced-item-date {
     font-size: 0.9em;
     color: #666;
+}
+
+.placeholder {
+    color: #a67c52;
+    font-style: italic;
+    font-family: var(--default-font), serif;
+    font-size: 80px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-30deg);
+    text-align: center;
 }

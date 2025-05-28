@@ -1583,6 +1583,11 @@ function setupIpcHandlers() {
     event.sender.send('media', media);
   });
 
+  ipcMain.on('getAllTags', (event) => {
+    const tags = dbManager.getAllTagsWithCounts();
+    event.sender.send('tags', tags);
+  });
+
   // Add handler for removing stories
   ipcMain.handle('removeStory', async (event, storyId) => {
     try {
@@ -1596,6 +1601,21 @@ function setupIpcHandlers() {
       throw error;
     }
   });
+
+  // Add handler for removing tags
+  ipcMain.handle('removeTag', async (event, tagId) => {
+    try {
+      const success = dbManager.deleteTag(tagId);
+      // Refresh the tags list
+      const tags = dbManager.getAllTagsWithCounts();
+      mainWindow.webContents.send('tags', tags);
+      return success;
+    } catch (error) {
+      console.error('Error removing tag:', error);
+      throw error;
+    }
+  });
+
 }
 
 // ===== Application Lifecycle =====

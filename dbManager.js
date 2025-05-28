@@ -991,6 +991,23 @@ class DatabaseManager {
         return stmt.all().map(row => row.name);
     }
 
+    getAllTagsWithCounts() {
+        // The following query counts the number of items associated with each tag using the item_tags table
+        const stmt = this.db.prepare(`
+            SELECT t.name, t.id, COUNT(it.item_id) as item_count
+            FROM tags t
+            LEFT JOIN item_tags it ON t.id = it.tag_id
+            GROUP BY t.name
+            ORDER BY item_count DESC
+        `);
+        return stmt.all();
+    }
+
+    deleteTag(tagId) {
+        const stmt = this.db.prepare('DELETE FROM tags WHERE id = ?');
+        return stmt.run(tagId);
+    }
+
     getItemTags(itemId) {
         const stmt = this.db.prepare(`
             SELECT t.name 
