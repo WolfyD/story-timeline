@@ -505,7 +505,8 @@ function updateMainContent(centerX, centerYear) {
 
     // Find note items within 10px of center
     const noteItems = timelineState.items.filter(item => {
-        if (!item || (item.type?.toLowerCase() !== 'note' && item.type?.toLowerCase() !== 'picture')) return false;
+        if (!item || (item.type?.toLowerCase() == 'age' || item.type?.toLowerCase() == 'period')) return false;
+        if(!item.show_in_notes) return false;
         const itemYear = parseFloat(item.year || item.date || 0);
         const itemSubtick = parseInt(item.subtick || 0);
         const itemX = centerX + (itemYear - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity + timelineState.offsetPx + (itemSubtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
@@ -800,7 +801,7 @@ function renderTimeline() {
     const { ages, periods } = findVisibleAgesAndPeriods(centerX, centerYear);
 
     // Find the closest note to center
-    const closestNote = findClosestNote(centerX);
+    //const closestNote = findClosestNote(centerX);
     
     // Update the main content based on center position
     updateMainContent(centerX, centerYear);
@@ -1236,40 +1237,14 @@ function renderTimeline() {
                     boxLeft = itemX + leftMargin - boxWidth;
                 }
 
-                // Create the line (always vertical at itemX)
-                const line = document.createElement('div');
-                line.className = 'timeline-item-line';
-                line.style.position = 'absolute';
-                line.style.left = `${itemX}px`;
-                // Give the line a unique id for linking
-                const lineId = `timeline-line-${idx}`;
-                //line.setAttribute('data-line-id', lineId);
-                //line.id = lineId;
-
-                //if (isAbove) {
-                //    if (item.type === 'picture') {
-                //        line.style.top = `${timelineY - 70}px`; // Start 70px above timeline
-                //        line.style.height = '70px';
-                //        boxTop = timelineY - 70 - 100; // Position box above the stem
-                //    } else {
-                //        line.style.top = `${boxTop + itemBoxHeight}px`;
-                //        line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
-                //    }
-                //} else {
-                //    if (item.type === 'picture') {
-                //        line.style.top = `${timelineY}px`;
-                //        line.style.height = '70px';
-                //        boxTop = timelineY + 70; // Position box below the stem
-                //    } else {
-                //        line.style.top = `${timelineY}px`;
-                //        line.style.height = `${boxTop - timelineY}px`;
-                //    }
-                //}
-                //timeline.appendChild(line);
-
                 // Create the box
                 const box = document.createElement('div');
-                
+
+                let color = item.color;
+                // TODO: HERE IS THE BOX SHADOW CODE
+                if(color){
+                    box.style.boxShadow = `-4px 4px 0 0 ${color}`;
+                }
                 
                 if (item.type.toLowerCase() === 'picture' || (item.pictures && item.pictures.length > 0 && item.type.toLowerCase() !== 'note' && item.type.toLowerCase() !== 'event')) {
                     box.className = 'timeline-picture-box' + (isAbove ? ' above' : ' below');
@@ -1322,7 +1297,7 @@ function renderTimeline() {
                 }
                 box.setAttribute('data-id', item.id || item['story-id'] || idx);
                 box.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
-                box.setAttribute('data-line-id', lineId);
+                //box.setAttribute('data-line-id', lineId);
                 box.setAttribute('data-type', item.type); // Add type for debugging
 
                 // Add click handler
@@ -1340,8 +1315,8 @@ function renderTimeline() {
                 // Highlight on hover
                 box.addEventListener('mouseenter', function() {
                     box.classList.add('highlighted');
-                    const lineElem = document.getElementById(lineId);
-                    if (lineElem) lineElem.classList.add('highlighted-line');
+                    //const lineElem = document.getElementById(lineId);
+                    //if (lineElem) lineElem.classList.add('highlighted-line');
                     
                     if (globalHoverBubble) {
                         // Get the year and subtick from the data attributes
@@ -1362,8 +1337,8 @@ function renderTimeline() {
                 });
                 box.addEventListener('mouseleave', function() {
                     box.classList.remove('highlighted');
-                    const lineElem = document.getElementById(lineId);
-                    if (lineElem) lineElem.classList.remove('highlighted-line');
+                    //const lineElem = document.getElementById(lineId);
+                    //if (lineElem) lineElem.classList.remove('highlighted-line');
                     
                     if (globalHoverBubble) {
                         globalHoverBubble.style.opacity = '0';
@@ -2083,11 +2058,12 @@ container.addEventListener('mouseout', (e) => {
         img.style.transform = '';
     });
 });
-
+/*
 function findClosestNote(centerX) {
     // Get all note items
     const noteItems = timelineState.items.filter(item => 
-        item && item.type && item.type.toLowerCase() === 'note'
+        //item && item.type && item.type.toLowerCase() === 'note'
+        item && item.show_in_notes == 1
     );
 
     if (noteItems.length === 0) {
@@ -2108,8 +2084,12 @@ function findClosestNote(centerX) {
         }
     });
 
+    if(!noteRadius){
+        var noteRadius = 10;
+    }
+
     // Only return the note if it's within 10px
-    if (closestDistance <= 10) {
+    if (closestDistance <= noteRadius) {
         return closestNote;
     } else {
         return null;
@@ -2148,7 +2128,7 @@ function findClosestItem(centerX) {
     }
     return null;
 }
-
+*/
 function findVisibleAgesAndPeriods(centerX, centerYear) {
     // Get all items that could be visible
     const visibleItems = timelineState.items.filter(item => {
@@ -2295,53 +2275,6 @@ function initializeDefaultContextMenu() {
             }
         }
     });
-
-    /*
-    addContextMenuItem({
-        type: 'divider',
-    });
-
-    addContextMenuItem({
-        type: 'copy_class_or_id',
-        label: 'Copy class or ID',
-        action: () => {
-            // Get the element under the cursor
-            const element = document.elementFromPoint(
-                parseInt(contextMenu.style.left),
-                parseInt(contextMenu.style.top)
-            );
-            
-            if (element) {
-                // Get the id or class
-                const id = element.id;
-                const classes = element.className;
-                
-                // Copy the id if it exists, otherwise copy the first class
-                const textToCopy = id || classes.split(' ')[0];
-                
-                // Copy to clipboard
-                navigator.clipboard.writeText(textToCopy).then(() => {
-                    // Show a temporary tooltip to indicate success
-                    const tooltip = document.createElement('div');
-                    tooltip.textContent = 'Copied!';
-                    tooltip.style.position = 'fixed';
-                    tooltip.style.left = `${parseInt(contextMenu.style.left)}px`;
-                    tooltip.style.top = `${parseInt(contextMenu.style.top) - 30}px`;
-                    tooltip.style.backgroundColor = '#333';
-                    tooltip.style.color = 'white';
-                    tooltip.style.padding = '4px 8px';
-                    tooltip.style.borderRadius = '4px';
-                    tooltip.style.fontSize = '12px';
-                    tooltip.style.zIndex = '1001';
-                    document.body.appendChild(tooltip);
-                    
-                    // Remove the tooltip after 1 second
-                    setTimeout(() => tooltip.remove(), 1000);
-                });
-            }
-        }
-    });
-    */
 }
 
 // Add this to ensure context menu is properly initialized

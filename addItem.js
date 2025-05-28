@@ -389,7 +389,7 @@ if (isEditMode && editItemId) {
             document.getElementById('chapter').value = item.chapter || '';
             document.getElementById('page').value = item.page || '';
             if (item.color) {
-                document.getElementById('colorInput').value = item.color;
+                document.getElementById('color').value = item.color;
             }
 
             // Clear existing tags and images
@@ -526,8 +526,9 @@ if (isEditMode && editItemId) {
             story: '',
             'story-id': '',
             type: (urlParams.get('type') || 'event').charAt(0).toUpperCase() + (urlParams.get('type') || 'event').slice(1),
-            color: document.getElementById('colorInput')?.value || null,
-            timeline_id: timeline_id
+            color: document.getElementById('color')?.value,
+            timeline_id: timeline_id,
+            show_in_notes: document.getElementById('showInNotes').checked
         };
 
         console.log('[addItem.js] Form data being submitted:', formData);
@@ -685,3 +686,45 @@ function updateTypeLabel() {
         label.textContent = type.charAt(0).toUpperCase() + type.slice(1);
     }
 }
+
+// Add color preview functionality
+function updateColorPreview(color) {
+    document.getElementById('colorPreview').style.backgroundColor = color;
+    document.getElementById('colorHex').value = color.toUpperCase();
+}
+
+// Handle color picker changes
+document.getElementById('color').addEventListener('input', (e) => {
+    updateColorPreview(e.target.value);
+});
+
+// Handle hex input changes
+document.getElementById('colorHex').addEventListener('input', (e) => {
+    let value = e.target.value;
+    // Ensure the value starts with #
+    if (!value.startsWith('#')) {
+        value = '#' + value;
+    }
+    // Validate hex color format
+    if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+        document.getElementById('color').value = value;
+        updateColorPreview(value);
+    }
+});
+
+// Handle hex input blur (when user leaves the field)
+document.getElementById('colorHex').addEventListener('blur', (e) => {
+    let value = e.target.value;
+    // Ensure the value starts with #
+    if (!value.startsWith('#')) {
+        value = '#' + value;
+    }
+    // If the value is not a valid hex color, reset it to the color picker's value
+    if (!/^#[0-9A-Fa-f]{6}$/.test(value)) {
+        value = document.getElementById('color').value;
+        e.target.value = value.toUpperCase();
+    }
+});
+
+// Initialize color preview
+updateColorPreview(document.getElementById('color').value);

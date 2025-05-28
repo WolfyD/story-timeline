@@ -101,6 +101,7 @@ function initializeForm() {
             document.getElementById('bookTitleInput').value = itemData.book_title || '';
             document.getElementById('chapterInput').value = itemData.chapter || '';
             document.getElementById('pageInput').value = itemData.page || '';
+            document.getElementById('showInNotesInput').checked = itemData.show_in_notes !== false;
             
             // Set the form's item ID
             document.getElementById('addItemForm').dataset.itemId = itemData.id;
@@ -551,10 +552,11 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         story: '',
         'story-id': '',
         type: type.charAt(0).toUpperCase() + type.slice(1),
-        color: document.getElementById('colorInput')?.value || null,
+        color: document.getElementById('colorInput')?.value,
         timeline_id: timeline_id,
         creation_granularity: parseInt(window.granularity || '4'),
-        item_index: 0 // This will be set by the database manager
+        item_index: 0, // This will be set by the database manager
+        show_in_notes: document.getElementById('showInNotesInput').checked
     };
 
     // If this is a period, ensure end year/subtick are set
@@ -635,6 +637,7 @@ window.api.receive('itemData', (item) => {
         document.getElementById('bookTitleInput').value = item.book_title || '';
         document.getElementById('chapterInput').value = item.chapter || '';
         document.getElementById('pageInput').value = item.page || '';
+        document.getElementById('showInNotesInput').checked = item.show_in_notes !== false;
         if (item.color) {
             document.getElementById('colorInput').value = item.color;
         }
@@ -699,7 +702,8 @@ window.api.receive('itemData', (item) => {
                 end_subtick: document.getElementById('endSubtickInput').value,
                 story_refs: collectStoryRefs(),
                 story: '',
-                'story-id': ''
+                'story-id': '',
+                show_in_notes: document.getElementById('showInNotesInput').checked
             };
 
             if (formData.story_refs.length > 0) {
@@ -719,4 +723,46 @@ function updateTypeLabel() {
     if (type) {
         label.textContent = type.charAt(0).toUpperCase() + type.slice(1);
     }
-} 
+}
+
+// Add color preview functionality
+function updateColorPreview(color) {
+    document.getElementById('colorPreview').style.backgroundColor = color;
+    document.getElementById('colorHex').value = color.toUpperCase();
+}
+
+// Handle color picker changes
+document.getElementById('colorInput').addEventListener('input', (e) => {
+    updateColorPreview(e.target.value);
+});
+
+// Handle hex input changes
+document.getElementById('colorHex').addEventListener('input', (e) => {
+    let value = e.target.value;
+    // Ensure the value starts with #
+    if (!value.startsWith('#')) {
+        value = '#' + value;
+    }
+    // Validate hex color format
+    if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+        document.getElementById('colorInput').value = value;
+        updateColorPreview(value);
+    }
+});
+
+// Handle hex input blur (when user leaves the field)
+document.getElementById('colorHex').addEventListener('blur', (e) => {
+    let value = e.target.value;
+    // Ensure the value starts with #
+    if (!value.startsWith('#')) {
+        value = '#' + value;
+    }
+    // If the value is not a valid hex color, reset it to the color picker's value
+    if (!/^#[0-9A-Fa-f]{6}$/.test(value)) {
+        value = document.getElementById('colorInput').value;
+        e.target.value = value.toUpperCase();
+    }
+});
+
+// Initialize color preview
+updateColorPreview(document.getElementById('colorInput').value); 

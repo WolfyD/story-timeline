@@ -645,3 +645,13 @@ textarea {
 .date_range_label {
     width: 80px !important;
 }
+
+#showInNotes {
+    height: 28px;
+    width: 28px;
+    filter: hue-rotate(200deg);
+}
+
+.show-in-notes-container {
+    width: 200px;
+}

@@ -333,5 +333,9 @@ button[type="submit"]:hover {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-
+#showInNotes {
+    height: 28px;
+    width: 28px;
+    filter: hue-rotate(200deg);
+}
 

@@ -102,19 +102,19 @@ window.api.receive('itemData', (item) => {
 
 function populateForm(item) {
     // Set form values
-    document.getElementById('titleInput').value = item.title || '';
-    document.getElementById('descriptionInput').value = item.description || '';
-    document.getElementById('contentInput').value = item.content || '';
+    document.getElementById('title').value = item.title || '';
+    document.getElementById('description').value = item.description || '';
+    document.getElementById('content').value = item.content || '';
     document.getElementById('yearInput').value = item.year || '';
     document.getElementById('subtickInput').value = item.subtick !== undefined ? item.subtick : '';
     document.getElementById('endYearInput').value = item.end_year || item.year || '';
     document.getElementById('endSubtickInput').value = item.end_subtick !== undefined ? item.end_subtick : item.subtick || '';
-    document.getElementById('bookTitleInput').value = item.book_title || '';
-    document.getElementById('chapterInput').value = item.chapter || '';
-    document.getElementById('pageInput').value = item.page || '';
-    if (item.color) {
-        document.getElementById('colorInput').value = item.color;
-    }
+    document.getElementById('bookTitle').value = item.book_title || '';
+    document.getElementById('chapter').value = item.chapter || '';
+    document.getElementById('page').value = item.page || '';
+    document.getElementById('color').value = item.color;
+    document.getElementById('showInNotes').checked = item.show_in_notes !== false;
+    updateColorPreview(item.color);
 
     // Clear existing tags and images
     tags.clear();
@@ -370,21 +370,35 @@ document.getElementById('editItemForm').addEventListener('submit', async (e) => 
     }
     
     const formData = {
-        id: originalData.id,
-        title: document.getElementById('titleInput').value,
-        description: document.getElementById('descriptionInput').value,
-        content: document.getElementById('contentInput').value,
+        id: item.id,
+        title: document.getElementById('title').value,
+        description: document.getElementById('description').value,
+        content: document.getElementById('content').value,
         tags: Array.from(tags),
-        pictures: processedImages,
-        book_title: document.getElementById('bookTitleInput').value,
-        chapter: document.getElementById('chapterInput').value,
-        page: document.getElementById('pageInput').value,
-        year: parseInt(document.getElementById('yearInput').value),
-        subtick: parseInt(document.getElementById('subtickInput').value),
-        end_year: parseInt(document.getElementById('endYearInput').value),
-        end_subtick: parseInt(document.getElementById('endSubtickInput').value),
+        pictures: processedImages.map((imageInfo, index) => ({
+            id: imageInfo.id,
+            file_path: imageInfo.file_path,
+            file_name: imageInfo.file_name,
+            file_size: imageInfo.file_size,
+            file_type: imageInfo.file_type,
+            width: imageInfo.width,
+            height: imageInfo.height,
+            title: imageInfo.title || `Image ${index + 1}`,
+            description: imageInfo.description || '',
+            created_at: imageInfo.created_at || new Date().toISOString()
+        })),
+        book_title: document.getElementById('bookTitle').value,
+        chapter: document.getElementById('chapter').value,
+        page: document.getElementById('page').value,
+        year: document.getElementById('yearInput').value,
+        subtick: document.getElementById('subtickInput').value,
+        end_year: document.getElementById('endYearInput').value,
+        end_subtick: document.getElementById('endSubtickInput').value,
         story_refs: collectStoryRefs(),
-        color: document.getElementById('colorInput').value || null,
+        story: '',
+        'story-id': '',
+        show_in_notes: document.getElementById('showInNotes').checked,
+        color: document.getElementById('color').value || null,
         timeline_id: originalData.timeline_id
     };
 
@@ -516,4 +530,8 @@ function collectStoryRefs() {
 
 function generateStoryId(title) {
     return 'STORY-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+}
+
+function updateColorPreview(color) {
+    // Implementation of updateColorPreview function
 } 

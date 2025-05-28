@@ -67,8 +67,15 @@
             <!-- Color -->
             <div class="form-line">
                 <label for="color">Color:</label>
-                <input type="color" id="color" data-testid="item-color">
-                <div id="colorPreview" class="color-preview" data-testid="color-preview"></div>
+                <input type="color" id="color" value="#37F2AE">
+                <input type="text" id="colorHex" class="input-text" placeholder="#RRGGBB" maxlength="7" style="width: 80px; margin-left: 10px;">
+                <div id="colorPreview" style="width: 20px; height: 20px; border: 1px solid #ccc; display: inline-block; vertical-align: middle; margin-left: 10px;"></div>
+            </div>
+
+            <!-- Show in Notes -->
+            <div class="form-line show-in-notes-container">
+                <label for="showInNotes">Show in Notes:</label>
+                <input type="checkbox" id="showInNotes" checked>
             </div>
 
             <!-- Tags -->
@@ -434,11 +441,42 @@
         // Update color preview
         function updateColorPreview(color) {
             document.getElementById('colorPreview').style.backgroundColor = color;
+            document.getElementById('colorHex').value = color.toUpperCase();
         }
 
+        // Handle color picker changes
         document.getElementById('color').addEventListener('input', (e) => {
             updateColorPreview(e.target.value);
             checkModified();
+        });
+
+        // Handle hex input changes
+        document.getElementById('colorHex').addEventListener('input', (e) => {
+            let value = e.target.value;
+            // Ensure the value starts with #
+            if (!value.startsWith('#')) {
+                value = '#' + value;
+            }
+            // Validate hex color format
+            if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                document.getElementById('color').value = value;
+                updateColorPreview(value);
+                checkModified();
+            }
+        });
+
+        // Handle hex input blur (when user leaves the field)
+        document.getElementById('colorHex').addEventListener('blur', (e) => {
+            let value = e.target.value;
+            // Ensure the value starts with #
+            if (!value.startsWith('#')) {
+                value = '#' + value;
+            }
+            // If the value is not a valid hex color, reset it to the color picker's value
+            if (!/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                value = document.getElementById('color').value;
+                e.target.value = value.toUpperCase();
+            }
         });
 
         // Validate range inputs

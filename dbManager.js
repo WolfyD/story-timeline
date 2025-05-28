@@ -215,6 +215,7 @@ class DatabaseManager {
                 creation_granularity INTEGER,
                 timeline_id INTEGER,
                 item_index INTEGER DEFAULT 0,
+                show_in_notes INTEGER DEFAULT 1,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (story_id) REFERENCES stories(id),
@@ -302,6 +303,9 @@ class DatabaseManager {
             if (!columnExists('items', 'item_index')) {
                 this.db.exec('ALTER TABLE items ADD COLUMN item_index INTEGER DEFAULT 0');
             }
+            if (!columnExists('items', 'show_in_notes')) {
+                this.db.exec('ALTER TABLE items ADD COLUMN show_in_notes INTEGER DEFAULT 1');
+            }
 
             // Add columns to pictures table
             const pictureColumns = [
@@ -345,85 +349,14 @@ class DatabaseManager {
     }
 
     async migrateDatabase() {
-        try {
-            // Start a transaction
-            this.db.prepare('BEGIN').run();
-
-            // Check if universe_data table exists
-            const tableExists = this.db.prepare(`
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name='universe_data'
-            `).get();
-
-            if (tableExists) {
-                console.log('Found universe_data table, starting migration...');
-                
-                // Get the current universe data
-                const universeData = this.db.prepare('SELECT * FROM universe_data ORDER BY id DESC LIMIT 1').get();
-                
-                if (universeData) {
-                    // Create a new timeline with the universe data
-                    const insertStmt = this.db.prepare(`
-                        INSERT INTO timelines (
-                            title, author, description, start_year, granularity, created_at, updated_at
-                        ) VALUES (
-                            @title, @author, @description, @start_year, @granularity, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        )
-                    `);
-
-                    insertStmt.run({
-                        title: universeData.title || 'Untitled Timeline',
-                        author: universeData.author || '',
-                        description: universeData.description || '',
-                        start_year: universeData.start_year || 0,
-                        granularity: universeData.granularity || 4
-                    });
-
-                    const timelineId = this.db.prepare('SELECT id FROM timelines ORDER BY id DESC LIMIT 1').get().id;
-
-                    // Update items with timeline_id and default type_id
-                    const itemStmt = this.db.prepare(`
-                        UPDATE items 
-                        SET timeline_id = @timeline_id,
-                            type_id = CASE 
-                                WHEN type_id IS NULL THEN 1 
-                                ELSE type_id 
-                            END
-                        WHERE timeline_id IS NULL
-                    `);
-
-                    itemStmt.run({ timeline_id: timelineId });
-
-                    // Update settings with timeline_id
-                    const settingsStmt = this.db.prepare(`
-                        UPDATE settings 
-                        SET timeline_id = @timeline_id 
-                        WHERE timeline_id IS NULL
-                    `);
-
-                    settingsStmt.run({ timeline_id: timelineId });
-                    console.log('Updated settings with timeline_id');
-
-                    // Migrate pictures from base64 to files
-                    await this.migratePictures(true);
-                }
-
-                // Drop the universe_data table
-                this.db.prepare('DROP TABLE IF EXISTS universe_data').run();
-                console.log('Migration completed successfully');
+        // Check and add show_in_notes column to items table if it doesn't exist
+        this.ensureTableColumns('items', [
+            {
+                name: 'show_in_notes',
+                type: 'INTEGER',
+                default: 1
             }
-
-            // Reindex items within the same transaction
-            this.reindexItems(true);
-
-            // Commit the transaction
-            this.db.prepare('COMMIT').run();
-        } catch (error) {
-            // Rollback on error
-            this.db.prepare('ROLLBACK').run();
-            console.error('Error during database migration:', error);
-            throw error;
-        }
+        ]);
     }
 
     initializeDefaultData() {
@@ -789,36 +722,33 @@ class DatabaseManager {
             // Insert the item
             const stmt = this.db.prepare(`
                 INSERT INTO items (
-                    id, title, description, content, year, subtick,
-                    original_subtick, end_year, end_subtick, original_end_subtick,
-                    creation_granularity, book_title, chapter, page, type_id, color, timeline_id, item_index
-                ) VALUES (
-                    @id, @title, @description, @content, @year, @subtick,
-                    @original_subtick, @end_year, @end_subtick, @original_end_subtick,
-                    @creation_granularity, @book_title, @chapter, @page, @type_id, @color, @timeline_id, @item_index
-                )
+                    id, title, description, content, year, subtick, original_subtick,
+                    end_year, end_subtick, original_end_subtick, creation_granularity,
+                    book_title, chapter, page, type_id, color, timeline_id, item_index, show_in_notes
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
-            const result = stmt.run({
-                id: itemId,
-                title: item.title,
-                description: item.description || '',
-                content: item.content || '',
-                year: item.year,
-                subtick: item.subtick,
-                original_subtick: item.original_subtick || item.subtick,
-                end_year: item.end_year || item.year,
-                end_subtick: item.end_subtick || item.subtick,
-                original_end_subtick: item.original_end_subtick || item.original_subtick || item.subtick,
-                creation_granularity: item.creation_granularity || this.getUniverseData().granularity,
-                book_title: item.book_title || '',
-                chapter: item.chapter || '',
-                page: item.page || '',
-                type_id: typeId,
-                color: item.color || null,
-                timeline_id: item.timeline_id || this.currentTimelineId,
-                item_index: nextIndex
-            });
+            stmt.run(
+                item.id,
+                item.title,
+                item.description,
+                item.content,
+                item.year,
+                item.subtick,
+                item.original_subtick || item.subtick,
+                item.end_year || item.year,
+                item.end_subtick || item.subtick,
+                item.original_end_subtick || item.original_subtick || item.subtick,
+                item.creation_granularity || this.getUniverseData().granularity,
+                item.book_title || '',
+                item.chapter || '',
+                item.page || '',
+                typeId,
+                item.color,
+                item.timeline_id || this.currentTimelineId,
+                nextIndex,
+                item.show_in_notes !== undefined ? (item.show_in_notes ? 1 : 0) : 1
+            );
 
             // Add tags if any
             if (item.tags && item.tags.length > 0) {
@@ -895,6 +825,7 @@ class DatabaseManager {
             book_title: item.book_title,
             chapter: item.chapter,
             page: item.page,
+            show_in_notes: item.show_in_notes === 1,
             tags: item.tags ? item.tags.split(',') : [],
             story_refs: item.story_refs ? item.story_refs.split(',').map(ref => {
                 const [id, title] = ref.split(':');
@@ -918,6 +849,7 @@ class DatabaseManager {
             ORDER BY i.year, i.subtick, i.item_index
         `);
         const items = stmt.all(timeline.id);
+        console.log("ALL ITEMS", items);
         return items.map(item => ({
             ...item,
             tags: this.getItemTags(item.id),
@@ -967,7 +899,8 @@ class DatabaseManager {
                 book_title = @book_title,
                 chapter = @chapter,
                 page = @page,
-                color = @color
+                color = @color,
+                show_in_notes = @show_in_notes
             WHERE id = @id
         `);
 
@@ -987,7 +920,8 @@ class DatabaseManager {
             book_title: item.book_title,
             chapter: item.chapter,
             page: item.page,
-            color: item.color
+            color: item.color,
+            show_in_notes: item.show_in_notes !== undefined ? (item.show_in_notes ? 1 : 0) : 1
         });
 
         // Update tags if present
