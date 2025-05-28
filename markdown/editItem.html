@@ -285,7 +285,8 @@
                 book_title: document.getElementById('bookTitle').value,
                 chapter: document.getElementById('chapter').value,
                 page: document.getElementById('page').value,
-                story_refs: collectStoryRefs()
+                story_refs: collectStoryRefs(),
+                show_in_notes: document.getElementById('showInNotes').checked
             };
         }
 
@@ -403,6 +404,7 @@
             document.getElementById('bookTitle').value = item.book_title || '';
             document.getElementById('chapter').value = item.chapter || '';
             document.getElementById('page').value = item.page || '';
+            document.getElementById('showInNotes').checked = item.show_in_notes !== false;
 
             // Clear and populate story references
             const storyRefsContainer = document.getElementById('storyRefsContainer');
