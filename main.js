@@ -600,6 +600,7 @@ function loadSettings() {
       showGuides: Boolean(savedSettings.showGuides),
       useCustomScaling: savedSettings.useCustomScaling,
       customScale: savedSettings.customScale,
+      displayRadius: parseInt(savedSettings.displayRadius || 10),
       size: {
         x: parseInt(savedSettings.size?.x || 800),
         y: parseInt(savedSettings.size?.y || 600)
@@ -641,6 +642,7 @@ function loadSettings() {
  * - IPC communication failure
  */
 function saveSettings(newSettings) {
+  console.log("SAVING NEW SETTINGS", newSettings);
   if (!mainWindow) {
     console.error('Main window not initialized');
     return false;
@@ -665,7 +667,8 @@ function saveSettings(newSettings) {
     window_position_y: parseInt(mainWindow.getPosition()[1] + 1),
     use_custom_scaling: newSettings.useCustomScaling ? 1 : 0,
     custom_scale: parseFloat(newSettings.customScale || 1.0),
-    timeline_id: data.timeline_id
+    timeline_id: data.timeline_id,
+    display_radius: parseInt(newSettings.displayRadius || 10)
   };
   
   const result = dbManager.updateSettings(dbSettings);
@@ -803,6 +806,7 @@ function setupIpcHandlers() {
 
   ipcMain.on('save-settings', (event, newSettings, newData) => {
     // Merge new settings with current settings
+    console.log("NEW SETTINGS", newSettings);
     const updatedSettings = {
         ...settings,
         ...newSettings
@@ -816,7 +820,8 @@ function setupIpcHandlers() {
         author: newData.author,
         description: newData.description,
         start: newData.start,
-        granularity: newData.granularity
+        granularity: newData.granularity,
+        displayRadius: newData.displayRadius
     };
 
     // Save settings to database
@@ -838,7 +843,8 @@ function setupIpcHandlers() {
         window_position_y: parseInt(mainWindow.getPosition()[1] + 1),
         use_custom_scaling: updatedSettings.useCustomScaling ? 1 : 0,
         custom_scale: parseFloat(updatedSettings.customScale || 1.0),
-        timeline_id: data.timeline_id
+        timeline_id: data.timeline_id,
+        display_radius: parseInt(updatedSettings.displayRadius || 10)
     };
 
     // Update settings in database

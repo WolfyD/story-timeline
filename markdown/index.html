@@ -163,6 +163,15 @@
               </div>
 
               <div class="settings-row">
+                <label class="no-select" for="display-radius">Display Radius</label>
+                <div class="settings-input-container">
+                  <input type="number" id="display-radius" min="1" max="100" value="10" onmousewheel="return true"; class="settings-input">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">How many ticks to show on each side of the current view</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
                 <label class="no-select" for="use-timeline-css">Use Timeline CSS</label>
                 <div class="settings-input-container">
                   <input type="checkbox" id="use-timeline-css" class="settings-input" onclick="toggleTimelineCSS(this.checked)">

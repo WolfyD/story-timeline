@@ -141,6 +141,7 @@ class DatabaseManager {
                 window_position_y INTEGER DEFAULT 100,
                 use_custom_scaling INTEGER DEFAULT 0,
                 custom_scale REAL DEFAULT 1.0,
+                display_radius INTEGER DEFAULT 10,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
             )
@@ -357,6 +358,15 @@ class DatabaseManager {
                 default: 1
             }
         ]);
+
+        // Check and add display_radius column to settings table if it doesn't exist
+        this.ensureTableColumns('settings', [
+            {
+                name: 'display_radius',
+                type: 'INTEGER',
+                default: 10
+            }
+        ]);
     }
 
     initializeDefaultData() {
@@ -565,7 +575,8 @@ class DatabaseManager {
                 y: settings.window_position_y
             },
             useCustomScaling: settings.use_custom_scaling === 1,
-            customScale: settings.custom_scale
+            customScale: settings.custom_scale,
+            displayRadius: settings.display_radius
         };
     }
 
@@ -591,7 +602,7 @@ class DatabaseManager {
                     is_fullscreen, show_guides,
                     window_size_x, window_size_y,
                     window_position_x, window_position_y,
-                    use_custom_scaling, custom_scale
+                    use_custom_scaling, custom_scale, display_radius
                 ) VALUES (
                     @timeline_id, @font, @font_size_scale, @pixels_per_subtick,
                     @custom_css, @custom_main_css, @custom_items_css,
@@ -599,7 +610,7 @@ class DatabaseManager {
                     @is_fullscreen, @show_guides,
                     @window_size_x, @window_size_y,
                     @window_position_x, @window_position_y,
-                    @use_custom_scaling, @custom_scale
+                    @use_custom_scaling, @custom_scale, @display_radius
                 )
             `);
             return insertStmt.run(settings);
@@ -626,6 +637,7 @@ class DatabaseManager {
                 window_position_y = @window_position_y,
                 use_custom_scaling = @use_custom_scaling,
                 custom_scale = @custom_scale,
+                display_radius = @display_radius,
                 updated_at = CURRENT_TIMESTAMP
             WHERE timeline_id = @timeline_id
         `);
@@ -849,7 +861,6 @@ class DatabaseManager {
             ORDER BY i.year, i.subtick, i.item_index
         `);
         const items = stmt.all(timeline.id);
-        console.log("ALL ITEMS", items);
         return items.map(item => ({
             ...item,
             tags: this.getItemTags(item.id),
@@ -1426,7 +1437,8 @@ class DatabaseManager {
                     y: settings.window_position_y
                 },
                 useCustomScaling: settings.use_custom_scaling === 1,
-                customScale: settings.custom_scale
+                customScale: settings.custom_scale,
+                displayRadius: settings.display_radius
             }
         };
     }

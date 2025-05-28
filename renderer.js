@@ -353,6 +353,9 @@ function settingsSetup(settings) {
     useCustomScaling.checked = settings.useCustomScaling;
     let customScale = document.querySelector('#custom-scale');
     customScale.value = settings.customScale;
+
+    let displayRadius = document.querySelector('#display-radius');
+    displayRadius.value = settings.displayRadius;
     
     // Apply window scaling if enabled
     if (settings.useCustomScaling) {
@@ -514,7 +517,6 @@ function dataSetup(data) {
         timelineState.focusYear = parseInt(data.start) || 0;
         timelineState.granularity = parseInt(data.granularity) || 4;
         timelineState.offsetPx = 0;
-        
         // Force a re-render of the timeline with the new data
         renderTimeline(timelineState.focusYear, timelineState.granularity, window.innerWidth);
     }
@@ -559,13 +561,14 @@ function loadData(data) {
  * - Invalid parameters
  * - Timeline state not initialized
  */
-function callSetInitialSettings(focusYear, granularity, pixelsPerSubtick) {
-    console.log("callSetInitialSettings", focusYear, granularity, pixelsPerSubtick);
+function callSetInitialSettings(focusYear, granularity, pixelsPerSubtick, displayRadius) {
+    console.log("callSetInitialSettings", focusYear, granularity, pixelsPerSubtick, displayRadius);
     setInitialSettings({ 
         focusYear: focusYear, 
         granularity: granularity, 
         items: items, 
-        pixelsPerSubtick: pixelsPerSubtick 
+        pixelsPerSubtick: pixelsPerSubtick,
+        displayRadius: displayRadius
     });
 }
 
@@ -590,7 +593,8 @@ function checkAllLoaded() {
         callSetInitialSettings(
             loadedData.start || 0,
             loadedData.granularity || 4,
-            loadedSettings.pixelsPerSubtick || 20
+            loadedSettings.pixelsPerSubtick || 20,
+            loadedSettings.displayRadius || 10
         );
 
         // If both data and settings are ready, tell main process we're ready to display
@@ -644,7 +648,8 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         pixelsPerSubtick: document.querySelector('#pixels-per-subtick').value,
         showGuides: document.querySelector('#show-guides').checked,
         useCustomScaling: document.querySelector('#use-custom-scaling').checked,
-        customScale: document.querySelector('#custom-scale').value
+        customScale: document.querySelector('#custom-scale').value,
+        displayRadius: parseInt(document.querySelector('#display-radius').value)
     };
 
     const data = {
@@ -692,7 +697,7 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         };
         
         // Only update the timeline once with all changes
-        callSetInitialSettings(newStartYear, parseInt(data.granularity), parseInt(settings.pixelsPerSubtick));
+        callSetInitialSettings(newStartYear, parseInt(data.granularity), parseInt(settings.pixelsPerSubtick), parseInt(settings.displayRadius));
     }
 
     // Send settings to main process
@@ -772,9 +777,27 @@ window.api.receive('window-moved', (position, scaleFactor) => {
  * - Invalid settings object
  * - Settings setup failure
  */
-window.api.receive('call-load-settings', (settings) => {
+window.api.receive('call-load-settings', async (settings) => {
     if (!settings) return;
     
+    // Load settings
+    console.log("Loaded settings:", settings);
+    if (settings) {
+        document.querySelector('#font-select').selectedIndex = settings.font;
+        document.querySelector('#font-size-scale-input').value = settings.fontSizeScale;
+        document.querySelector('#custom-css').value = settings.customCSS || '';
+        document.querySelector('#custom-main-css').value = settings.customMainCSS || '';
+        document.querySelector('#custom-items-css').value = settings.customItemsCSS || '';
+        document.querySelector('#use-timeline-css').checked = settings.useTimelineCSS;
+        document.querySelector('#use-main-css').checked = settings.useMainCSS;
+        document.querySelector('#use-items-css').checked = settings.useItemsCSS;
+        document.querySelector('#pixels-per-subtick').value = settings.pixelsPerSubtick;
+        document.querySelector('#show-guides').checked = settings.showGuides;
+        document.querySelector('#use-custom-scaling').checked = settings.useCustomScaling;
+        document.querySelector('#custom-scale').value = settings.customScale;
+        document.querySelector('#display-radius').value = settings.displayRadius || 10;
+    }
+
     // Only update settings if they've actually changed
     if (JSON.stringify(settings) !== JSON.stringify(loadedSettings)) {
         settingsSetup(settings);

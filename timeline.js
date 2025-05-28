@@ -184,7 +184,8 @@ const timelineState = {
     granularity: 22,
     pixelsPerSubtick: 1,
     offsetPx: 0,
-    items: []
+    items: [],
+    displayRadius: 10
 };
 
 /**
@@ -503,6 +504,8 @@ function updateMainContent(centerX, centerYear) {
         return centerX >= startX && centerX <= endX;
     }).sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
 
+    console.log("TIMELINE STATE", timelineState);
+
     // Find note items within 10px of center
     const noteItems = timelineState.items.filter(item => {
         if (!item || (item.type?.toLowerCase() == 'age' || item.type?.toLowerCase() == 'period')) return false;
@@ -510,7 +513,7 @@ function updateMainContent(centerX, centerYear) {
         const itemYear = parseFloat(item.year || item.date || 0);
         const itemSubtick = parseInt(item.subtick || 0);
         const itemX = centerX + (itemYear - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity + timelineState.offsetPx + (itemSubtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
-        return Math.abs(itemX - centerX) <= 10;
+        return Math.abs(itemX - centerX) <= timelineState.displayRadius;
     }).sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
 
     // Add all visible ages
@@ -1973,7 +1976,7 @@ function scrollBy(years) {
  * - Invalid settings
  * - Render failure
  */
-function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 10 }) {
+function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 10, displayRadius = 10 }) {
     // Assign stable indices to regular items
     let regularItemIndex = 0;
     items.forEach(item => {
@@ -1987,7 +1990,7 @@ function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 
     timelineState.items = items;
     timelineState.pixelsPerSubtick = pixelsPerSubtick;
     timelineState.offsetPx = 0;
-
+    timelineState.displayRadius = displayRadius;
     // Step 1: Check for timeline markers when timeline loads
     checkTimelineMarkers();
     
