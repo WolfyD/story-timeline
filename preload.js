@@ -71,7 +71,11 @@ contextBridge.exposeInMainWorld('api', {
             'get-timeline-data',
             'get-all-items',
             'removeStory',
-            'removeTag'
+            'removeTag',
+            'get-picture-usage',
+            'cleanup-orphaned-images',
+            'add-image-reference',
+            'remove-image-reference'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);

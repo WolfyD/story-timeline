@@ -765,7 +765,7 @@ function loadData() {
  * - File write failure
  * - IPC communication failure
  */
-function saveData(newData) {
+async function saveData(newData) {
   // Save data to database
   const dbData = {
     title: newData.title || 'New Timeline',
@@ -780,7 +780,7 @@ function saveData(newData) {
   // Save items
   const items = newData.items || [];
   for (const item of items) {
-    dbManager.addItem(item);
+    await dbManager.addItem(item);
   }
   
   // Send updated data to renderer
@@ -913,9 +913,9 @@ function setupIpcHandlers() {
     event.sender.send('tagSuggestions', suggestions);
   });
 
-  ipcMain.on('addTimelineItem', (event, data) => {
+  ipcMain.on('addTimelineItem', async (event, data) => {
     try {
-      const newItem = dbManager.addItem(data);
+      const newItem = await dbManager.addItem(data);
       const items = dbManager.getItemsByTimeline(data.timeline_id);
       mainWindow.webContents.send('items', items);
       event.sender.send('item-created', { id: newItem.id });
@@ -1616,6 +1616,42 @@ function setupIpcHandlers() {
     }
   });
 
+  // Add handlers for image library functionality
+  ipcMain.handle('get-picture-usage', async (event, pictureId) => {
+    try {
+      return dbManager.getPictureUsageCount(pictureId);
+    } catch (error) {
+      console.error('Error getting picture usage:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('cleanup-orphaned-images', async (event) => {
+    try {
+      return dbManager.cleanupOrphanedImages();
+    } catch (error) {
+      console.error('Error cleaning up orphaned images:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('add-image-reference', async (event, itemId, pictureId) => {
+    try {
+      return dbManager.addImageReference(itemId, pictureId);
+    } catch (error) {
+      console.error('Error adding image reference:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('remove-image-reference', async (event, itemId, pictureId) => {
+    try {
+      return dbManager.removeImageReference(itemId, pictureId);
+    } catch (error) {
+      console.error('Error removing image reference:', error);
+      throw error;
+    }
+  });
 }
 
 // ===== Application Lifecycle =====

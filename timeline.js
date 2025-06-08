@@ -1253,12 +1253,6 @@ function renderTimeline() {
                 // Create the box
                 const box = document.createElement('div');
 
-                let color = item.color;
-                // TODO: HERE IS THE BOX SHADOW CODE
-                if(color){
-                    box.style.boxShadow = `-4px 4px 0 0 ${color}`;
-                }
-                
                 if (item.type.toLowerCase() === 'picture' || (item.pictures && item.pictures.length > 0 && item.type.toLowerCase() !== 'note' && item.type.toLowerCase() !== 'event')) {
                     box.className = 'timeline-picture-box' + (isAbove ? ' above' : ' below');
                     const img = document.createElement('img');
@@ -1270,6 +1264,21 @@ function renderTimeline() {
                     box.style.top = isAbove ? `${timelineY - 170}px` : `${timelineY + 70}px`; // Position above/below the stem
                 } else {
                     box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
+
+                    let color = item.color;
+                    // TODO: HERE IS THE BOX SHADOW CODE
+                    if(color && color != 'transparent' && color.toLowerCase() != 'transparent' && color.toLowerCase() != 'none' && color.toLowerCase() != '#000000' && color.toLowerCase() != '#ffffff'){
+                        //alert(color);
+                        let boxColor = document.createElement('div');
+                        boxColor.className = 'timeline-item-box-color';
+                        boxColor.style.width = `5px`;
+                        boxColor.style.height = `100%`;
+                        boxColor.style.backgroundColor = color;
+                        boxColor.style.position = 'absolute';
+                        boxColor.style.left = `0px`;
+                        boxColor.style.top = `0px`;
+                        box.appendChild(boxColor);
+                    }
                     
                     if (item.type && item.type.toLowerCase() === 'note') {
                         // Add the calligraphic letter SVG

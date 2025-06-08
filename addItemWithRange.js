@@ -128,7 +128,9 @@ function initializeForm() {
                     const imageInfo = {
                         file_path: pic.file_path,
                         title: pic.title || '',
-                        description: pic.description || ''
+                        description: pic.description || '',
+                        isNew: false,
+                        isExisting: true
                     };
                     addImagePreview(imageInfo);
                     images.push(imageInfo);
@@ -272,7 +274,7 @@ function createImagePreview(file, imageId) {
         const removeBtn = document.createElement('button');
         removeBtn.className = 'remove-image-btn';
         removeBtn.textContent = '×';
-        removeBtn.onclick = () => removeImage(imageId);
+        removeBtn.onclick = () => removeImage(removeBtn, imageId);
         
         container.appendChild(img);
         container.appendChild(removeBtn);
@@ -289,12 +291,21 @@ function createImagePreview(file, imageId) {
     reader.readAsDataURL(file);
 }
 
-function removeImage(imageId) {
-    const container = document.getElementById(`container-${imageId}`);
-    if (container) {
-        container.remove();
+function removeImage(button, imageId) {
+    console.log('[addItemWithRange.js] Removing image with ID:', imageId);
+    console.log('[addItemWithRange.js] Images before removal:', [...images]);
+    
+    const index = images.findIndex(img => img.id === imageId);
+    console.log('[addItemWithRange.js] Found index to remove:', index);
+    
+    if (index > -1) {
+        images.splice(index, 1);
+        console.log('[addItemWithRange.js] Images after removal:', [...images]);
+    } else {
+        console.log('[addItemWithRange.js] No matching image found to remove');
     }
-    uploadedImages = uploadedImages.filter(img => img.id !== imageId);
+    
+    button.parentElement.remove();
 }
 
 function handleImageUpload(event) {
@@ -307,7 +318,8 @@ function handleImageUpload(event) {
                 id: imageId,
                 file: file,
                 title: file.name,
-                description: ''
+                description: '',
+                isNew: true
             });
             createImagePreview(file, imageId);
         }
@@ -318,6 +330,45 @@ function handleImageUpload(event) {
 
 // Handle image uploads
 document.getElementById('addImageBtn').addEventListener('click', function() {
+    showImageOptions();
+});
+
+function showImageOptions() {
+    // Create options modal
+    const optionsHTML = `
+        <div id="imageOptionsModal" class="image-options-modal">
+            <div class="image-options-content">
+                <h3>Add Image</h3>
+                <div class="image-options">
+                    <button class="image-option-btn" onclick="selectNewImage()">
+                        <i class="ri-upload-cloud-line"></i>
+                        <span>Upload New Image</span>
+                        <small>Add a new image file</small>
+                    </button>
+                    <button class="image-option-btn" onclick="selectExistingImage()">
+                        <i class="ri-gallery-line"></i>
+                        <span>Choose Existing Image</span>
+                        <small>Select from timeline images</small>
+                    </button>
+                </div>
+                <button class="cancel-btn" onclick="closeImageOptions()">Cancel</button>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('imageOptionsModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', optionsHTML);
+}
+
+function selectNewImage() {
+    closeImageOptions();
+    
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -341,21 +392,15 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
                     temp_path: tempPath,
                     file_name: file.name,
                     file_size: file.size,
-                    file_type: file.type
+                    file_type: file.type,
+                    isNew: true // Mark as new image
                 };
 
                 // Add to images array
                 images.push(tempImageInfo);
 
                 // Create preview
-                const container = document.querySelector('.image-upload-container');
-                const preview = document.createElement('div');
-                preview.className = 'image-preview';
-                preview.innerHTML = `
-                    <img src="file://${tempPath}">
-                    <button class="remove-image" onclick="removeImage(this, '${imageId}')">&times;</button>
-                `;
-                container.insertBefore(preview, document.getElementById('addImageBtn'));
+                addImagePreview(tempImageInfo, true);
             } catch (error) {
                 console.error('Error saving temporary file:', error);
                 alert('Error preparing image for upload. Please try again.');
@@ -363,23 +408,55 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
         }
     };
     input.click();
-});
+}
 
-function removeImage(button, imageId) {
-    console.log('[addItemWithRange.js] Removing image with ID:', imageId);
-    console.log('[addItemWithRange.js] Images before removal:', [...images]);
+function selectExistingImage() {
+    closeImageOptions();
     
-    const index = images.findIndex(img => img.id === imageId);
-    console.log('[addItemWithRange.js] Found index to remove:', index);
-    
-    if (index > -1) {
-        images.splice(index, 1);
-        console.log('[addItemWithRange.js] Images after removal:', [...images]);
-    } else {
-        console.log('[addItemWithRange.js] No matching image found to remove');
+    // Show image library
+    imageLibrary.show((selectedImage) => {
+        // Create a reference to the existing image
+        const existingImageRef = {
+            id: selectedImage.id,
+            file_path: selectedImage.file_path,
+            file_name: selectedImage.file_name,
+            file_size: selectedImage.file_size,
+            file_type: selectedImage.file_type,
+            width: selectedImage.width,
+            height: selectedImage.height,
+            title: selectedImage.title,
+            description: selectedImage.description,
+            isExisting: true // Mark as existing image
+        };
+
+        // Add to images array
+        images.push(existingImageRef);
+
+        // Create preview
+        addImagePreview(existingImageRef, false);
+    });
+}
+
+function addImagePreview(imageInfo, isNew = false) {
+    const container = document.querySelector('.image-upload-container');
+    const preview = document.createElement('div');
+    preview.className = 'image-preview';
+    preview.innerHTML = `
+        <img src="file://${imageInfo.file_path || imageInfo.temp_path}" alt="${imageInfo.file_name || 'Image'}">
+        <div class="image-preview-info">
+            <span class="image-preview-name">${imageInfo.file_name}</span>
+            ${isNew ? '<span class="image-status new">New</span>' : '<span class="image-status existing">Existing</span>'}
+        </div>
+        <button class="remove-image" onclick="removeImage(this, '${imageInfo.id}')">&times;</button>
+    `;
+    container.insertBefore(preview, document.getElementById('addImageBtn'));
+}
+
+function closeImageOptions() {
+    const modal = document.getElementById('imageOptionsModal');
+    if (modal) {
+        modal.remove();
     }
-    
-    button.parentElement.remove();
 }
 
 // Story References Logic
@@ -495,7 +572,7 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     for (const image of images) {
         try {
             // Only process images that have a temp_path (newly added images)
-            if (image.temp_path) {
+            if (image.isNew && image.temp_path) {
                 const result = await window.api.invoke('save-new-image', {
                     file_path: image.temp_path,
                     file_name: image.file_name,
@@ -520,8 +597,24 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
                 };
 
                 processedImages.push(processedImage);
+            } else if (image.isExisting) {
+                // For existing images, create a reference
+                const existingImageRef = {
+                    id: image.id,
+                    file_path: image.file_path,
+                    file_name: image.file_name,
+                    file_size: image.file_size,
+                    file_type: image.file_type,
+                    width: image.width,
+                    height: image.height,
+                    title: image.title,
+                    description: image.description,
+                    isReference: true // Mark as reference to existing image
+                };
+                
+                processedImages.push(existingImageRef);
             } else {
-                // For existing images, just add them to processedImages
+                // For existing images in edit mode, just add them to processedImages
                 processedImages.push(image);
             }
         } catch (error) {
