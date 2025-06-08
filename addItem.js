@@ -321,6 +321,19 @@ function addImagePreview(imageInfo, isNew = false) {
     preview.className = 'image-preview';
     preview.innerHTML = `
         <img src="file://${imageInfo.file_path || imageInfo.temp_path}" alt="${imageInfo.file_name || 'Image'}">
+        <button class="image-description-icon ${imageInfo.description ? 'has-description' : ''}" 
+                onclick="toggleImageDescription(this, '${imageInfo.id || Date.now()}')" 
+                title="${imageInfo.description ? 'Edit description' : 'Add description'}">
+            <i class="ri-information-line"></i>
+        </button>
+        <div class="image-description-editor">
+            <textarea placeholder="Add a description for this image..." 
+                      onchange="updateImageDescription('${imageInfo.id || Date.now()}', this.value)">${imageInfo.description || ''}</textarea>
+            <div class="image-description-actions">
+                <button type="button" class="btn-description-save" onclick="saveImageDescription(this, '${imageInfo.id || Date.now()}')">Save</button>
+                <button type="button" class="btn-description-cancel" onclick="cancelImageDescription(this)">Cancel</button>
+            </div>
+        </div>
         <div class="image-preview-info">
             <span class="image-preview-name">${imageInfo.file_name}</span>
             ${isNew ? '<span class="image-status new">New</span>' : '<span class="image-status existing">Existing</span>'}
@@ -352,6 +365,70 @@ function removeImage(button, imageId) {
     }
     
     button.parentElement.remove();
+}
+
+// Image description functions
+function toggleImageDescription(button, imageId) {
+    event.preventDefault();
+    const preview = button.closest('.image-preview');
+    const editor = preview.querySelector('.image-description-editor');
+    const isVisible = editor.classList.contains('visible');
+    
+    if (isVisible) {
+        editor.classList.remove('visible');
+    } else {
+        // Close any other open editors
+        document.querySelectorAll('.image-description-editor.visible').forEach(e => {
+            e.classList.remove('visible');
+        });
+        editor.classList.add('visible');
+        const textarea = editor.querySelector('textarea');
+        textarea.focus();
+    }
+}
+
+function updateImageDescription(imageId, description) {
+    const imageIndex = images.findIndex(img => (img.id || img.temp_id) == imageId);
+    if (imageIndex > -1) {
+        images[imageIndex].description = description;
+    }
+}
+
+function saveImageDescription(button, imageId) {
+    const preview = button.closest('.image-preview');
+    const editor = preview.querySelector('.image-description-editor');
+    const textarea = editor.querySelector('textarea');
+    const description = textarea.value.trim();
+    const icon = preview.querySelector('.image-description-icon');
+    
+    // Update the image object
+    updateImageDescription(imageId, description);
+    
+    // Update icon appearance
+    if (description) {
+        icon.classList.add('has-description');
+        icon.title = 'Edit description';
+    } else {
+        icon.classList.remove('has-description');
+        icon.title = 'Add description';
+    }
+    
+    // Hide editor
+    editor.classList.remove('visible');
+}
+
+function cancelImageDescription(button) {
+    const preview = button.closest('.image-preview');
+    const editor = preview.querySelector('.image-description-editor');
+    const textarea = editor.querySelector('textarea');
+    
+    // Reset textarea to the original value
+    const imageId = button.onclick.toString().match(/'([^']+)'/)[1];
+    const imageData = images.find(img => (img.id || img.temp_id) == imageId);
+    textarea.value = imageData ? (imageData.description || '') : '';
+    
+    // Hide editor
+    editor.classList.remove('visible');
 }
 
 // --- Story References Logic ---
@@ -584,7 +661,8 @@ if (isEditMode && editItemId) {
                         file_path: imageInfo.temp_path,
                         file_name: imageInfo.file_name,
                         file_size: imageInfo.file_size,
-                        file_type: imageInfo.file_type
+                        file_type: imageInfo.file_type,
+                        description: imageInfo.description || ''
                     });
 
                     // Check if result is valid

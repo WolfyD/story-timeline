@@ -308,6 +308,70 @@ function removeImage(button, imageId) {
     button.parentElement.remove();
 }
 
+// Image description functions
+function toggleImageDescription(button, imageId) {
+    event.preventDefault();
+    const preview = button.closest('.image-preview');
+    const editor = preview.querySelector('.image-description-editor');
+    const isVisible = editor.classList.contains('visible');
+    
+    if (isVisible) {
+        editor.classList.remove('visible');
+    } else {
+        // Close any other open editors
+        document.querySelectorAll('.image-description-editor.visible').forEach(e => {
+            e.classList.remove('visible');
+        });
+        editor.classList.add('visible');
+        const textarea = editor.querySelector('textarea');
+        textarea.focus();
+    }
+}
+
+function updateImageDescription(imageId, description) {
+    const imageIndex = images.findIndex(img => (img.id || img.temp_id) == imageId);
+    if (imageIndex > -1) {
+        images[imageIndex].description = description;
+    }
+}
+
+function saveImageDescription(button, imageId) {
+    const preview = button.closest('.image-preview');
+    const editor = preview.querySelector('.image-description-editor');
+    const textarea = editor.querySelector('textarea');
+    const description = textarea.value.trim();
+    const icon = preview.querySelector('.image-description-icon');
+    
+    // Update the image object
+    updateImageDescription(imageId, description);
+    
+    // Update icon appearance
+    if (description) {
+        icon.classList.add('has-description');
+        icon.title = 'Edit description';
+    } else {
+        icon.classList.remove('has-description');
+        icon.title = 'Add description';
+    }
+    
+    // Hide editor
+    editor.classList.remove('visible');
+}
+
+function cancelImageDescription(button) {
+    const preview = button.closest('.image-preview');
+    const editor = preview.querySelector('.image-description-editor');
+    const textarea = editor.querySelector('textarea');
+    
+    // Reset textarea to the original value
+    const imageId = button.onclick.toString().match(/'([^']+)'/)[1];
+    const imageData = images.find(img => (img.id || img.temp_id) == imageId);
+    textarea.value = imageData ? (imageData.description || '') : '';
+    
+    // Hide editor
+    editor.classList.remove('visible');
+}
+
 function handleImageUpload(event) {
     const files = event.target.files;
     for (let i = 0; i < files.length; i++) {
@@ -470,6 +534,19 @@ function addImagePreview(imageInfo, isNew = false) {
     preview.className = 'image-preview';
     preview.innerHTML = `
         <img src="file://${imageInfo.file_path || imageInfo.temp_path}" alt="${imageInfo.file_name || 'Image'}">
+        <button class="image-description-icon ${imageInfo.description ? 'has-description' : ''}" 
+                onclick="toggleImageDescription(this, '${imageInfo.id || Date.now()}')" 
+                title="${imageInfo.description ? 'Edit description' : 'Add description'}">
+            <i class="ri-information-line"></i>
+        </button>
+        <div class="image-description-editor">
+            <textarea placeholder="Add a description for this image..." 
+                      onchange="updateImageDescription('${imageInfo.id || Date.now()}', this.value)">${imageInfo.description || ''}</textarea>
+            <div class="image-description-actions">
+                <button type="button" class="btn-description-save" onclick="saveImageDescription(this, '${imageInfo.id || Date.now()}')">Save</button>
+                <button type="button" class="btn-description-cancel" onclick="cancelImageDescription(this)">Cancel</button>
+            </div>
+        </div>
         <div class="image-preview-info">
             <span class="image-preview-name">${imageInfo.file_name}</span>
             ${isNew ? '<span class="image-status new">New</span>' : '<span class="image-status existing">Existing</span>'}
@@ -604,7 +681,8 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
                     file_path: image.temp_path,
                     file_name: image.file_name,
                     file_size: image.file_size,
-                    file_type: image.file_type
+                    file_type: image.file_type,
+                    description: image.description || ''
                 });
 
                 if (!result || typeof result !== 'object') {
@@ -620,6 +698,8 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
                     file_type: result.file_type || image.file_type,
                     width: result.width || 0,
                     height: result.height || 0,
+                    title: result.title || image.file_name,
+                    description: image.description || '',
                     created_at: result.created_at || new Date().toISOString()
                 };
 
@@ -635,14 +715,17 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
                     width: image.width,
                     height: image.height,
                     title: image.title,
-                    description: image.description,
+                    description: image.description || '',
                     isReference: true // Mark as reference to existing image
                 };
                 
                 processedImages.push(existingImageRef);
             } else {
                 // For existing images in edit mode, just add them to processedImages
-                processedImages.push(image);
+                processedImages.push({
+                    ...image,
+                    description: image.description || ''
+                });
             }
         } catch (error) {
             console.error('Error processing image:', error);

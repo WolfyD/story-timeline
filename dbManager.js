@@ -1301,6 +1301,18 @@ class DatabaseManager {
         return stmt.get(pictureId).count;
     }
 
+    updatePictureDescription(pictureId, description) {
+        const stmt = this.db.prepare(`
+            UPDATE pictures 
+            SET description = @description 
+            WHERE id = @pictureId
+        `);
+        return stmt.run({
+            pictureId: pictureId,
+            description: description || ''
+        });
+    }
+
     async addPicturesToItemEnhanced(itemId, pictures) {
         for (const pic of pictures) {
             if (pic.isReference) {
@@ -1312,7 +1324,8 @@ class DatabaseManager {
                     file_path: pic.temp_path || pic.file_path,
                     file_name: pic.file_name,
                     file_size: pic.file_size,
-                    file_type: pic.file_type
+                    file_type: pic.file_type,
+                    description: pic.description || ''
                 });
 
                 if (result && result.id) {
@@ -1369,12 +1382,35 @@ class DatabaseManager {
         try {
             this.db.prepare('BEGIN').run();
 
+            // Get existing picture references to preserve descriptions for existing images
+            const existingPictures = this.getItemPictures(itemId);
+            const existingPictureMap = new Map(existingPictures.map(pic => [pic.id, pic]));
+
             // Remove all existing picture references for this item
             this.db.prepare('DELETE FROM item_pictures WHERE item_id = ?').run(itemId);
 
-            // Add new pictures using the enhanced method
+            // Process pictures: update descriptions for existing ones, add new ones
             if (pictures && pictures.length > 0) {
-                await this.addPicturesToItemEnhanced(itemId, pictures);
+                for (const pic of pictures) {
+                    if (pic.isReference && existingPictureMap.has(pic.id)) {
+                        // Update description for existing referenced image
+                        const updateStmt = this.db.prepare(`
+                            UPDATE pictures 
+                            SET description = @description 
+                            WHERE id = @id
+                        `);
+                        updateStmt.run({
+                            id: pic.id,
+                            description: pic.description || ''
+                        });
+                        
+                        // Re-add the reference
+                        this.addImageReference(itemId, pic.id);
+                    } else {
+                        // For new images, use the enhanced method which handles descriptions
+                        await this.addPicturesToItemEnhanced(itemId, [pic]);
+                    }
+                }
             }
 
             this.db.prepare('COMMIT').run();
@@ -2055,7 +2091,7 @@ class DatabaseManager {
                 width: finalMetadata.width,
                 height: finalMetadata.height,
                 title: path.parse(fileInfo.file_name).name,
-                description: ''
+                description: fileInfo.description || ''
             };
 
             // Insert into pictures table
