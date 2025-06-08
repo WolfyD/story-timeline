@@ -341,7 +341,7 @@ function removeImage(button, imageId) {
     console.log('[addItem.js] Removing image with ID:', imageId);
     console.log('[addItem.js] Images before removal:', [...images]);
     
-    const index = images.findIndex(img => img.id === imageId);
+    const index = images.findIndex(img => img.id === parseInt(imageId));
     console.log('[addItem.js] Found index to remove:', index);
     
     if (index > -1) {

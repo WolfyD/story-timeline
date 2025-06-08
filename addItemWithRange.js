@@ -295,7 +295,7 @@ function removeImage(button, imageId) {
     console.log('[addItemWithRange.js] Removing image with ID:', imageId);
     console.log('[addItemWithRange.js] Images before removal:', [...images]);
     
-    const index = images.findIndex(img => img.id === imageId);
+    const index = images.findIndex(img => img.id === parseInt(imageId));
     console.log('[addItemWithRange.js] Found index to remove:', index);
     
     if (index > -1) {

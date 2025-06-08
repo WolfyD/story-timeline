@@ -457,21 +457,20 @@
         }
 
         function removeImage(button, imageId) {
-            console.log('[editItem.js] Removing image with ID:', imageId);
-            console.log('[editItem.js] Images before removal:', [...images]);
+            console.log('[addItem.js] Removing image with ID:', imageId);
+            console.log('[addItem.js] Images before removal:', [...images]);
             
-            const index = images.findIndex(img => img.id === imageId);
-            console.log('[editItem.js] Found index to remove:', index);
+            const index = images.findIndex(img => img.id === parseInt(imageId));
+            console.log('[addItem.js] Found index to remove:', index);
             
             if (index > -1) {
                 images.splice(index, 1);
-                console.log('[editItem.js] Images after removal:', [...images]);
+                console.log('[addItem.js] Images after removal:', [...images]);
             } else {
-                console.log('[editItem.js] No matching image found to remove');
+                console.log('[addItem.js] No matching image found to remove');
             }
             
             button.parentElement.remove();
-            checkModified();
         }
 
         // Get the item data
