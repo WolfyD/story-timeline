@@ -654,4 +654,131 @@ textarea {
 
 .show-in-notes-container {
     width: 200px;
+    align-items: center !important;
+    gap: 20px;
+}
+
+/* Enhanced Image System Styles */
+
+/* Image Options Modal */
+.image-options-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.image-options-content {
+    background: #f5e6d4;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    min-width: 350px;
+}
+
+.image-options-content h3 {
+    margin: 0 0 20px 0;
+    color: #4b2e2e;
+    font-size: 20px;
+}
+
+.image-options {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.image-option-btn {
+    flex: 1;
+    padding: 20px 15px;
+    border: 2px solid #8b7355;
+    background: white;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.image-option-btn:hover {
+    background: #f0f0f0;
+    border-color: #4b2e2e;
+    transform: translateY(-2px);
+}
+
+.image-option-btn i {
+    font-size: 24px;
+    color: #4b2e2e;
+}
+
+.image-option-btn span {
+    font-weight: bold;
+    color: #4b2e2e;
+}
+
+.image-option-btn small {
+    color: #666;
+    font-size: 12px;
+}
+
+.cancel-btn {
+    background: #ccc;
+    color: #666;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.cancel-btn:hover {
+    background: #bbb;
+}
+
+/* Enhanced Image Preview */
+.image-preview-info {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+    color: white;
+    padding: 10px 5px 5px;
+    font-size: 12px;
+}
+
+.image-preview-name {
+    display: block;
+    margin-bottom: 3px;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.image-status {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+.image-status.new {
+    background: #4CAF50;
+    color: white;
+}
+
+.image-status.existing {
+    background: #2196F3;
+    color: white;
 }

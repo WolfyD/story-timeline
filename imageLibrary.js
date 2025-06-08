@@ -10,9 +10,12 @@ class ImageLibrary {
         this.images = [];
         this.filteredImages = [];
         this.onImageSelect = null;
+        this.onMultiImageSelect = null;
         this.searchQuery = '';
         this.currentTimeline = null;
         this.modal = null;
+        this.selectedImages = new Set();
+        this.multiSelectMode = false;
         this.init();
     }
 
@@ -43,7 +46,13 @@ class ImageLibrary {
                     </div>
                     
                     <div class="image-library-footer">
-                        <button class="btn-secondary" id="cancelImageSelect">Cancel</button>
+                        <div class="footer-left">
+                            <div class="selection-info" id="selectionInfo"></div>
+                            <button class="btn-add-selected" id="addSelectedImages">Add Selected Images</button>
+                        </div>
+                        <div class="footer-right">
+                            <button class="btn-secondary" id="cancelImageSelect">Cancel</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -63,6 +72,11 @@ class ImageLibrary {
         // Cancel button
         document.getElementById('cancelImageSelect').addEventListener('click', () => {
             this.hide();
+        });
+
+        // Add selected images button
+        document.getElementById('addSelectedImages').addEventListener('click', () => {
+            this.addSelectedImages();
         });
 
         // Search functionality
@@ -88,8 +102,14 @@ class ImageLibrary {
         });
     }
 
-    async show(onSelectCallback) {
+    async show(onSelectCallback, multiSelectCallback = null) {
         this.onImageSelect = onSelectCallback;
+        this.onMultiImageSelect = multiSelectCallback;
+        this.multiSelectMode = !!multiSelectCallback;
+        
+        // Reset selection state
+        this.selectedImages.clear();
+        this.updateSelectionInfo();
         
         // Get current timeline ID
         this.currentTimeline = await window.api.getCurrentTimelineId();
@@ -109,10 +129,14 @@ class ImageLibrary {
         this.modal.classList.add('hidden');
         document.body.style.overflow = '';
         this.onImageSelect = null;
+        this.onMultiImageSelect = null;
+        this.selectedImages.clear();
+        this.multiSelectMode = false;
         
         // Clear search
         document.getElementById('imageLibrarySearch').value = '';
         this.searchQuery = '';
+        this.updateSelectionInfo();
     }
 
     filterImages() {
@@ -148,13 +172,17 @@ class ImageLibrary {
         }
 
         grid.innerHTML = this.filteredImages.map(image => {
-            const isOrphaned = !image.item_id;
+            const isOrphaned = !image.linked_items;
             const fileSize = this.formatFileSize(image.file_size);
             const dimensions = image.width && image.height ? `${image.width}×${image.height}` : '';
+            const isSelected = this.selectedImages.has(image.id);
             
             return `
-                <div class="image-library-item ${isOrphaned ? 'orphaned' : ''}" data-image-id="${image.id}">
+                <div onclick="document.getElementById('image-checkbox-${image.id}').checked = !document.getElementById('image-checkbox-${image.id}').checked; imageLibrary.toggleImageSelection(${image.id}, document.getElementById('image-checkbox-${image.id}').checked)" class="image-library-item ${isOrphaned ? 'orphaned' : ''} ${isSelected ? 'selected' : ''}" data-image-id="${image.id}">
                     <div class="image-thumbnail">
+                        <input type="checkbox" id="image-checkbox-${image.id}" class="image-checkbox" ${isSelected ? 'checked' : ''} 
+                               onchange="imageLibrary.toggleImageSelection(${image.id}, this.checked)">
+                        
                         <img src="file://${image.file_path}" alt="${image.title || image.file_name}" 
                              onerror="this.parentElement.classList.add('broken-image')">
                     </div>
@@ -166,21 +194,63 @@ class ImageLibrary {
                         </div>
                         ${image.description ? `<div class="image-description">${image.description}</div>` : ''}
                         ${isOrphaned ? '<div class="orphaned-label">Unused</div>' : ''}
-                    </div>
-                    <div class="image-actions">
-                        <button class="btn-primary select-image" onclick="imageLibrary.selectImage(${image.id})">
-                            Select
+                        <button class="quick-select-btn" onclick="imageLibrary.selectImage(${image.id})" title="Select this image">
+                            <i class="ri-check-line"></i>
                         </button>
+                        ${image.usage_count > 0 ? `<div class="usage-info">Used in ${image.usage_count} item${image.usage_count !== 1 ? 's' : ''}</div>` : ''}
                     </div>
                 </div>
             `;
         }).join('');
     }
 
+    toggleImageSelection(imageId, isSelected) {
+        if (isSelected) {
+            this.selectedImages.add(imageId);
+        } else {
+            this.selectedImages.delete(imageId);
+        }
+        
+        // Update the visual state of the item
+        const itemElement = document.querySelector(`[data-image-id="${imageId}"]`);
+        if (itemElement) {
+            itemElement.classList.toggle('selected', isSelected);
+        }
+        
+        this.updateSelectionInfo();
+    }
+
+    updateSelectionInfo() {
+        const selectionInfo = document.getElementById('selectionInfo');
+        const addButton = document.getElementById('addSelectedImages');
+        
+        if (this.selectedImages.size > 0) {
+            selectionInfo.textContent = `${this.selectedImages.size} image${this.selectedImages.size !== 1 ? 's' : ''} selected`;
+            addButton.classList.add('visible');
+        } else {
+            selectionInfo.textContent = '';
+            addButton.classList.remove('visible');
+        }
+    }
+
     selectImage(imageId) {
         const image = this.images.find(img => img.id === imageId);
         if (image && this.onImageSelect) {
             this.onImageSelect(image);
+            this.hide();
+        }
+    }
+
+    addSelectedImages() {
+        if (this.selectedImages.size > 0 && this.onMultiImageSelect) {
+            const selectedImageObjects = Array.from(this.selectedImages).map(id => 
+                this.images.find(img => img.id === id)
+            ).filter(Boolean);
+
+            console.log('Selected image objects');
+            console.log(selectedImageObjects);
+            
+            this.onMultiImageSelect(selectedImageObjects);
             this.hide();
         }
     }

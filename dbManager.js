@@ -856,23 +856,23 @@ class DatabaseManager {
     }
 
     getAllPictures() {
-        // Get all items for the current timeline
-        const items = this.getAllItems();
-
-        let itemIds_string = items.map(item => "'" + item.id + "'").join(',');
-
-        // Get all pictures for the current timeline with usage information
+        // Get only pictures that are used within the current timeline
         const stmt = this.db.prepare(`
             SELECT p.*,
                    COUNT(DISTINCT ip.item_id) as usage_count,
                    GROUP_CONCAT(DISTINCT ip.item_id) as linked_items
             FROM pictures p
-            LEFT JOIN item_pictures ip ON p.id = ip.picture_id
-            LEFT JOIN items i ON ip.item_id = i.id AND i.timeline_id = ?
-            WHERE p.item_id IS NULL OR p.item_id = '' OR p.item_id IN (${itemIds_string || "''"})
+            INNER JOIN item_pictures ip ON p.id = ip.picture_id
+            INNER JOIN items i ON ip.item_id = i.id AND i.timeline_id = ?
             GROUP BY p.id
             ORDER BY p.file_name
         `);
+
+        // Add a filter that filters out pictures that don't exist on the filesystem
+        const fs = require('fs');
+        const pictures = stmt.all(this.currentTimelineId);
+        return pictures.filter(pic => fs.existsSync(pic.file_path));
+
         return stmt.all(this.currentTimelineId);
     }
 
@@ -1159,19 +1159,17 @@ class DatabaseManager {
                 SELECT p.id, p.file_path
                 FROM pictures p
                 LEFT JOIN item_pictures ip ON p.id = ip.picture_id
-                WHERE (ip.item_id = ? OR p.item_id = ?)
+                WHERE ip.item_id = ?
                 AND (
                     SELECT COUNT(*) 
                     FROM item_pictures ip2 
                     WHERE ip2.picture_id = p.id AND ip2.item_id != ?
                 ) = 0
-                AND p.item_id IS NULL OR p.item_id = ?
-            `).all(id, id, id, id);
+            `).all(id, id);
 
             // Delete related records first
             this.db.prepare('DELETE FROM item_tags WHERE item_id = ?').run(id);
             this.db.prepare('DELETE FROM item_pictures WHERE item_id = ?').run(id);
-            this.db.prepare('DELETE FROM pictures WHERE item_id = ?').run(id);
             
             // Delete orphaned pictures from the new system
             for (const pic of orphanedPictures) {
@@ -1255,13 +1253,12 @@ class DatabaseManager {
     // Picture operations
     addPicturesToItem(itemId, pictures) {
         const stmt = this.db.prepare(`
-            INSERT INTO pictures (item_id, file_path, file_name, file_size, file_type, width, height, title, description)
-            VALUES (@item_id, @file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
+            INSERT INTO pictures (file_path, file_name, file_size, file_type, width, height, title, description)
+            VALUES (@file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
         `);
 
         for (const pic of pictures) {
-            stmt.run({
-                item_id: itemId,
+            const result = stmt.run({
                 file_path: pic.file_path,
                 file_name: pic.file_name,
                 file_size: pic.file_size,
@@ -1271,6 +1268,11 @@ class DatabaseManager {
                 title: pic.title,
                 description: pic.description
             });
+
+            // Create a reference in the junction table
+            if (result.lastInsertRowid) {
+                this.addImageReference(itemId, result.lastInsertRowid);
+            }
         }
     }
 
@@ -1299,16 +1301,6 @@ class DatabaseManager {
         return stmt.get(pictureId).count;
     }
 
-    getOrphanedPictures() {
-        const stmt = this.db.prepare(`
-            SELECT p.* 
-            FROM pictures p
-            LEFT JOIN item_pictures ip ON p.id = ip.picture_id
-            WHERE ip.picture_id IS NULL AND p.item_id IS NULL
-        `);
-        return stmt.all();
-    }
-
     async addPicturesToItemEnhanced(itemId, pictures) {
         for (const pic of pictures) {
             if (pic.isReference) {
@@ -1327,14 +1319,13 @@ class DatabaseManager {
                     this.addImageReference(itemId, result.id);
                 }
             } else {
-                // Fallback to old method for backward compatibility
+                // Fallback: save image to pictures table (without item_id) and create reference
                 const stmt = this.db.prepare(`
-                    INSERT INTO pictures (item_id, file_path, file_name, file_size, file_type, width, height, title, description)
-                    VALUES (@item_id, @file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
+                    INSERT INTO pictures (file_path, file_name, file_size, file_type, width, height, title, description)
+                    VALUES (@file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
                 `);
 
                 const result = stmt.run({
-                    item_id: itemId,
                     file_path: pic.file_path,
                     file_name: pic.file_name,
                     file_size: pic.file_size,
@@ -1345,7 +1336,7 @@ class DatabaseManager {
                     description: pic.description
                 });
 
-                // Also create a reference for consistency
+                // Create a reference for the new image
                 if (result.lastInsertRowid) {
                     this.addImageReference(itemId, result.lastInsertRowid);
                 }
@@ -1380,9 +1371,6 @@ class DatabaseManager {
 
             // Remove all existing picture references for this item
             this.db.prepare('DELETE FROM item_pictures WHERE item_id = ?').run(itemId);
-            
-            // Also remove from old system for backward compatibility
-            this.db.prepare('DELETE FROM pictures WHERE item_id = ?').run(itemId);
 
             // Add new pictures using the enhanced method
             if (pictures && pictures.length > 0) {
@@ -1657,7 +1645,10 @@ class DatabaseManager {
             
             // Then delete item-related records
             this.db.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
-            this.db.prepare('DELETE FROM pictures WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
+            this.db.prepare('DELETE FROM item_pictures WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
+
+            // Delete pictures that have no item_pictures references
+            this.db.prepare('DELETE FROM pictures WHERE id NOT IN (SELECT picture_id FROM item_pictures)').run();
             this.db.prepare('DELETE FROM item_story_refs WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
             
             // Then delete the items themselves
@@ -1868,27 +1859,31 @@ class DatabaseManager {
         };
     }
 
-    // Modified addPicturesToItem to handle file storage
+    // Modified addPicturesToItem to handle file storage with junction table
     async addPicturesToItem(itemId, pictures) {
         for (const pic of pictures) {
             if (pic.picture) {
                 const fileInfo = await this.saveImageFile(pic.picture, itemId);
                 const stmt = this.db.prepare(`
                     INSERT INTO pictures (
-                        item_id, file_path, file_name, file_size, file_type,
+                        file_path, file_name, file_size, file_type,
                         width, height, title, description
                     ) VALUES (
-                        @item_id, @file_path, @file_name, @file_size, @file_type,
+                        @file_path, @file_name, @file_size, @file_type,
                         @width, @height, @title, @description
                     )
                 `);
 
-                stmt.run({
-                    item_id: itemId,
+                const result = stmt.run({
                     ...fileInfo,
                     title: pic.title || 'Untitled',
                     description: pic.description || ''
                 });
+
+                // Create a reference in the junction table
+                if (result.lastInsertRowid) {
+                    this.addImageReference(itemId, result.lastInsertRowid);
+                }
             }
         }
     }
@@ -2066,16 +2061,15 @@ class DatabaseManager {
             // Insert into pictures table
             const stmt = this.db.prepare(`
                 INSERT INTO pictures (
-                    item_id, file_path, file_name, file_size, file_type,
+                    file_path, file_name, file_size, file_type,
                     width, height, title, description
                 ) VALUES (
-                    @item_id, @file_path, @file_name, @file_size, @file_type,
+                    @file_path, @file_name, @file_size, @file_type,
                     @width, @height, @title, @description
                 )
             `);
 
             const result = stmt.run({
-                item_id: fileInfo.item_id || null,  // Allow null for standalone images
                 ...fileInfoObj
             });
 
@@ -2089,19 +2083,16 @@ class DatabaseManager {
         }
     }
 
-    // Add a new method to update item_id for pictures after item creation
+    // Add image references for pictures after item creation
     updatePicturesItemId(pictureIds, itemId) {
         if (!Array.isArray(pictureIds) || pictureIds.length === 0 || !itemId) {
             return;
         }
 
-        const stmt = this.db.prepare(`
-            UPDATE pictures 
-            SET item_id = @item_id 
-            WHERE id IN (${pictureIds.map(() => '?').join(',')})
-        `);
-
-        return stmt.run({ item_id: itemId }, ...pictureIds);
+        // Instead of updating the old item_id column, create references in the junction table
+        for (const pictureId of pictureIds) {
+            this.addImageReference(itemId, pictureId);
+        }
     }
 
     /**

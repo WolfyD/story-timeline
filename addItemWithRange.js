@@ -413,28 +413,55 @@ function selectNewImage() {
 function selectExistingImage() {
     closeImageOptions();
     
-    // Show image library
-    imageLibrary.show((selectedImage) => {
-        // Create a reference to the existing image
-        const existingImageRef = {
-            id: selectedImage.id,
-            file_path: selectedImage.file_path,
-            file_name: selectedImage.file_name,
-            file_size: selectedImage.file_size,
-            file_type: selectedImage.file_type,
-            width: selectedImage.width,
-            height: selectedImage.height,
-            title: selectedImage.title,
-            description: selectedImage.description,
-            isExisting: true // Mark as existing image
-        };
+    // Show image library with both single and multi-select support
+    imageLibrary.show(
+        // Single image selection callback
+        (selectedImage) => {
+            // Create a reference to the existing image
+            const existingImageRef = {
+                id: selectedImage.id,
+                file_path: selectedImage.file_path,
+                file_name: selectedImage.file_name,
+                file_size: selectedImage.file_size,
+                file_type: selectedImage.file_type,
+                width: selectedImage.width,
+                height: selectedImage.height,
+                title: selectedImage.title,
+                description: selectedImage.description,
+                isExisting: true // Mark as existing image
+            };
 
-        // Add to images array
-        images.push(existingImageRef);
+            // Add to images array
+            images.push(existingImageRef);
 
-        // Create preview
-        addImagePreview(existingImageRef, false);
-    });
+            // Create preview
+            addImagePreview(existingImageRef, false);
+        },
+        // Multi-image selection callback
+        (selectedImages) => {
+            // Handle multiple image selection
+            selectedImages.forEach(selectedImage => {
+                const existingImageRef = {
+                    id: selectedImage.id,
+                    file_path: selectedImage.file_path,
+                    file_name: selectedImage.file_name,
+                    file_size: selectedImage.file_size,
+                    file_type: selectedImage.file_type,
+                    width: selectedImage.width,
+                    height: selectedImage.height,
+                    title: selectedImage.title,
+                    description: selectedImage.description,
+                    isExisting: true // Mark as existing image
+                };
+
+                // Add to images array
+                images.push(existingImageRef);
+
+                // Create preview
+                addImagePreview(existingImageRef, false);
+            });
+        }
+    );
 }
 
 function addImagePreview(imageInfo, isNew = false) {

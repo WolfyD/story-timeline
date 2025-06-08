@@ -133,8 +133,13 @@ function populateForm(item) {
     // Add existing images
     if (item.pictures) {
         item.pictures.forEach(pic => {
-            addImagePreview(pic);
-            images.push(pic);
+            // Mark existing images as references for the enhanced system
+            const existingImage = {
+                ...pic,
+                isReference: true // Mark existing images as references
+            };
+            addImagePreview(existingImage, false); // false = not new
+            images.push(existingImage);
         });
     }
 
@@ -266,8 +271,47 @@ function updateTagDisplay() {
     });
 }
 
-// Handle image uploads
+// Handle image uploads - enhanced system
 document.getElementById('addImageBtn').addEventListener('click', function() {
+    showImageOptions();
+});
+
+function showImageOptions() {
+    // Create options modal
+    const optionsHTML = `
+        <div id="imageOptionsModal" class="image-options-modal">
+            <div class="image-options-content">
+                <h3>Add Image</h3>
+                <div class="image-options">
+                    <button class="image-option-btn" onclick="selectNewImage()">
+                        <i class="ri-upload-cloud-line"></i>
+                        <span>Upload New Image</span>
+                        <small>Add a new image file</small>
+                    </button>
+                    <button class="image-option-btn" onclick="selectExistingImage()">
+                        <i class="ri-gallery-line"></i>
+                        <span>Choose Existing Image</span>
+                        <small>Select from timeline images</small>
+                    </button>
+                </div>
+                <button class="cancel-btn" onclick="closeImageOptions()">Cancel</button>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('imageOptionsModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', optionsHTML);
+}
+
+function selectNewImage() {
+    closeImageOptions();
+    
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -287,27 +331,89 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
                     temp_path: tempPath,
                     file_name: file.name,
                     file_size: file.size,
-                    file_type: file.type
+                    file_type: file.type,
+                    isNew: true // Mark as new image
                 };
 
                 images.push(tempImageInfo);
-                addImagePreview(tempImageInfo);
+                addImagePreview(tempImageInfo, true);
                 modifiedFields.add('pictures');
             } catch (error) {
-                window.api.logger.error('Error saving temporary file:', error);
+                console.error('Error saving temporary file:', error);
                 alert('Error preparing image for upload. Please try again.');
             }
         }
     };
     input.click();
-});
+}
 
-function addImagePreview(imageInfo) {
+function selectExistingImage() {
+    closeImageOptions();
+    
+    // Show image library with both single and multi-select support
+    imageLibrary.show(
+        // Single image selection callback
+        (selectedImage) => {
+            // Create a reference to the existing image
+            const existingImageRef = {
+                id: selectedImage.id,
+                file_path: selectedImage.file_path,
+                file_name: selectedImage.file_name,
+                file_size: selectedImage.file_size,
+                file_type: selectedImage.file_type,
+                width: selectedImage.width,
+                height: selectedImage.height,
+                title: selectedImage.title,
+                description: selectedImage.description,
+                isReference: true // Mark as existing image reference
+            };
+
+            images.push(existingImageRef);
+            addImagePreview(existingImageRef, false);
+            modifiedFields.add('pictures');
+        },
+        // Multi-image selection callback
+        (selectedImages) => {
+            // Handle multiple image selection
+            selectedImages.forEach(selectedImage => {
+                const existingImageRef = {
+                    id: selectedImage.id,
+                    file_path: selectedImage.file_path,
+                    file_name: selectedImage.file_name,
+                    file_size: selectedImage.file_size,
+                    file_type: selectedImage.file_type,
+                    width: selectedImage.width,
+                    height: selectedImage.height,
+                    title: selectedImage.title,
+                    description: selectedImage.description,
+                    isReference: true // Mark as existing image reference
+                };
+
+                images.push(existingImageRef);
+                addImagePreview(existingImageRef, false);
+            });
+            modifiedFields.add('pictures');
+        }
+    );
+}
+
+function closeImageOptions() {
+    const modal = document.getElementById('imageOptionsModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+function addImagePreview(imageInfo, isNew = false) {
     const container = document.querySelector('.image-upload-container');
     const preview = document.createElement('div');
     preview.className = 'image-preview';
     preview.innerHTML = `
         <img src="file://${imageInfo.file_path || imageInfo.temp_path}" alt="${imageInfo.file_name || 'Image'}">
+        <div class="image-preview-info">
+            <span class="image-preview-name">${imageInfo.file_name}</span>
+            ${isNew ? '<span class="image-status new">New</span>' : '<span class="image-status existing">Existing</span>'}
+        </div>
         <button class="remove-image" onclick="removeImage(this, '${imageInfo.id}')">&times;</button>
     `;
     container.insertBefore(preview, document.getElementById('addImageBtn'));
@@ -329,12 +435,27 @@ function removeImage(button, imageId) {
 document.getElementById('editItemForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     
-    // Process all images before submitting
+    // Process all images before submitting using enhanced system
     const processedImages = [];
     for (const imageInfo of images) {
         console.log('Processing image:', imageInfo);
         try {
-            if (imageInfo.temp_path) {
+            if (imageInfo.isReference) {
+                // For existing images, create a reference
+                processedImages.push({
+                    id: imageInfo.id,
+                    file_path: imageInfo.file_path,
+                    file_name: imageInfo.file_name,
+                    file_size: imageInfo.file_size,
+                    file_type: imageInfo.file_type,
+                    width: imageInfo.width,
+                    height: imageInfo.height,
+                    title: imageInfo.title,
+                    description: imageInfo.description,
+                    isReference: true
+                });
+            } else if (imageInfo.isNew || imageInfo.temp_path) {
+                // For new images, save to filesystem first
                 const result = await window.api.invoke('save-new-image', {
                     file_path: imageInfo.temp_path,
                     file_name: imageInfo.file_name,
@@ -346,7 +467,7 @@ document.getElementById('editItemForm').addEventListener('submit', async (e) => 
                     throw new Error('Invalid response from image processing');
                 }
 
-                const processedImage = {
+                processedImages.push({
                     id: result.id || `IMG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                     file_path: result.file_path || imageInfo.temp_path,
                     file_name: result.file_name || imageInfo.file_name,
@@ -356,15 +477,14 @@ document.getElementById('editItemForm').addEventListener('submit', async (e) => 
                     height: result.height || 0,
                     title: result.title || imageInfo.file_name,
                     description: result.description || '',
-                    created_at: result.created_at || new Date().toISOString()
-                };
-
-                processedImages.push(processedImage);
+                    isNew: true
+                });
             } else {
+                // For existing images from the item (backward compatibility)
                 processedImages.push(imageInfo);
             }
         } catch (error) {
-            window.api.logger.error('Error processing image:', error);
+            console.error('Error processing image:', error);
             alert('Error processing image: ' + error.message);
             return;
         }
@@ -386,7 +506,9 @@ document.getElementById('editItemForm').addEventListener('submit', async (e) => 
             height: imageInfo.height,
             title: imageInfo.title || `Image ${index + 1}`,
             description: imageInfo.description || '',
-            created_at: imageInfo.created_at || new Date().toISOString()
+            isReference: imageInfo.isReference || false,
+            isNew: imageInfo.isNew || false,
+            temp_path: imageInfo.temp_path
         })),
         book_title: document.getElementById('bookTitle').value,
         chapter: document.getElementById('chapter').value,
