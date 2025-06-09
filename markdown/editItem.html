@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <title>Edit Item</title>
-    <link rel="stylesheet" href="editItem.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/remixicon@3.5.0/fonts/remixicon.css">
+    <link rel="stylesheet" href="../css/editItem.css">
+    <link rel="stylesheet" href="../css/imageLibrary.css">
+    <link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css" type="text/css" />
 </head>
 <body>
     <div class="container">
@@ -53,7 +54,7 @@
             <!-- Description -->
             <div class="form-line">
                 <label for="description">Description:</label>
-                <input type="text" id="description" data-testid="item-description">
+                <textarea type="text" id="description" data-testid="item-description"></textarea>
             </div>
 
             <!-- Content -->
@@ -67,8 +68,21 @@
             <!-- Color -->
             <div class="form-line">
                 <label for="color">Color:</label>
-                <input type="color" id="color" data-testid="item-color">
-                <div id="colorPreview" class="color-preview" data-testid="color-preview"></div>
+                <input type="color" id="color" value="#37F2AE">
+                <input type="text" id="colorHex" class="input-text" placeholder="#RRGGBB" maxlength="7" style="width: 80px; margin-left: 10px;">
+                <div id="colorPreview" style="width: 20px; height: 20px; border: 1px solid #ccc; display: inline-block; vertical-align: middle; margin-left: 10px;"></div>
+            </div>
+
+            <!-- Show in Notes -->
+            <div class="form-line show-in-notes-container">
+                <label for="showInNotes">Show in Notes:</label>
+                <input type="checkbox" id="showInNotes" checked>
+            </div>
+
+            <!-- Importance -->
+            <div class="form-line">
+                <label for="importance">Importance (1-10):</label>
+                <input type="number" id="importance" min="1" max="10" value="5">
             </div>
 
             <!-- Tags -->
@@ -121,8 +135,8 @@
 
             <!-- Button Group -->
             <div class="button-group">
-                <button type="submit" data-testid="save-button">Save Changes <span class="shortcut-hint">(Ctrl+S)</span></button>
                 <button type="button" id="cancelButton" data-testid="cancel-button">Cancel <span class="shortcut-hint">(Esc)</span></button>
+                <button type="submit" data-testid="save-button">Save Changes <span class="shortcut-hint">(Ctrl+S)</span></button>
             </div>
         </form>
     </div>
@@ -278,7 +292,9 @@
                 book_title: document.getElementById('bookTitle').value,
                 chapter: document.getElementById('chapter').value,
                 page: document.getElementById('page').value,
-                story_refs: collectStoryRefs()
+                story_refs: collectStoryRefs(),
+                show_in_notes: document.getElementById('showInNotes').checked,
+                importance: parseInt(document.getElementById('importance').value) || 5
             };
         }
 
@@ -299,8 +315,47 @@
             return isModified;
         }
 
-        // Handle image uploads
+        // Handle image uploads - enhanced system
         document.getElementById('addImageBtn').addEventListener('click', function() {
+            showImageOptions();
+        });
+
+        function showImageOptions() {
+            // Create options modal
+            const optionsHTML = `
+                <div id="imageOptionsModal" class="image-options-modal">
+                    <div class="image-options-content">
+                        <h3>Add Image</h3>
+                        <div class="image-options">
+                            <button class="image-option-btn" onclick="selectNewImage()">
+                                <i class="ri-upload-cloud-line"></i>
+                                <span>Upload New Image</span>
+                                <small>Add a new image file</small>
+                            </button>
+                            <button class="image-option-btn" onclick="selectExistingImage()">
+                                <i class="ri-gallery-line"></i>
+                                <span>Choose Existing Image</span>
+                                <small>Select from timeline images</small>
+                            </button>
+                        </div>
+                        <button class="cancel-btn" onclick="closeImageOptions()">Cancel</button>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('imageOptionsModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to body
+            document.body.insertAdjacentHTML('beforeend', optionsHTML);
+        }
+
+        function selectNewImage() {
+            closeImageOptions();
+            
             const input = document.createElement('input');
             input.type = 'file';
             input.accept = 'image/*';
@@ -308,37 +363,24 @@
                 const file = e.target.files[0];
                 if (file) {
                     try {
-                        // Create a temporary file path
                         const tempPath = await window.api.invoke('save-temp-file', {
                             name: file.name,
                             type: file.type,
                             data: await file.arrayBuffer()
                         });
 
-                        // Generate a unique ID for this image
                         const imageId = crypto.randomUUID();
-
-                        // Store temporary file info
                         const tempImageInfo = {
                             id: imageId,
                             temp_path: tempPath,
                             file_name: file.name,
                             file_size: file.size,
-                            file_type: file.type
+                            file_type: file.type,
+                            isNew: true // Mark as new image
                         };
 
-                        // Add to images array
                         images.push(tempImageInfo);
-
-                        // Create preview
-                        const container = document.querySelector('.image-upload-container');
-                        const preview = document.createElement('div');
-                        preview.className = 'image-preview';
-                        preview.innerHTML = `
-                            <img src="file://${tempPath}">
-                            <button class="remove-image" onclick="removeImage(this, '${imageId}')">&times;</button>
-                        `;
-                        container.insertBefore(preview, document.getElementById('addImageBtn'));
+                        addImagePreview(tempImageInfo, true);
                         checkModified();
                     } catch (error) {
                         console.error('Error saving temporary file:', error);
@@ -347,24 +389,196 @@
                 }
             };
             input.click();
-        });
+        }
+
+        function selectExistingImage() {
+            closeImageOptions();
+            
+            // Show image library with both single and multi-select support
+            imageLibrary.show(
+                // Single image selection callback
+                (selectedImage) => {
+                    // Check if this image is already added to prevent duplicates
+                    const existingImageIndex = images.findIndex(img => img.id === selectedImage.id);
+                    if (existingImageIndex !== -1) {
+                        alert('This image is already added to this item.');
+                        return;
+                    }
+
+                    // Create a reference to the existing image
+                    const existingImageRef = {
+                        id: selectedImage.id,
+                        file_path: selectedImage.file_path,
+                        file_name: selectedImage.file_name,
+                        file_size: selectedImage.file_size,
+                        file_type: selectedImage.file_type,
+                        width: selectedImage.width,
+                        height: selectedImage.height,
+                        title: selectedImage.title,
+                        description: selectedImage.description,
+                        isReference: true // Mark as existing image reference
+                    };
+
+                    images.push(existingImageRef);
+                    addImagePreview(existingImageRef, false);
+                    checkModified();
+                },
+                // Multi-image selection callback
+                (selectedImages) => {
+                    // Handle multiple image selection
+                    let addedCount = 0;
+                    selectedImages.forEach(selectedImage => {
+                        // Check if this image is already added to prevent duplicates
+                        const existingImageIndex = images.findIndex(img => img.id === selectedImage.id);
+                        if (existingImageIndex !== -1) {
+                            console.log(`Image ${selectedImage.file_name} is already added, skipping.`);
+                            return;
+                        }
+
+                        const existingImageRef = {
+                            id: selectedImage.id,
+                            file_path: selectedImage.file_path,
+                            file_name: selectedImage.file_name,
+                            file_size: selectedImage.file_size,
+                            file_type: selectedImage.file_type,
+                            width: selectedImage.width,
+                            height: selectedImage.height,
+                            title: selectedImage.title,
+                            description: selectedImage.description,
+                            isReference: true // Mark as existing image reference
+                        };
+
+                        images.push(existingImageRef);
+                        addImagePreview(existingImageRef, false);
+                        addedCount++;
+                    });
+                    
+                    if (addedCount > 0) {
+                        checkModified();
+                    }
+                    
+                    const skippedCount = selectedImages.length - addedCount;
+                    if (skippedCount > 0) {
+                        alert(`${skippedCount} image(s) were already added and were skipped.`);
+                    }
+                }
+            );
+        }
+
+        function closeImageOptions() {
+            const modal = document.getElementById('imageOptionsModal');
+            if (modal) {
+                modal.remove();
+            }
+        }
+
+        function addImagePreview(imageInfo, isNew = false) {
+            const container = document.querySelector('.image-upload-container');
+            const preview = document.createElement('div');
+            preview.className = 'image-preview';
+            preview.innerHTML = `
+                <img src="file://${imageInfo.file_path || imageInfo.temp_path}" alt="${imageInfo.file_name || 'Image'}">
+                <button class="image-description-icon ${imageInfo.description ? 'has-description' : ''}" 
+                        onclick="toggleImageDescription(this, '${imageInfo.id || Date.now()}')" 
+                        title="${imageInfo.description ? 'Edit description' : 'Add description'}">
+                    <i class="ri-information-line"></i>
+                </button>
+                <div class="image-description-editor">
+                    <textarea placeholder="Add a description for this image..." 
+                              onchange="updateImageDescription('${imageInfo.id || Date.now()}', this.value)">${imageInfo.description || ''}</textarea>
+                    <div class="image-description-actions">
+                        <button type="button" class="btn-description-save" onclick="saveImageDescription(this, '${imageInfo.id || Date.now()}')">Save</button>
+                        <button type="button" class="btn-description-cancel" onclick="cancelImageDescription(this)">Cancel</button>
+                    </div>
+                </div>
+                <div class="image-preview-info">
+                    <span class="image-preview-name">${imageInfo.file_name}</span>
+                    ${isNew ? '<span class="image-status new">New</span>' : '<span class="image-status existing">Existing</span>'}
+                </div>
+                <button class="remove-image" onclick="removeImage(this, '${imageInfo.id}')">&times;</button>
+            `;
+            container.insertBefore(preview, document.getElementById('addImageBtn'));
+        }
 
         function removeImage(button, imageId) {
-            console.log('[editItem.js] Removing image with ID:', imageId);
-            console.log('[editItem.js] Images before removal:', [...images]);
+            console.log('[addItem.js] Removing image with ID:', imageId);
+            console.log('[addItem.js] Images before removal:', [...images]);
             
-            const index = images.findIndex(img => img.id === imageId);
-            console.log('[editItem.js] Found index to remove:', index);
+            const index = images.findIndex(img => img.id === parseInt(imageId));
+            console.log('[addItem.js] Found index to remove:', index);
             
             if (index > -1) {
                 images.splice(index, 1);
-                console.log('[editItem.js] Images after removal:', [...images]);
+                console.log('[addItem.js] Images after removal:', [...images]);
             } else {
-                console.log('[editItem.js] No matching image found to remove');
+                console.log('[addItem.js] No matching image found to remove');
             }
             
             button.parentElement.remove();
-            checkModified();
+        }
+
+        // Image description functions
+        function toggleImageDescription(button, imageId) {
+            event.preventDefault();
+            const preview = button.closest('.image-preview');
+            const editor = preview.querySelector('.image-description-editor');
+            const isVisible = editor.classList.contains('visible');
+            
+            if (isVisible) {
+                editor.classList.remove('visible');
+            } else {
+                // Close any other open editors
+                document.querySelectorAll('.image-description-editor.visible').forEach(e => {
+                    e.classList.remove('visible');
+                });
+                editor.classList.add('visible');
+                const textarea = editor.querySelector('textarea');
+                textarea.focus();
+            }
+        }
+
+        function updateImageDescription(imageId, description) {
+            const imageIndex = images.findIndex(img => (img.id || img.temp_id) == imageId);
+            if (imageIndex > -1) {
+                images[imageIndex].description = description;
+            }
+        }
+
+        function saveImageDescription(button, imageId) {
+            const preview = button.closest('.image-preview');
+            const editor = preview.querySelector('.image-description-editor');
+            const textarea = editor.querySelector('textarea');
+            const description = textarea.value.trim();
+            const icon = preview.querySelector('.image-description-icon');
+            
+            // Update the image object
+            updateImageDescription(imageId, description);
+            
+            // Update icon appearance
+            if (description) {
+                icon.classList.add('has-description');
+                icon.title = 'Edit description';
+            } else {
+                icon.classList.remove('has-description');
+                icon.title = 'Add description';
+            }
+            
+            // Hide editor
+            editor.classList.remove('visible');
+        }
+
+        function cancelImageDescription(button) {
+            const preview = button.closest('.image-preview');
+            const editor = preview.querySelector('.image-description-editor');
+            const textarea = editor.querySelector('textarea');
+            
+            // Reset textarea to the original value
+            const imageId = button.onclick.toString().match(/'([^']+)'/)[1];
+            const imageData = images.find(img => (img.id || img.temp_id) == imageId);
+            textarea.value = imageData ? (imageData.description || '') : '';
+            
+            // Hide editor
+            editor.classList.remove('visible');
         }
 
         // Get the item data
@@ -396,6 +610,13 @@
             document.getElementById('bookTitle').value = item.book_title || '';
             document.getElementById('chapter').value = item.chapter || '';
             document.getElementById('page').value = item.page || '';
+            document.getElementById('showInNotes').checked = item.show_in_notes !== false;
+
+            // Set importance value
+            const importanceInput = document.getElementById('importance');
+            if (importanceInput) {
+                importanceInput.value = item.importance || 5;
+            }
 
             // Clear and populate story references
             const storyRefsContainer = document.getElementById('storyRefsContainer');
@@ -419,14 +640,13 @@
             // Add existing images
             if (item.pictures) {
                 item.pictures.forEach(pic => {
-                    images.push(pic);
-                    const preview = document.createElement('div');
-                    preview.className = 'image-preview';
-                    preview.innerHTML = `
-                        <img src="file://${pic.file_path}">
-                        <button class="remove-image" onclick="removeImage(this, '${pic.id}')">&times;</button>
-                    `;
-                    imageContainer.insertBefore(preview, document.getElementById('addImageBtn'));
+                    // Mark existing images as references for the enhanced system
+                    const existingImage = {
+                        ...pic,
+                        isReference: true // Mark existing images as references
+                    };
+                    images.push(existingImage);
+                    addImagePreview(existingImage, false); // false = not new
                 });
             }
         }
@@ -434,11 +654,42 @@
         // Update color preview
         function updateColorPreview(color) {
             document.getElementById('colorPreview').style.backgroundColor = color;
+            document.getElementById('colorHex').value = color.toUpperCase();
         }
 
+        // Handle color picker changes
         document.getElementById('color').addEventListener('input', (e) => {
             updateColorPreview(e.target.value);
             checkModified();
+        });
+
+        // Handle hex input changes
+        document.getElementById('colorHex').addEventListener('input', (e) => {
+            let value = e.target.value;
+            // Ensure the value starts with #
+            if (!value.startsWith('#')) {
+                value = '#' + value;
+            }
+            // Validate hex color format
+            if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                document.getElementById('color').value = value;
+                updateColorPreview(value);
+                checkModified();
+            }
+        });
+
+        // Handle hex input blur (when user leaves the field)
+        document.getElementById('colorHex').addEventListener('blur', (e) => {
+            let value = e.target.value;
+            // Ensure the value starts with #
+            if (!value.startsWith('#')) {
+                value = '#' + value;
+            }
+            // If the value is not a valid hex color, reset it to the color picker's value
+            if (!/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                value = document.getElementById('color').value;
+                e.target.value = value.toUpperCase();
+            }
         });
 
         // Validate range inputs
@@ -467,26 +718,40 @@
                 return;
             }
 
-            // Process all images before submitting
+            // Process all images before submitting using enhanced system
             const processedImages = [];
             for (const imageInfo of images) {
+                console.log('Processing image:', imageInfo);
                 try {
-                    // Only process images that have a temp_path (newly added images)
-                    if (imageInfo.temp_path) {
+                    if (imageInfo.isReference) {
+                        // For existing images, create a reference
+                        processedImages.push({
+                            id: imageInfo.id,
+                            file_path: imageInfo.file_path,
+                            file_name: imageInfo.file_name,
+                            file_size: imageInfo.file_size,
+                            file_type: imageInfo.file_type,
+                            width: imageInfo.width,
+                            height: imageInfo.height,
+                            title: imageInfo.title,
+                            description: imageInfo.description,
+                            isReference: true
+                        });
+                    } else if (imageInfo.isNew || imageInfo.temp_path) {
+                        // For new images, save to filesystem first
                         const result = await window.api.invoke('save-new-image', {
                             file_path: imageInfo.temp_path,
                             file_name: imageInfo.file_name,
                             file_size: imageInfo.file_size,
-                            file_type: imageInfo.file_type
+                            file_type: imageInfo.file_type,
+                            description: imageInfo.description || ''
                         });
 
-                        // Check if result is valid
                         if (!result || typeof result !== 'object') {
                             throw new Error('Invalid response from image processing');
                         }
 
-                        // Ensure all required fields are present
-                        const processedImage = {
+                        processedImages.push({
                             id: result.id || `IMG-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
                             file_path: result.file_path || imageInfo.temp_path,
                             file_name: result.file_name || imageInfo.file_name,
@@ -496,18 +761,16 @@
                             height: result.height || 0,
                             title: result.title || imageInfo.file_name,
                             description: result.description || '',
-                            created_at: result.created_at || new Date().toISOString()
-                        };
-
-                        processedImages.push(processedImage);
+                            isReference: true // Mark as reference since it's now saved and has an ID
+                        });
                     } else {
-                        // For existing images, just add them to processedImages
+                        // For existing images from the item (backward compatibility)
                         processedImages.push(imageInfo);
                     }
                 } catch (error) {
                     console.error('Error processing image:', error);
                     alert('Error processing image: ' + error.message);
-                    return; // Stop form submission if image processing fails
+                    return;
                 }
             }
 
@@ -714,5 +977,6 @@
             }
         });
     </script>
+    <script src="../imageLibrary.js"></script>
 </body>
 </html> 

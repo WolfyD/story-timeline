@@ -47,19 +47,41 @@ contextBridge.exposeInMainWorld('api', {
             'timeline-updated',
             'open-archive-window',
             'getAllStories',
-            'getAllMedia'
+            'getAllStoryReferences',
+            'getAllMedia',
+            'getAllTags',
+            'itemRemoved',
+            'updateTimeline',
+            'force-timeline-refresh',
+            'refresh-timeline',
+            'jumpToYear',
+            'jumpToDate',
+            'duplicate-timeline',
+            'reset-timeline-css',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
         }
     },
     invoke: async (channel, ...args) => {
-        // console.log("preload.js: invoke called with channel:", channel, "and args:", args);
+        console.log("preload.js: invoke called with channel:", channel, "and args:", args);
         const validChannels = [
             'export-timeline-data',
             'import-timeline-data',
             'save-temp-file',
-            'save-new-image'
+            'save-new-image',
+            'get-timeline-data',
+            'get-all-items',
+            'removeStory',
+            'removeTag',
+            'get-picture-usage',
+            'cleanup-orphaned-images',
+            'add-image-reference',
+            'remove-image-reference',
+            'removeMedia',
+            'save-timeline-export',
+            'convert-image-to-base64',
+            'open-exported-file'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
@@ -107,7 +129,14 @@ contextBridge.exposeInMainWorld('api', {
             'timeline-updated',
             'archive-items',
             'stories',
-            'media'
+            'storyReferences',
+            'media',
+            'tags',
+            'force-timeline-refresh',
+            'refresh-timeline',
+            'jumpToYear',
+            'jumpToDate',
+            'timeline-duplicated'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

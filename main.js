@@ -181,7 +181,7 @@ function createSplashWindow() {
       }
     });
 
-    splashWindow.loadFile('splash.html');
+    splashWindow.loadFile('./markdown/splash.html');
     splashWindow.once('ready-to-show', () => {
         splashWindow.show();
     });
@@ -194,7 +194,7 @@ function createSplashWindow() {
 function createWindow() {
     mainWindow = new BrowserWindow({
         width: 1000,
-        height: 700,
+        height: 750,
         x: 300,
         webPreferences: {
             nodeIntegration: false,
@@ -206,7 +206,7 @@ function createWindow() {
         menuBarVisible: false
     });
 
-    mainWindow.loadFile('index.html');
+    mainWindow.loadFile('./markdown/index.html');
 
     // Wait for the page to load
     mainWindow.webContents.on('did-finish-load', () => {
@@ -226,7 +226,7 @@ function createWindow() {
             // Set window size
             mainWindow.setSize(
                 settings.size?.x || 1000,
-                settings.size?.y || 700
+                settings.size?.y || 750
             );
 
             // Set window position
@@ -316,7 +316,7 @@ function createAddItemWindow(year, subtick, granularity, type) {
     }
   });
 
-  newItemWindow.loadFile('addItem.html', {
+  newItemWindow.loadFile('./markdown/addItem.html', {
     query: {
       year: year,
       subtick: subtick,
@@ -383,7 +383,7 @@ function createEditItemWindow(item) {
     color: item.color
   });
   
-  editItemWindow.loadFile('editItem.html', {
+  editItemWindow.loadFile('./markdown/editItem.html', {
     query: {
       itemId: item.id,
       year: item.year,
@@ -478,7 +478,7 @@ function createAddItemWithRangeWindow(year, subtick, granularity, type, colorOrD
     type
   });
 
-  newItemWindow.loadFile('addItemWithRange.html', {
+  newItemWindow.loadFile('./markdown/addItemWithRange.html', {
     query: {
       year: year,
       subtick: subtick,
@@ -537,7 +537,7 @@ function createEditItemWithRangeWindow(item) {
     });
 
     // Load the edit item window HTML file
-    editItemWithRangeWindow.loadFile('editItem.html', {
+    editItemWithRangeWindow.loadFile('./markdown/editItem.html', {
         query: {
             itemId: item.id,
             year: item.year,
@@ -600,6 +600,7 @@ function loadSettings() {
       showGuides: Boolean(savedSettings.showGuides),
       useCustomScaling: savedSettings.useCustomScaling,
       customScale: savedSettings.customScale,
+      displayRadius: parseInt(savedSettings.displayRadius || 10),
       size: {
         x: parseInt(savedSettings.size?.x || 800),
         y: parseInt(savedSettings.size?.y || 600)
@@ -612,13 +613,7 @@ function loadSettings() {
 
     // Load templates if CSS fields are empty
     if (!settings.customCSS || settings.customCSS === "") {
-      settings.customCSS = fs.readFileSync(path.join(__dirname, 'customCSSTemplate.txt'), 'utf8');
-    }
-    if (!settings.customMainCSS || settings.customMainCSS === "") {
-      settings.customMainCSS = fs.readFileSync(path.join(__dirname, 'customMainCSSTemplate.txt'), 'utf8');
-    }
-    if (!settings.customItemsCSS || settings.customItemsCSS === "") {
-      settings.customItemsCSS = fs.readFileSync(path.join(__dirname, 'customItemsCSSTemplate.txt'), 'utf8');
+      settings.customCSS = "";
     }
     
     // Send settings to renderer
@@ -641,6 +636,7 @@ function loadSettings() {
  * - IPC communication failure
  */
 function saveSettings(newSettings) {
+  console.log("SAVING NEW SETTINGS", newSettings);
   if (!mainWindow) {
     console.error('Main window not initialized');
     return false;
@@ -652,11 +648,7 @@ function saveSettings(newSettings) {
     font_size_scale: parseFloat(newSettings.fontSizeScale || 1.0),
     pixels_per_subtick: parseInt(newSettings.pixelsPerSubtick || 20),
     custom_css: newSettings.customCSS || '',
-    custom_main_css: newSettings.customMainCSS || '',
-    custom_items_css: newSettings.customItemsCSS || '',
-    use_timeline_css: newSettings.useTimelineCSS ? 1 : 0,
-    use_main_css: newSettings.useMainCSS ? 1 : 0,
-    use_items_css: newSettings.useItemsCSS ? 1 : 0,
+    use_timeline_css: newSettings.useCustomCSS ? 1 : 0,
     is_fullscreen: mainWindow.isMaximized() ? 1 : 0,
     show_guides: newSettings.showGuides ? 1 : 0,
     window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
@@ -665,7 +657,8 @@ function saveSettings(newSettings) {
     window_position_y: parseInt(mainWindow.getPosition()[1] + 1),
     use_custom_scaling: newSettings.useCustomScaling ? 1 : 0,
     custom_scale: parseFloat(newSettings.customScale || 1.0),
-    timeline_id: data.timeline_id
+    timeline_id: data.timeline_id,
+    display_radius: parseInt(newSettings.displayRadius || 10)
   };
   
   const result = dbManager.updateSettings(dbSettings);
@@ -762,7 +755,7 @@ function loadData() {
  * - File write failure
  * - IPC communication failure
  */
-function saveData(newData) {
+async function saveData(newData) {
   // Save data to database
   const dbData = {
     title: newData.title || 'New Timeline',
@@ -777,7 +770,7 @@ function saveData(newData) {
   // Save items
   const items = newData.items || [];
   for (const item of items) {
-    dbManager.addItem(item);
+    await dbManager.addItem(item);
   }
   
   // Send updated data to renderer
@@ -796,6 +789,148 @@ function saveData(newData) {
  * Possible errors:
  * - IPC setup failure
  */
+// Function to duplicate a complete timeline with all its data
+async function duplicateTimelineComplete(sourceTimelineId, newName) {
+  try {
+    // Get the source timeline data
+    const sourceTimeline = dbManager.getTimelineWithSettings(sourceTimelineId);
+    if (!sourceTimeline) {
+      throw new Error('Source timeline not found');
+    }
+
+    // Create a new timeline with the new name
+    const newTimeline = {
+      title: newName,
+      author: sourceTimeline.author,
+      description: sourceTimeline.description,
+      start_year: sourceTimeline.start_year,
+      granularity: sourceTimeline.granularity
+    };
+
+    const newTimelineId = dbManager.addTimeline(newTimeline);
+    console.log(`Created new timeline with ID: ${newTimelineId}`);
+
+    // Copy settings
+    const sourceSettings = sourceTimeline.settings;
+    const newSettings = {
+      timeline_id: newTimelineId,
+      font: sourceSettings.font,
+      font_size_scale: sourceSettings.fontSizeScale,
+      pixels_per_subtick: sourceSettings.pixelsPerSubtick,
+      custom_css: sourceSettings.customCSS,
+      use_custom_css: sourceSettings.useCustomCSS ? 1 : 0,
+      is_fullscreen: sourceSettings.isFullscreen ? 1 : 0,
+      show_guides: sourceSettings.showGuides ? 1 : 0,
+      window_size_x: sourceSettings.size.x,
+      window_size_y: sourceSettings.size.y,
+      window_position_x: sourceSettings.position.x,
+      window_position_y: sourceSettings.position.y,
+      use_custom_scaling: sourceSettings.useCustomScaling ? 1 : 0,
+      custom_scale: sourceSettings.customScale,
+      display_radius: sourceSettings.displayRadius
+    };
+
+    dbManager.updateTimelineSettings(newTimelineId, newSettings);
+    console.log(`Copied settings for timeline ${newTimelineId}`);
+
+    // Get all items from the source timeline
+    const sourceItems = dbManager.getItemsByTimeline(sourceTimelineId);
+    console.log(`Found ${sourceItems.length} items to copy`);
+
+    // Create a map to track old picture ID to new picture ID mappings
+    const pictureIdMap = new Map();
+
+    // Copy each item
+    for (const sourceItem of sourceItems) {
+      const newItemId = require('uuid').v4();
+      
+      // Copy item data
+      const newItem = {
+        id: newItemId,
+        title: sourceItem.title,
+        description: sourceItem.description,
+        content: sourceItem.content,
+        type: sourceItem.type,
+        year: sourceItem.year,
+        subtick: sourceItem.subtick,
+        original_subtick: sourceItem.original_subtick,
+        end_year: sourceItem.end_year,
+        end_subtick: sourceItem.end_subtick,
+        original_end_subtick: sourceItem.original_end_subtick,
+        creation_granularity: sourceItem.creation_granularity,
+        book_title: sourceItem.book_title,
+        chapter: sourceItem.chapter,
+        page: sourceItem.page,
+        color: sourceItem.color,
+        timeline_id: newTimelineId,
+        show_in_notes: sourceItem.show_in_notes,
+        tags: sourceItem.tags,
+        story_refs: sourceItem.story_refs
+      };
+
+      // Handle pictures - we need to copy the actual image files and create new picture records
+      if (sourceItem.pictures && sourceItem.pictures.length > 0) {
+        const newPictures = [];
+        
+        for (const sourcePicture of sourceItem.pictures) {
+          let newPictureId = pictureIdMap.get(sourcePicture.id);
+          
+          if (!newPictureId) {
+            // Copy the physical image file
+            const sourceImagePath = sourcePicture.file_path;
+            if (fs.existsSync(sourceImagePath)) {
+              const newImageDir = path.join(app.getPath('userData'), 'media', 'pictures', newTimelineId.toString());
+              if (!fs.existsSync(newImageDir)) {
+                fs.mkdirSync(newImageDir, { recursive: true });
+              }
+
+              const timestamp = Date.now();
+              const randomStr = Math.random().toString(36).substring(7);
+              const extension = path.extname(sourcePicture.file_name);
+              const newFileName = `img_${timestamp}_${randomStr}${extension}`;
+              const newImagePath = path.join(newImageDir, newFileName);
+
+              // Copy the file
+              await fs.promises.copyFile(sourceImagePath, newImagePath);
+
+              // Create new picture record
+              const newPictureData = await dbManager.saveNewImage({
+                file_path: newImagePath,
+                file_name: newFileName,
+                file_size: sourcePicture.file_size,
+                file_type: sourcePicture.file_type,
+                description: sourcePicture.description || ''
+              });
+
+              newPictureId = newPictureData.id;
+              pictureIdMap.set(sourcePicture.id, newPictureId);
+            }
+          }
+
+          if (newPictureId) {
+            newPictures.push({
+              id: newPictureId,
+              isReference: true
+            });
+          }
+        }
+
+        newItem.pictures = newPictures;
+      }
+
+      // Add the new item
+      await dbManager.addItem(newItem);
+    }
+
+    console.log(`Successfully duplicated timeline ${sourceTimelineId} to ${newTimelineId} with name "${newName}"`);
+    return newTimelineId;
+
+  } catch (error) {
+    console.error('Error in duplicateTimelineComplete:', error);
+    throw error;
+  }
+}
+
 function setupIpcHandlers() {
   ipcMain.handle('get-current-timeline-id', () => {
     return data.timeline_id;
@@ -803,6 +938,7 @@ function setupIpcHandlers() {
 
   ipcMain.on('save-settings', (event, newSettings, newData) => {
     // Merge new settings with current settings
+    console.log("NEW SETTINGS", newSettings);
     const updatedSettings = {
         ...settings,
         ...newSettings
@@ -816,7 +952,8 @@ function setupIpcHandlers() {
         author: newData.author,
         description: newData.description,
         start: newData.start,
-        granularity: newData.granularity
+        granularity: newData.granularity,
+        displayRadius: newData.displayRadius
     };
 
     // Save settings to database
@@ -825,11 +962,7 @@ function setupIpcHandlers() {
         font_size_scale: parseFloat(updatedSettings.fontSizeScale || 1.0),
         pixels_per_subtick: parseInt(updatedSettings.pixelsPerSubtick || 20),
         custom_css: updatedSettings.customCSS || '',
-        custom_main_css: updatedSettings.customMainCSS || '',
-        custom_items_css: updatedSettings.customItemsCSS || '',
-        use_timeline_css: updatedSettings.useTimelineCSS ? 1 : 0,
-        use_main_css: updatedSettings.useMainCSS ? 1 : 0,
-        use_items_css: updatedSettings.useItemsCSS ? 1 : 0,
+        use_timeline_css: updatedSettings.useCustomCSS ? 1 : 0,
         is_fullscreen: mainWindow.isMaximized() ? 1 : 0,
         show_guides: updatedSettings.showGuides ? 1 : 0,
         window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
@@ -838,7 +971,8 @@ function setupIpcHandlers() {
         window_position_y: parseInt(mainWindow.getPosition()[1] + 1),
         use_custom_scaling: updatedSettings.useCustomScaling ? 1 : 0,
         custom_scale: parseFloat(updatedSettings.customScale || 1.0),
-        timeline_id: data.timeline_id
+        timeline_id: data.timeline_id,
+        display_radius: parseInt(updatedSettings.displayRadius || 10)
     };
 
     // Update settings in database
@@ -907,9 +1041,9 @@ function setupIpcHandlers() {
     event.sender.send('tagSuggestions', suggestions);
   });
 
-  ipcMain.on('addTimelineItem', (event, data) => {
+  ipcMain.on('addTimelineItem', async (event, data) => {
     try {
-      const newItem = dbManager.addItem(data);
+      const newItem = await dbManager.addItem(data);
       const items = dbManager.getItemsByTimeline(data.timeline_id);
       mainWindow.webContents.send('items', items);
       event.sender.send('item-created', { id: newItem.id });
@@ -1134,6 +1268,8 @@ function setupIpcHandlers() {
     event.reply('timelines-list', timelines);
   });
 
+
+
   // Handle opening a timeline
   ipcMain.on('open-timeline', (event, timelineId) => {
     const timeline = dbManager.getTimelineWithSettings(timelineId);
@@ -1191,7 +1327,7 @@ function setupIpcHandlers() {
                 // Set window size
                 mainWindow.setSize(
                     timeline.settings.size.x || 1000,
-                    timeline.settings.size.y || 700
+                    timeline.settings.size.y || 750
                 );
 
                 // Set window position
@@ -1242,7 +1378,7 @@ function setupIpcHandlers() {
             // Set window size
             mainWindow.setSize(
                 timeline.settings.size.x || 1000,
-                timeline.settings.size.y || 700
+                timeline.settings.size.y || 750
             );
 
             // Set window position
@@ -1362,7 +1498,7 @@ function setupIpcHandlers() {
     };
 
     if (mainWindow) {
-        mainWindow.loadFile('index.html').then(() => {
+        mainWindow.loadFile('./markdown/index.html').then(() => {
             // Send the timeline data to the main window
             mainWindow.webContents.send('timeline-data', {
                 id: newTimelineId,
@@ -1436,6 +1572,46 @@ function setupIpcHandlers() {
       fs.mkdirSync(timelineMediaDir, { recursive: true });
     }
     require('electron').shell.openPath(timelineMediaDir);
+  });
+
+  // Handle timeline duplication
+  ipcMain.on('duplicate-timeline', async (event, { timelineId, newName }) => {
+    try {
+      // Duplicate the timeline in the database
+      const duplicatedTimelineId = await duplicateTimelineComplete(timelineId, newName);
+      
+      event.reply('timeline-duplicated', { 
+        success: true, 
+        newTimelineId: duplicatedTimelineId 
+      });
+      
+      // Refresh the timelines list
+      const timelines = dbManager.getAllTimelines();
+      event.reply('timelines-list', timelines);
+    } catch (error) {
+      console.error('Error duplicating timeline:', error);
+      event.reply('timeline-duplicated', { 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Handle resetting timeline CSS
+  ipcMain.on('reset-timeline-css', (event, timelineId) => {
+    try {
+      // Reset the custom CSS for this timeline
+      const settings = dbManager.getTimelineSettings(timelineId);
+      if (settings) {
+        dbManager.updateTimelineSettings(timelineId, {
+          ...settings,
+          use_custom_css: 0
+        });
+        console.log(`Custom CSS disabled for timeline ${timelineId}`);
+      }
+    } catch (error) {
+      console.error('Error resetting timeline CSS:', error);
+    }
   });
 
   // Handle new image uploads
@@ -1515,7 +1691,7 @@ function setupIpcHandlers() {
 
   ipcMain.on('open-archive', () => {
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    const windowWidth = 800;
+    const windowWidth = 1000;
     const windowHeight = 900;
 
     const archiveWindow = new BrowserWindow({
@@ -1540,7 +1716,7 @@ function setupIpcHandlers() {
       }
     });
 
-    archiveWindow.loadFile('archive.html');
+    archiveWindow.loadFile('./markdown/archive.html');
 
     archiveWindow.once('ready-to-show', () => {
       archiveWindow.show();
@@ -1561,10 +1737,321 @@ function setupIpcHandlers() {
     event.sender.send('stories', stories);
   });
 
+  ipcMain.on('getAllStoryReferences', (event) => {
+    const storyReferences = dbManager.getAllStoryReferences();
+    event.sender.send('storyReferences', storyReferences);
+  });
+
+  ipcMain.on('jumpToYear', (event, item) => {
+    // send jumpToYear to timeline.js
+    mainWindow.webContents.send('jumpToYear', item);
+  });
+
   ipcMain.on('getAllMedia', (event) => {
     // Fetch all pictures from the database
     const media = dbManager.getAllPictures();
     event.sender.send('media', media);
+  });
+
+  ipcMain.on('getAllTags', (event) => {
+    const tags = dbManager.getAllTagsWithCounts();
+    event.sender.send('tags', tags);
+  });
+
+  // Add handler for removing stories
+  ipcMain.handle('removeStory', async (event, storyId) => {
+    try {
+      const success = dbManager.deleteStory(storyId);
+      // Refresh the stories list
+      const stories = dbManager.getAllStories();
+      mainWindow.webContents.send('stories', stories);
+      return success;
+    } catch (error) {
+      console.error('Error removing story:', error);
+      throw error;
+    }
+  });
+
+  // Add handler for removing tags
+  ipcMain.handle('removeTag', async (event, tagId) => {
+    try {
+      const success = dbManager.deleteTag(tagId);
+      // Refresh the tags list
+      const tags = dbManager.getAllTagsWithCounts();
+      mainWindow.webContents.send('tags', tags);
+      return success;
+    } catch (error) {
+      console.error('Error removing tag:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('removeMedia', async (event, mediaId) => {
+    try {
+      const mediaFile = dbManager.getMedia(mediaId);
+      const success = dbManager.deleteMedia(mediaId, mediaFile.file_path);
+      // Listen for the deletion confirmation
+      mainWindow.webContents.send('mediaRemoved', { success: true });
+      return success;
+    } catch (error) {
+      console.error('Error removing media:', error);
+      throw error;
+    }
+  });
+
+  // Add handlers for image library functionality
+  ipcMain.handle('get-picture-usage', async (event, pictureId) => {
+    try {
+      return dbManager.getPictureUsageCount(pictureId);
+    } catch (error) {
+      console.error('Error getting picture usage:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('cleanup-orphaned-images', async (event) => {
+    try {
+      return dbManager.cleanupOrphanedImages();
+    } catch (error) {
+      console.error('Error cleaning up orphaned images:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('add-image-reference', async (event, itemId, pictureId) => {
+    try {
+      return dbManager.addImageReference(itemId, pictureId);
+    } catch (error) {
+      console.error('Error adding image reference:', error);
+      throw error;
+    }
+  });
+
+  ipcMain.handle('remove-image-reference', async (event, itemId, pictureId) => {
+    try {
+      return dbManager.removeImageReference(itemId, pictureId);
+    } catch (error) {
+      console.error('Error removing image reference:', error);
+      throw error;
+    }
+  });
+
+
+
+  // return timeline data
+  ipcMain.handle('get-timeline-data', async (event) => {
+    try {
+      console.log('[main.js] get-timeline-data called');
+      const timelineData = dbManager.getAllTimelineData();
+      console.log('[main.js] Timeline data retrieved:', timelineData);
+      return timelineData;
+    } catch (error) {
+      console.error('[main.js] Error getting timeline data:', error);
+      throw error;
+    }
+  });
+
+  // return all items
+  ipcMain.handle('get-all-items', async (event) => {
+    try {
+      console.log('[main.js] get-all-items called');
+      const items = dbManager.getAllItems();
+      console.log('[main.js] Items retrieved:', items ? items.length : 'undefined', 'items');
+      return items;
+    } catch (error) {
+      console.error('[main.js] Error getting all items:', error);
+      throw error;
+    }
+  });
+
+  // Handle timeline export save dialog
+  ipcMain.handle('save-timeline-export', async (event, data) => {
+    try {
+      console.log('[main.js] save-timeline-export called with data:', data);
+      
+      const { dialog } = require('electron');
+      const fs = require('fs');
+      const path = require('path');
+
+      // Validate input data
+      if (!data || typeof data !== 'object') {
+        console.error('[main.js] Invalid data received:', data);
+        return { success: false, error: 'Invalid export data received' };
+      }
+
+      if (!data.htmlContent || typeof data.htmlContent !== 'string') {
+        console.error('[main.js] Invalid HTML content:', typeof data.htmlContent);
+        return { success: false, error: 'Invalid HTML content provided' };
+      }
+
+      // Safely generate filename
+      const safeTitle = (data.title && typeof data.title === 'string') 
+        ? data.title.replace(/[^a-zA-Z0-9\-_]/g, '_') 
+        : 'Timeline_Export';
+      
+      const defaultFileName = `${safeTitle}_timeline_export.html`;
+      console.log('[main.js] Using default filename:', defaultFileName);
+
+      // Show save dialog
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export Timeline',
+        defaultPath: defaultFileName,
+        filters: [
+          { name: 'HTML Files', extensions: ['html'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      console.log('[main.js] Save dialog result:', result);
+
+      if (result.canceled || !result.filePath) {
+        console.log('[main.js] Export canceled by user');
+        return { success: false, error: 'Export canceled by user' };
+      }
+
+      // Write the HTML content to the file
+      console.log('[main.js] Writing file to:', result.filePath);
+      await fs.promises.writeFile(result.filePath, data.htmlContent, 'utf8');
+      console.log('[main.js] File written successfully');
+
+      return { 
+        success: true, 
+        filePath: result.filePath 
+      };
+
+    } catch (error) {
+      console.error('[main.js] Error saving timeline export:', error);
+      console.error('[main.js] Error stack:', error.stack);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  });
+
+  // Handle opening exported file
+  ipcMain.handle('open-exported-file', async (event, filePath) => {
+    try {
+      const { shell } = require('electron');
+      const fs = require('fs');
+      const path = require('path');
+      
+      console.log(`[main.js] Attempting to open file: ${filePath}`);
+      
+      // Check if file exists first
+      if (!fs.existsSync(filePath)) {
+        console.error(`[main.js] File does not exist: ${filePath}`);
+        return { 
+          success: false, 
+          error: 'File does not exist' 
+        };
+      }
+      
+      // Try to open with system default application
+      try {
+        console.log(`[main.js] Using shell.openPath to open: ${filePath}`);
+        const result = await shell.openPath(filePath);
+        
+        if (result) {
+          // shell.openPath returns an error string if it fails
+          console.error(`[main.js] shell.openPath failed: ${result}`);
+          
+          // Try fallback method using shell.openExternal with file:// protocol
+          console.log(`[main.js] Trying fallback method with file:// protocol`);
+          const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+          await shell.openExternal(fileUrl);
+          
+          return { success: true, method: 'openExternal' };
+        } else {
+          console.log(`[main.js] File opened successfully with shell.openPath`);
+          return { success: true, method: 'openPath' };
+        }
+      } catch (openError) {
+        console.error(`[main.js] Error with shell.openPath:`, openError);
+        
+        // Try fallback method
+        try {
+          console.log(`[main.js] Trying fallback method with shell.openExternal`);
+          const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+          await shell.openExternal(fileUrl);
+          
+          return { success: true, method: 'openExternal' };
+        } catch (fallbackError) {
+          console.error(`[main.js] Fallback method also failed:`, fallbackError);
+          throw fallbackError;
+        }
+      }
+      
+    } catch (error) {
+      console.error(`[main.js] Error opening exported file: ${filePath}`, error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  });
+
+  // Handle image to base64 conversion for export
+  ipcMain.handle('convert-image-to-base64', async (event, filePath) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      
+      console.log(`[main.js] Converting image to base64: ${filePath}`);
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        console.warn(`[main.js] Image file not found: ${filePath}`);
+        return { success: false, error: 'File not found' };
+      }
+
+      // Read the file
+      const imageBuffer = fs.readFileSync(filePath);
+      
+      // Determine MIME type from file extension
+      const ext = path.extname(filePath).toLowerCase();
+      let mimeType;
+      switch (ext) {
+        case '.jpg':
+        case '.jpeg':
+          mimeType = 'image/jpeg';
+          break;
+        case '.png':
+          mimeType = 'image/png';
+          break;
+        case '.gif':
+          mimeType = 'image/gif';
+          break;
+        case '.webp':
+          mimeType = 'image/webp';
+          break;
+        case '.svg':
+          mimeType = 'image/svg+xml';
+          break;
+        default:
+          // Default to jpeg for unknown extensions
+          mimeType = 'image/jpeg';
+      }
+
+      // Convert to base64
+      const base64Data = imageBuffer.toString('base64');
+      const dataUri = `data:${mimeType};base64,${base64Data}`;
+      
+      console.log(`[main.js] Converted image to data URI: ${filePath} (${(base64Data.length / 1024).toFixed(1)}KB)`);
+      
+      return { 
+        success: true, 
+        dataUri: dataUri,
+        size: base64Data.length
+      };
+      
+    } catch (error) {
+      console.error(`[main.js] Error converting image to data URI: ${filePath}`, error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
   });
 }
 
@@ -1587,6 +2074,8 @@ function logToRenderer(level, message) {
     }
 }
 
+
+
 /**
  * Creates the archive window
  * 
@@ -1606,7 +2095,7 @@ function createArchiveWindow() {
     }
 
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    const windowWidth = 800;
+    const windowWidth = 1050;
     const windowHeight = 900;
 
     archiveWindow = new BrowserWindow({
@@ -1631,7 +2120,7 @@ function createArchiveWindow() {
         }
     });
 
-    archiveWindow.loadFile('archive.html');
+    archiveWindow.loadFile('./markdown/archive.html');
 
     archiveWindow.once('ready-to-show', () => {
         archiveWindow.show();
@@ -1639,5 +2128,11 @@ function createArchiveWindow() {
 
     archiveWindow.on('closed', () => {
         archiveWindow = null;
+    });
+
+    archiveWindow.webContents.on('removeStory', (event, storyId) => {
+        console.log('removeStory', storyId);
+        dbManager.deleteStory(storyId);
+        initializeArchive();
     });
 }

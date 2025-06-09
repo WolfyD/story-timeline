@@ -1,3 +1,142 @@
+/* Import the unified design system */
+@import url('design-system.css');
+
+/* Legacy component mappings */
+input[type="text"],
+input[type="number"], 
+textarea,
+select {
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    font-size: var(--font-size-base);
+    background: var(--color-bg-white);
+    color: var(--color-text-primary);
+    transition: all var(--transition-base);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: var(--color-focus);
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+/* Apply design system styling only to buttons that should have it */
+/* Target form buttons, dialog buttons, and buttons without conflicting classes */
+/* Primary buttons (submit buttons and main actions) */
+button[type="submit"]:not([class*="timeline"]):not([class*="archive"]):not([class*="splash"]),
+button:not([class]):not([id*="menu"]):not([id*="context"]),
+button.btn-primary {
+    background: var(--color-primary) !important;
+    color: var(--color-text-inverse) !important;
+    border: none !important;
+    border-radius: var(--radius-base) !important;
+    padding: var(--space-sm) var(--space-lg) !important;
+    cursor: pointer !important;
+    transition: all var(--transition-base) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: var(--font-weight-medium) !important;
+    appearance: none !important;
+    font-family: inherit !important;
+    font-size: var(--font-size-base) !important;
+    text-decoration: none !important;
+    box-sizing: border-box !important;
+    min-height: 32px !important;
+    line-height: 1.2 !important;
+}
+
+/* Secondary buttons (debug buttons and secondary actions) */
+button.button-debug,
+button.btn-secondary {
+    background: var(--color-secondary) !important;
+    color: var(--color-text-inverse) !important;
+    border: none !important;
+    border-radius: var(--radius-base) !important;
+    padding: var(--space-sm) var(--space-lg) !important;
+    cursor: pointer !important;
+    transition: all var(--transition-base) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: var(--font-weight-medium) !important;
+    appearance: none !important;
+    font-family: inherit !important;
+    font-size: var(--font-size-base) !important;
+    text-decoration: none !important;
+    box-sizing: border-box !important;
+    min-height: 32px !important;
+    line-height: 1.2 !important;
+}
+
+/* Hover states */
+button[type="submit"]:not([class*="timeline"]):not([class*="archive"]):not([class*="splash"]):hover,
+button:not([class]):not([id*="menu"]):not([id*="context"]):hover,
+button.btn-primary:hover {
+    background: var(--color-primary-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+button.button-debug:hover,
+button.btn-secondary:hover {
+    background: var(--color-secondary-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+button[type="submit"],
+.submit-button {
+    background: var(--color-primary) !important;
+    color: var(--color-text-inverse) !important;
+    border: none !important;
+    border-radius: var(--radius-base) !important;
+    padding: var(--space-sm) var(--space-lg) !important;
+    cursor: pointer !important;
+    transition: all var(--transition-base) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: var(--font-weight-medium) !important;
+    appearance: none !important;
+    font-family: inherit !important;
+    font-size: var(--font-size-base) !important;
+    text-decoration: none !important;
+    box-sizing: border-box !important;
+    min-height: 32px !important;
+    line-height: 1.2 !important;
+}
+
+button[type="submit"]:hover,
+.submit-button:hover {
+    background: var(--color-primary-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+
+
+.form-group {
+    margin-bottom: var(--space-lg);
+}
+
+.form-line {
+    margin-bottom: var(--space-md);
+}
+
+body * {
+    user-select: none;
+    -webkit-user-drag: none;
+}
+
+img {
+    -webkit-user-drag: none;
+}
+
 :root {
     --default-font: var(--user-font, 'Georgia');
     --default-font-scale: 1;
@@ -88,9 +227,9 @@
 }
 
 body {
-    background-color: #f5e6d4; /* Slightly darker parchment color */
-    color: #4b2e2e; /* Dark brown ink color */
-    font-family: var(--default-font), "Times New Roman", serif; /* Classic book-like font */
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--default-font), "Times New Roman", serif;
     font-size: calc(16px * var(--default-font-scale));
     overflow-x: hidden;
     margin: 0;
@@ -98,8 +237,8 @@ body {
     height: 100vh;
     width: 100vw;
     display: grid;
-    grid-template-rows: 80px 1fr 400px 100px; /* Header, main content, timeline, jump-to-date */
-    grid-template-columns: 2fr 1fr 2fr; /* Three columns for main content */
+    grid-template-rows: 80px 1fr 400px 100px;
+    grid-template-columns: 2fr 1fr 2fr;
     grid-template-areas: 
         "header header header"
         "left middle right"
@@ -116,17 +255,17 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 10px;
-    background-color: rgba(75, 46, 46, 0.1);
-    border-bottom: 1px solid rgba(75, 46, 46, 0.2);
+    padding: var(--space-sm);
+    background: var(--color-bg-overlay);
+    border-bottom: 1px solid var(--color-border);
     min-height: 0;
 }
 
 /* Main content areas */
 .main-content-left {
     grid-area: left;
-    padding: 20px;
-    border-right: 1px solid rgba(75, 46, 46, 0.2);
+    padding: var(--space-xl);
+    border-right: 1px solid var(--color-border);
     overflow-y: auto;
     min-height: 0;
     display: flex;
@@ -137,8 +276,8 @@ body {
 
 .main-content-middle {
     grid-area: middle;
-    padding: 20px;
-    border-right: 1px solid rgba(75, 46, 46, 0.2);
+    padding: var(--space-xl);
+    border-right: 1px solid var(--color-border);
     overflow-y: auto;
     min-height: 0;
     font-family: var(--default-font), "Times New Roman", serif;
@@ -156,11 +295,12 @@ body {
     background-color: rgba(75, 46, 46, 0.05);
     border-radius: 4px;
     white-space: nowrap;
+    z-index: 1;
 }
 
 .main-content-right {
     grid-area: right;
-    padding: 20px;
+    padding: 10px;
     overflow-y: auto;
     min-height: 0;
     font-family: var(--default-font), "Times New Roman", serif;
@@ -175,6 +315,16 @@ body {
     background: #eee;
     user-select: none;
     min-height: 0;
+}
+
+#timeline-canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
 }
 
 /* Jump to date container */
@@ -314,7 +464,7 @@ select {
 }
 
 #guides.visible {
-    display: flex;
+    display: none;
 }
 
 #position_guide::before {
@@ -918,7 +1068,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 .timeline-note-box .note-title,
 .timeline-note-box.above,
 .timeline-note-box.below {
-    display: none;
+    /* Removing display: none to allow notes to show */
 }
 
 .note-icon {
@@ -941,17 +1091,25 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 /* Main content right area styles */
 .center-note,
 .center-age,
-.center-periods {
-    margin-bottom: 20px;
+.center-periods,
+.center-ages {
+    margin-bottom: 10px;
 }
 
 .center-note h1,
-.center-age h1 {
-    font-size: 2.5em;
+.center-age h1,
+.center-ages h1 {
+    font-size: 2em;
     color: #4b2e2e;
     margin-bottom: 15px;
     font-weight: bold;
 }
+
+.center-ages h2 { font-size: 1.8em; }
+.center-ages h3 { font-size: 1.6em; }
+.center-ages h4 { font-size: 1.4em; }
+.center-ages h5 { font-size: 1.2em; }
+.center-ages h6 { font-size: 1em; }
 
 .center-period h2,
 .center-period h3,
@@ -959,7 +1117,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 .center-period h5,
 .center-period h6 {
     color: #4b2e2e;
-    margin: 15px 0 10px 0;
+    margin: 10px 0 10px 0;
     font-weight: normal;
 }
 
@@ -979,7 +1137,39 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 }
 
 .center-note {
-    margin: 20px 0;
+    margin: 10px 0;
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+.center-note .note-content {
+    flex: 1;
+}
+
+.center-note .note-image {
+    max-width: 120px;
+    max-height: 120px;
+    object-fit: cover;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    transition: transform 0.2s ease-in-out;
+    flex-shrink: 0;
+}
+
+.center-note .note-image:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Add spacing between multiple ages */
+.center-ages .center-age {
+    margin-bottom: 10px;
+}
+
+.center-ages .center-age:last-child {
+    margin-bottom: 0;
 }
 
 .center-note h2 {
@@ -1017,7 +1207,7 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 }
 
 .center-note .note-image:hover {
-    max-width: 30%;
+    max-width: 50%;
     max-height: none;
     --position: relative;
     z-index: 100;
@@ -1149,4 +1339,112 @@ input[type="checkbox"].settings-input + .info-icon + .info-bubble {
 
 .log-entry {
     font-size: 12px;
+}
+
+/* Center notes styles */
+.center-notes {
+    margin-bottom: 0px;
+}
+
+.center-notes .center-note {
+    margin-bottom: 10px;
+    padding: 15px;
+    background-color: rgba(255, 255, 255, 0.7);
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.center-notes .center-note:last-child {
+    margin-bottom: 0;
+}
+
+.center-notes .center-note h2,
+.center-notes .center-note h3,
+.center-notes .center-note h4,
+.center-notes .center-note h5,
+.center-notes .center-note h6 {
+    color: #4b2e2e;
+    margin: 0 0 10px 0;
+    font-weight: bold;
+}
+
+.center-notes .center-note .note-description {
+    font-style: italic;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.center-notes .center-note .note-content {
+    color: #333;
+    line-height: 1.5;
+    margin-bottom: 15px;
+}
+
+.center-notes .center-note .note-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.center-notes .center-note .note-tag {
+    background-color: #4b2e2e;
+    color: #f5e6d4;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 0.8em;
+}
+
+/* Dialog styling */
+#myDialog {
+    padding: 20px;
+    border: none;
+    border-radius: 8px;
+    background-color: #f5e6d4;
+    color: #4b2e2e;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    max-width: 500px;
+    width: 90%;
+}
+
+#myDialog::backdrop {
+    background-color: rgba(0, 0, 0, 0.5);
+}
+
+#myDialog h2 {
+    margin: 0 0 15px 0;
+    font-size: 1.5em;
+    color: #4b2e2e;
+    font-family: var(--default-font), "Times New Roman", serif;
+}
+
+#myDialog p {
+    margin: 0 0 20px 0;
+    line-height: 1.5;
+    font-family: var(--default-font), "Times New Roman", serif;
+}
+
+#myDialog #closeDialog {
+    background-color: #4b2e2e;
+    color: #f5e6d4;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--default-font), "Times New Roman", serif;
+    transition: background-color 0.3s ease;
+}
+
+#myDialog #closeDialog:hover {
+    background-color: #6a3e3e;
+}
+
+.center-ages, .center-age {
+    margin: 0;
+    padding: 0;
+}
+
+.center-ages h1, .center-ages h2 {
+    margin: 0;
+    padding: 0;
+    text-decoration: underline;
 }

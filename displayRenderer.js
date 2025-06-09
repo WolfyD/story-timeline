@@ -361,32 +361,6 @@ class DisplayRenderer {
             }
         });
 
-        // Option 1: Simple dots
-        /*
-        events.forEach(item => {
-            const x = this.calculateItemPosition(item.year);
-            this.ctx.beginPath();
-            this.ctx.fillStyle = item.color || itemMarker;
-            this.ctx.arc(x, timelineY - markerHeight/2, itemMarkerSize, 0, Math.PI * 2);
-            this.ctx.fill();
-        });
-        */
-
-        // Option 2: Small diamonds
-        /*
-        events.forEach(item => {
-            const x = this.calculateItemPosition(item.year);
-            this.ctx.beginPath();
-            this.ctx.fillStyle = item.color || itemMarker;
-            this.ctx.moveTo(x, timelineY - markerHeight);
-            this.ctx.lineTo(x + itemMarkerSize, timelineY - markerHeight/2);
-            this.ctx.lineTo(x, timelineY);
-            this.ctx.lineTo(x - itemMarkerSize, timelineY - markerHeight/2);
-            this.ctx.closePath();
-            this.ctx.fill();
-        });
-        */
-
         // Option 3: Vertical lines with dots
         events.forEach(item => {
             const x = this.calculateItemPosition(item.year);
@@ -403,20 +377,6 @@ class DisplayRenderer {
             this.ctx.arc(x, timelineY - markerHeight * 1.5, itemMarkerSize * 0.6, 0, Math.PI * 2); // Smaller dot
             this.ctx.fill();
         });
-
-        // Option 4: Small triangles pointing up
-        /*
-        events.forEach(item => {
-            const x = this.calculateItemPosition(item.year);
-            this.ctx.beginPath();
-            this.ctx.fillStyle = item.color || itemMarker;
-            this.ctx.moveTo(x, timelineY - markerHeight);
-            this.ctx.lineTo(x - itemMarkerSize, timelineY);
-            this.ctx.lineTo(x + itemMarkerSize, timelineY);
-            this.ctx.closePath();
-            this.ctx.fill();
-        });
-        */
 
         // Render ages
         ages.forEach(item => {
@@ -610,7 +570,7 @@ class DisplayRenderer {
                         y >= timelineY - specialMarkerHeight && 
                         y <= timelineY) {
                         // Jump to the bookmark's year
-                        window.jumpToYear(item.year);
+                        window.jumpToDate(item.year, item.subtick);
                         return;
                     }
                 }

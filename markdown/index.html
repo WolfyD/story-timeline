@@ -3,24 +3,39 @@
   <head>
     <meta charset="UTF-8">
     <title>Story Timeline</title>
-    <link rel="stylesheet" href="main.css" type="text/css" />
-    <link rel="stylesheet" href="timeline.css" type="text/css" />
-    <link rel="stylesheet" href="modal.css" type="text/css" />
-    <link rel="stylesheet" href="menubar.css" type="text/css" />
-    <link rel="stylesheet" href="styles.css" type="text/css" />
-    <link rel="stylesheet" href="node_modules/remixicon/fonts/remixicon.css" type="text/css" />
+    <link rel="stylesheet" href="../css/main.css" type="text/css" />
+    <link rel="stylesheet" href="../css/timeline.css" type="text/css" />
+    <link rel="stylesheet" href="../css/modal.css" type="text/css" />
+    <link rel="stylesheet" href="../css/menubar.css" type="text/css" />
+    <link rel="stylesheet" href="../css/styles.css" type="text/css" />
+    <link rel="stylesheet" href="../css/cssEditor.css" type="text/css" />
+    <link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css" type="text/css" />
+    <style>
+      .css-editor-container {
+        width: 100%;
+        margin-bottom: 10px;
+      }
+      .css-editor-row .settings-input-container {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .css-editor-row .reset-template-button {
+        align-self: flex-start;
+        margin-top: 10px;
+      }
+    </style>
   </head>
   <body>
     <div id="calligraphy_container" style="display: none;">
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 260.481 370" xml:space="preserve" width="260.481" height="370">
         <g transform="translate(1019.784 428.97)"/>
-        <g style="font-size:388.889px;line-height:1.25;font-family:Arial;-inkscape-font-specification:&quot;Arial, Normal&quot;;fill:#000;fill-opacity:1;stroke:#010101;stroke-width:1.25561;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
-          <path d="M25.457 355.248c11.465-9.44 30.713-7.155 47.235-7.155q32.876 0 59.176 24.783l49.567-49.566-8.093-9.104-18.208 17.702q-29.841-17.702-63.728-17.702l19.725-55.636h109.755l20.737 69.798q9.61 33.887 29.84 44.508l50.073-49.566-8.092-9.104-18.209 18.208q-10.115-4.047-14.667-12.139-1.012-2.023-3.035-6.575-1.517-4.552-3.54-11.633l-66.258-220.52q-9.104-30.347-15.173-38.945l4.552-14.668-11.127-4.552-4.552 10.621q-15.68-11.127-33.382-11.127-26.3 0-47.037 18.714-7.08 5.564-15.174 15.68-7.586 10.115-17.196 24.277l9.61 6.575q21.243-30.852 48.049-30.853 22.76 0 37.933 21.749l-19.725 51.59q-9.61-.506-14.668-.506-5.058-.506-6.07-.506-38.438 0-38.438 44.003 0 13.656 6.069 29.335l11.127-5.058q-2.529-7.587-2.529-11.633 0-23.266 20.231-23.266 6.576 0 11.633 5.058l-53.612 146.17q-34.393 4.047-57.153 26.807zm183.29-135.117h-82.948l45.52-124.928Z" style="font-style:normal;font-variant:normal;font-weight:400;font-stretch:normal;font-family:&quot;Olde English&quot;;-inkscape-font-specification:&quot;Olde English&quot;;fill:#000;fill-opacity:1;stroke:#010101;stroke-width:1.25561;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" transform="matrix(.79627 0 0 .79658 -6.237 -6.723)" aria-label="A"/>
+        <g style="font-size:388.889px;line-height:1.25;font-family:Arial;fill:#000;fill-opacity:1;stroke:#010101;stroke-width:1.25561;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1">
+          <path d="M25.457 355.248c11.465-9.44 30.713-7.155 47.235-7.155q32.876 0 59.176 24.783l49.567-49.566-8.093-9.104-18.208 17.702q-29.841-17.702-63.728-17.702l19.725-55.636h109.755l20.737 69.798q9.61 33.887 29.84 44.508l50.073-49.566-8.092-9.104-18.209 18.208q-10.115-4.047-14.667-12.139-1.012-2.023-3.035-6.575-1.517-4.552-3.54-11.633l-66.258-220.52q-9.104-30.347-15.173-38.945l4.552-14.668-11.127-4.552-4.552 10.621q-15.68-11.127-33.382-11.127-26.3 0-47.037 18.714-7.08 5.564-15.174 15.68-7.586 10.115-17.196 24.277l9.61 6.575q21.243-30.852 48.049-30.853 22.76 0 37.933 21.749l-19.725 51.59q-9.61-.506-14.668-.506-5.058-.506-6.07-.506-38.438 0-38.438 44.003 0 13.656 6.069 29.335l11.127-5.058q-2.529-7.587-2.529-11.633 0-23.266 20.231-23.266 6.576 0 11.633 5.058l-53.612 146.17q-34.393 4.047-57.153 26.807zm183.29-135.117h-82.948l45.52-124.928Z" style="font-style:normal;font-variant:normal;font-weight:400;font-stretch:normal;fill:#000;fill-opacity:1;stroke:#010101;stroke-width:1.25561;stroke-miterlimit:4;stroke-dasharray:none;stroke-opacity:1" transform="matrix(.79627 0 0 .79658 -6.237 -6.723)" aria-label="A"/>
         </g>
       </svg>      
     </div>
     <button class="settings-button open-settings-button no-select" onclick="openSettings()">Settings</button>
-    <div id="version-display" class="version-display no-select">v0.2.1</div>
+    <div id="version-display" class="version-display no-select">v0.3.3</div>
     <div id="fps_display" class="fps-display no-select">FPS: 0</div>
     <div id="visible_item_counter" class="visible-item-display no-select">Items visible: 0</div>
 
@@ -58,6 +73,7 @@
       <div id="h-rule"></div>
       <div id="timeline-hover-marker"></div>
       <div id="timeline-hover-marker-stick"></div>
+      <canvas id="timeline-canvas"></canvas>
     </div>
 
     <!-- Settings -->
@@ -162,59 +178,33 @@
               </div>
 
               <div class="settings-row">
-                <label class="no-select" for="use-timeline-css">Use Timeline CSS</label>
+                <label class="no-select" for="display-radius">Display Radius</label>
                 <div class="settings-input-container">
-                  <input type="checkbox" id="use-timeline-css" class="settings-input" onclick="toggleTimelineCSS(this.checked)">
+                  <input type="number" id="display-radius" min="1" max="100" value="10" onmousewheel="return true"; class="settings-input">
                   <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Use custom CSS for the timeline</div>
+                  <div class="info-bubble no-select">How many ticks to show on each side of the current view</div>
                 </div>
               </div>
 
               <div class="settings-row">
-                <label class="no-select" for="custom-css">Timeline CSS</label>
+                <label class="no-select" for="use-custom-css">Use Custom CSS</label>
                 <div class="settings-input-container">
-                  <textarea readonly id="custom-css" class="settings-input custom-css" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
-                  <button class="settings-button reset-template-button" onclick="resetToTemplate('custom-css')">Reset to Template</button>
+                  <input type="checkbox" id="use-custom-css" class="settings-input" onclick="toggleCustomCSS(this.checked)">
                   <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Custom CSS for the timeline container and elements</div>
+                  <div class="info-bubble no-select">Enable custom CSS styling for the entire application</div>
                 </div>
               </div>
 
-              <div class="settings-row">
-                <label class="no-select" for="use-main-css">Use Main CSS</label>
+              <div class="settings-row css-editor-row">
+                <label class="no-select" for="custom-css-editor">Custom CSS</label>
                 <div class="settings-input-container">
-                  <input type="checkbox" id="use-main-css" class="settings-input" onclick="toggleMainCSS(this.checked)">
+                  <textarea id="custom-css-editor" 
+                            class="settings-input custom-css" 
+                            style="margin-left: .8%; width: 95%;"
+                            placeholder="Enter your custom CSS here, or use the selector helper above to get started..."></textarea>
+                  <button class="settings-button reset-template-button" onclick="resetCSSToTemplate()">Reset to Template</button>
                   <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Use custom CSS for the main application</div>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <label class="no-select" for="custom-main-css">Main CSS</label>
-                <div class="settings-input-container">
-                  <textarea readonly id="custom-main-css" class="settings-input custom-css" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
-                  <button class="settings-button reset-template-button" onclick="resetToTemplate('custom-main-css')">Reset to Template</button>
-                  <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Custom CSS for the main application body and elements</div>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <label class="no-select" for="use-items-css">Use Items CSS</label>
-                <div class="settings-input-container">
-                  <input type="checkbox" id="use-items-css" class="settings-input" onclick="toggleItemsCSS(this.checked)">
-                  <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Use custom CSS for timeline items</div>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <label class="no-select" for="custom-items-css">Items CSS</label>
-                <div class="settings-input-container">
-                  <textarea readonly id="custom-items-css" class="settings-input custom-css" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
-                  <button class="settings-button reset-template-button" onclick="resetToTemplate('custom-items-css')">Reset to Template</button>
-                  <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Custom CSS for timeline items and markers</div>
+                  <div class="info-bubble no-select">Write custom CSS to style the timeline, main application, and items. Use the selector helper above to discover available CSS selectors and current styles.</div>
                 </div>
               </div>
 
@@ -376,17 +366,19 @@
       </div>
     </div>
 
-    <div id="terminal-panel" class="terminal-panel">
-        <div class="terminal-header">
-            <span>Terminal</span>
-            <button id="close-terminal" class="close-terminal">×</button>
-        </div>
-        <div id="terminal-content" class="terminal-content"></div>
-    </div>
+    <dialog id="myDialog">
+      <h2></h2>
+      <p></p>
+      <button id="closeDialog">Close</button><div id="secondaryButton"></div>
+    </dialog>
 
-    <script src="timeline.js"></script>
-    <script src="renderer.js"></script>
-    <script src="displayRenderer.js"></script>
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="../cssEditor.js"></script>
+    <script src="../timeline.js"></script>
+    <script src="../renderer.js"></script>
+    <script src="../displayRenderer.js"></script>
     <script>
       // Initialize the display renderer
       document.addEventListener('DOMContentLoaded', () => {
@@ -396,7 +388,8 @@
       });
     </script>
     <script type="module">
-      import menubar from './menubar.js';
+      import menubar from '../menubar.js';
+      import exporter from '../exporter.js';
 
       // Add File menu
       menubar.addMenu('File', [
@@ -418,6 +411,11 @@
           openAddItemWindow(year, subtick, timelineState.granularity);
         }},
         { label: 'Settings', action: () => openSettings() }
+      ]);
+
+      // Add Export menu
+      menubar.addMenu('Export', [
+        { label: 'Export Document', action: () => exporter.exportAsDocument() }
       ]);
 
       // Add View menu
@@ -444,7 +442,7 @@ This program is free software: you can redistribute it and/or modify it under th
 
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.`;
 
-          alert(aboutText);
+          console.log(aboutText);
         }}
       ]);
     </script>

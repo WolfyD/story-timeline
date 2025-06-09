@@ -322,27 +322,32 @@ function settingsSetup(settings) {
     let pixelsPerSubtick = document.querySelector('#pixels-per-subtick');
     pixelsPerSubtick.value = settings.pixelsPerSubtick;
 
-    let customCSS = document.querySelector('#custom-css');
-    let customMainCSS = document.querySelector('#custom-main-css');
-    let customItemsCSS = document.querySelector('#custom-items-css');
+    // Set up unified custom CSS
+    let useCustomCSS = document.querySelector('#use-custom-css');
+    useCustomCSS.checked = settings.useCustomCSS || false;
+    toggleCustomCSS(settings.useCustomCSS || false);
     
-    // Set up timeline CSS
-    let useTimelineCSS = document.querySelector('#use-timeline-css');
-    useTimelineCSS.checked = settings.useTimelineCSS;
-    toggleTimelineCSS(settings.useTimelineCSS);
-    customCSS.value = settings.customCSS;
-
-    // Set up main CSS
-    let useMainCSS = document.querySelector('#use-main-css');
-    useMainCSS.checked = settings.useMainCSS;
-    toggleMainCSS(settings.useMainCSS);
-    customMainCSS.value = settings.customMainCSS;
-
-    // Set up items CSS
-    let useItemsCSS = document.querySelector('#use-items-css');
-    useItemsCSS.checked = settings.useItemsCSS;
-    toggleItemsCSS(settings.useItemsCSS);
-    customItemsCSS.value = settings.customItemsCSS;
+    // Initialize enhanced CSS editor if not already done
+    if (!window.cssEditor) {
+        window.cssEditor = new EnhancedCSSEditor('custom-css-editor', {
+            enableSelectorHelper: true,
+            enableAutoComplete: true,
+            enableLivePreview: false
+        });
+    }
+    
+    // Set consolidated CSS value (combine old separate CSS fields if they exist)
+    let consolidatedCSS = settings.customCSS || '';
+    if (settings.customMainCSS || settings.customItemsCSS) {
+        // If we have old separate CSS fields, combine them
+        consolidatedCSS = [
+            settings.customCSS || '',
+            settings.customMainCSS || '',
+            settings.customItemsCSS || ''
+        ].filter(css => css.trim()).join('\n\n');
+    }
+    
+    window.cssEditor.setValue(consolidatedCSS);
 
     let showGuides = document.querySelector('#show-guides');
     showGuides.checked = settings.showGuides;
@@ -353,6 +358,9 @@ function settingsSetup(settings) {
     useCustomScaling.checked = settings.useCustomScaling;
     let customScale = document.querySelector('#custom-scale');
     customScale.value = settings.customScale;
+
+    let displayRadius = document.querySelector('#display-radius');
+    displayRadius.value = settings.displayRadius;
     
     // Apply window scaling if enabled
     if (settings.useCustomScaling) {
@@ -368,65 +376,171 @@ function settingsSetup(settings) {
     checkAllLoaded();
 }
 
-function toggleTimelineCSS(use = false) {
-    const customCSS = document.querySelector('#custom-css');
+function toggleCustomCSS(use = false) {
     if(use) {
-        customCSS.removeAttribute('readonly');
-        // Apply the custom CSS
-        const styleElement = document.getElementById('custom-timeline-style') || document.createElement('style');
-        styleElement.id = 'custom-timeline-style';
-        styleElement.textContent = customCSS.value;
-        if (!document.getElementById('custom-timeline-style')) {
-            document.head.appendChild(styleElement);
+        // Enable the CSS editor
+        if (window.cssEditor) {
+            window.cssEditor.textarea.removeAttribute('readonly');
+            
+            // Set up live CSS updates
+            if (!window.cssEditor.textarea.dataset.liveUpdatesSetup) {
+                window.cssEditor.textarea.addEventListener('input', updateLiveCSS);
+                window.cssEditor.textarea.dataset.liveUpdatesSetup = 'true';
+            }
         }
+        
+        // Apply the current CSS immediately
+        updateLiveCSS();
     } else {
-        customCSS.setAttribute('readonly', 'readonly');
+        // Disable the CSS editor
+        if (window.cssEditor) {
+            window.cssEditor.textarea.setAttribute('readonly', 'readonly');
+        }
         // Remove the custom CSS
-        const styleElement = document.getElementById('custom-timeline-style');
+        const styleElement = document.getElementById('custom-style');
         if (styleElement) {
             styleElement.remove();
         }
     }
 }
 
-function toggleMainCSS(use = false) {
-    const customMainCSS = document.querySelector('#custom-main-css');
-    if(use) {
-        customMainCSS.removeAttribute('readonly');
-        // Apply the custom CSS
-        const styleElement = document.getElementById('custom-main-style') || document.createElement('style');
-        styleElement.id = 'custom-main-style';
-        styleElement.textContent = customMainCSS.value;
-        if (!document.getElementById('custom-main-style')) {
+function updateLiveCSS() {
+    if (window.cssEditor && document.querySelector('#use-custom-css').checked) {
+        const styleElement = document.getElementById('custom-style') || document.createElement('style');
+        styleElement.id = 'custom-style';
+        styleElement.textContent = window.cssEditor.getValue();
+        if (!document.getElementById('custom-style')) {
             document.head.appendChild(styleElement);
-        }
-    } else {
-        customMainCSS.setAttribute('readonly', 'readonly');
-        // Remove the custom CSS
-        const styleElement = document.getElementById('custom-main-style');
-        if (styleElement) {
-            styleElement.remove();
         }
     }
 }
 
-function toggleItemsCSS(use = false) {
-    const customItemsCSS = document.querySelector('#custom-items-css');
-    if(use) {
-        customItemsCSS.removeAttribute('readonly');
-        // Apply the custom CSS
-        const styleElement = document.getElementById('custom-items-style') || document.createElement('style');
-        styleElement.id = 'custom-items-style';
-        styleElement.textContent = customItemsCSS.value;
-        if (!document.getElementById('custom-items-style')) {
-            document.head.appendChild(styleElement);
-        }
-    } else {
-        customItemsCSS.setAttribute('readonly', 'readonly');
-        // Remove the custom CSS
-        const styleElement = document.getElementById('custom-items-style');
-        if (styleElement) {
-            styleElement.remove();
+function resetCSSToTemplate() {
+    if (window.cssEditor) {
+        // Load comprehensive CSS template with all major selectors
+        const defaultCSS = `/* ===== Main Application Styles ===== */
+
+/* Page Background and Layout */
+body {
+    /* Customize overall page background, fonts, and layout */
+}
+
+.main_title {
+    /* Customize the main story title */
+}
+
+.main_subtitle {
+    /* Customize the subtitle/author name */
+}
+
+/* ===== Timeline Container ===== */
+
+.timeline_container {
+    /* The main timeline container */
+}
+
+#timeline-canvas {
+    /* The timeline canvas background */
+}
+
+#center-line {
+    /* The main timeline center line */
+}
+
+/* ===== Timeline Items ===== */
+
+/* Event Items */
+.timeline-item-box {
+    /* Regular timeline event items */
+}
+
+.timeline-item-box:hover {
+    /* Event items on hover */
+}
+
+.timeline-item-box.highlighted {
+    /* Highlighted event items */
+}
+
+/* Note Items */
+.timeline-note-box {
+    /* Note-type timeline items */
+}
+
+/* Picture Items */
+.timeline-picture-box {
+    /* Picture timeline items */
+}
+
+.timeline-picture-box img {
+    /* Images within picture items */
+}
+
+/* Period and Age Items */
+.timeline-period-item {
+    /* Period timeline items */
+}
+
+.timeline-age-item {
+    /* Age timeline items */
+}
+
+/* Item Labels and Text */
+.timeline-item-title {
+    /* Item title text */
+}
+
+.timeline-item-date {
+    /* Item date displays */
+}
+
+/* Connecting Lines */
+.timeline-item-line {
+    /* Lines connecting items to timeline */
+}
+
+/* ===== Timeline Markers ===== */
+
+.timeline-bookmark-line {
+    /* Bookmark markers */
+}
+
+.timeline-bookmark-dot {
+    /* Bookmark dots */
+}
+
+.timeline-start-marker-triangle {
+    /* Timeline start marker */
+}
+
+.timeline-end-marker-triangle {
+    /* Timeline end marker */
+}
+
+/* ===== Settings Panel ===== */
+
+.settings_container {
+    /* Settings panel container */
+}
+
+.settings_div {
+    /* Settings content area */
+}
+
+.settings-input {
+    /* Form inputs in settings */
+}
+
+/* ===== Custom Styles ===== */
+
+/* Add your custom CSS rules here */
+
+`;
+        window.cssEditor.setValue(defaultCSS);
+        
+        // Apply the template immediately if CSS is enabled
+        if (document.querySelector('#use-custom-css').checked) {
+            updateLiveCSS();
         }
     }
 }
@@ -445,7 +559,7 @@ function toggleGuides(show) {
     console.log("Toggling guides:", show);
     const guides = document.getElementById('guides');
     if (guides) {
-        guides.style.display = show ? 'block' : 'none';
+        guides.style.display = show ? 'flex' : 'none';
         console.log("Guides visibility set to:", guides.style.display);
     } else {
         console.warn("Guides element not found");
@@ -514,7 +628,6 @@ function dataSetup(data) {
         timelineState.focusYear = parseInt(data.start) || 0;
         timelineState.granularity = parseInt(data.granularity) || 4;
         timelineState.offsetPx = 0;
-        
         // Force a re-render of the timeline with the new data
         renderTimeline(timelineState.focusYear, timelineState.granularity, window.innerWidth);
     }
@@ -559,13 +672,14 @@ function loadData(data) {
  * - Invalid parameters
  * - Timeline state not initialized
  */
-function callSetInitialSettings(focusYear, granularity, pixelsPerSubtick) {
-    console.log("callSetInitialSettings", focusYear, granularity, pixelsPerSubtick);
+function callSetInitialSettings(focusYear, granularity, pixelsPerSubtick, displayRadius) {
+    console.log("callSetInitialSettings", focusYear, granularity, pixelsPerSubtick, displayRadius);
     setInitialSettings({ 
         focusYear: focusYear, 
         granularity: granularity, 
         items: items, 
-        pixelsPerSubtick: pixelsPerSubtick 
+        pixelsPerSubtick: pixelsPerSubtick,
+        displayRadius: displayRadius
     });
 }
 
@@ -590,7 +704,8 @@ function checkAllLoaded() {
         callSetInitialSettings(
             loadedData.start || 0,
             loadedData.granularity || 4,
-            loadedSettings.pixelsPerSubtick || 20
+            loadedSettings.pixelsPerSubtick || 20,
+            loadedSettings.displayRadius || 10
         );
 
         // If both data and settings are ready, tell main process we're ready to display
@@ -635,16 +750,13 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         font: document.querySelector('#font-select').selectedIndex,
         fontSizeScale: document.querySelector('#font-size-scale-input').value,
         isFullscreen: isFullscreen,
-        customCSS: document.querySelector('#custom-css').value,
-        customMainCSS: document.querySelector('#custom-main-css').value,
-        customItemsCSS: document.querySelector('#custom-items-css').value,
-        useTimelineCSS: document.querySelector('#use-timeline-css').checked,
-        useMainCSS: document.querySelector('#use-main-css').checked,
-        useItemsCSS: document.querySelector('#use-items-css').checked,
+        customCSS: window.cssEditor ? window.cssEditor.getValue() : '',
+        useCustomCSS: document.querySelector('#use-custom-css').checked,
         pixelsPerSubtick: document.querySelector('#pixels-per-subtick').value,
         showGuides: document.querySelector('#show-guides').checked,
         useCustomScaling: document.querySelector('#use-custom-scaling').checked,
-        customScale: document.querySelector('#custom-scale').value
+        customScale: document.querySelector('#custom-scale').value,
+        displayRadius: parseInt(document.querySelector('#display-radius').value)
     };
 
     const data = {
@@ -692,7 +804,7 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         };
         
         // Only update the timeline once with all changes
-        callSetInitialSettings(newStartYear, parseInt(data.granularity), parseInt(settings.pixelsPerSubtick));
+        callSetInitialSettings(newStartYear, parseInt(data.granularity), parseInt(settings.pixelsPerSubtick), parseInt(settings.displayRadius));
     }
 
     // Send settings to main process
@@ -772,9 +884,22 @@ window.api.receive('window-moved', (position, scaleFactor) => {
  * - Invalid settings object
  * - Settings setup failure
  */
-window.api.receive('call-load-settings', (settings) => {
+window.api.receive('call-load-settings', async (settings) => {
     if (!settings) return;
     
+    // Load settings
+    console.log("Loaded settings:", settings);
+    if (settings) {
+        document.querySelector('#font-select').selectedIndex = settings.font;
+        document.querySelector('#font-size-scale-input').value = settings.fontSizeScale;
+        document.querySelector('#use-custom-css').checked = settings.useCustomCSS || false;
+        document.querySelector('#pixels-per-subtick').value = settings.pixelsPerSubtick;
+        document.querySelector('#show-guides').checked = settings.showGuides;
+        document.querySelector('#use-custom-scaling').checked = settings.useCustomScaling;
+        document.querySelector('#custom-scale').value = settings.customScale;
+        document.querySelector('#display-radius').value = settings.displayRadius || 10;
+    }
+
     // Only update settings if they've actually changed
     if (JSON.stringify(settings) !== JSON.stringify(loadedSettings)) {
         settingsSetup(settings);
@@ -987,7 +1112,7 @@ async function exportTimelineData() {
     try {
         await window.api.invoke('export-timeline-data', exportData);
     } catch (error) {
-        alert(`Error exporting timeline data: ${error}`);
+        showError(`Error exporting timeline data: ${error}`);
     }
 }
 
@@ -1007,7 +1132,7 @@ async function importTimelineData() {
     try {
         await window.api.invoke('import-timeline-data');
     } catch (error) {
-        alert(`Error importing timeline data: ${error}`);
+        showError(`Error importing timeline data: ${error}`);
     }
 }
 
@@ -1017,7 +1142,7 @@ window.api.receive('export-timeline-data-success', (filePath) => {
 });
 
 window.api.receive('export-timeline-data-error', (error) => {
-    alert(`Error exporting timeline data: ${error}`);
+    showError(`Error exporting timeline data: ${error}`);
 });
 
 window.api.receive('import-timeline-data-confirm', ({ itemCount, filePath, data }) => {
@@ -1036,11 +1161,11 @@ window.api.receive('import-timeline-data-success', (importedData) => {
     
     // Refresh items to show imported data
     refreshAllItems();
-    alert('Timeline data imported successfully');
+    showSuccess('Timeline data imported successfully');
 });
 
 window.api.receive('import-timeline-data-error', (error) => {
-    alert(`Error importing timeline data: ${error}`);
+    showError(`Error importing timeline data: ${error}`);
 });
 
 window.api.receive('app-version', (version) => {
@@ -1205,243 +1330,25 @@ window.api.receive('data-ready', () => {
     checkAllLoaded();
 });
 
-// Terminal functionality
-const terminalPanel = document.getElementById('terminal-panel');
-const terminalContent = document.getElementById('terminal-content');
-const closeTerminal = document.getElementById('close-terminal');
-
-// Create terminal controls
-const terminalControls = document.createElement('div');
-terminalControls.className = 'terminal-controls';
-terminalControls.innerHTML = `
-    <button id="clear-terminal" class="terminal-button" title="Clear terminal">
-        <i class="ri-delete-bin-line"></i>
-    </button>
-    <button id="copy-terminal" class="terminal-button" title="Copy terminal contents">
-        <i class="ri-file-copy-line"></i>
-    </button>
-`;
-terminalPanel.insertBefore(terminalControls, terminalContent);
-
-// Add event listeners for terminal controls
-document.getElementById('clear-terminal').addEventListener('click', () => {
-    terminalContent.innerHTML = '';
-    console.log('Terminal cleared');
+// Add handler for jumpToYear message
+window.api.receive('jumpToYear', (item) => {
+    let year = item.year;
+    let subtick = item.subtick;
+    if (typeof year === 'number') {
+        window.jumpToDate(year, subtick);
+    }
 });
 
-document.getElementById('copy-terminal').addEventListener('click', () => {
-    const text = Array.from(terminalContent.children)
-        .map(entry => entry.textContent)
-        .join('\n');
-    
-    navigator.clipboard.writeText(text).then(() => {
-        console.log('Terminal contents copied to clipboard');
-    }).catch(err => {
-        console.error('Failed to copy terminal contents:', err);
-    });
-});
-
-// Log levels
-const LOG_LEVELS = {
-    ERROR: 'error',
-    WARN: 'warn',
-    INFO: 'info',
-    DEBUG: 'debug',
-    LOG: 'info'  // Regular console.log will be treated as info level
-};
-
-// Terminal state
-let isTerminalVisible = false;
-
-// Toggle terminal visibility
-function toggleTerminal() {
-    isTerminalVisible = !isTerminalVisible;
-    terminalPanel.classList.toggle('visible', isTerminalVisible);
-}
-
-// Close terminal
-function closeTerminalPanel() {
-    isTerminalVisible = false;
-    terminalPanel.classList.remove('visible');
-}
-
-// Add log entry to terminal
-function addLogEntry(level, message) {
-    const timestamp = new Date().toLocaleTimeString();
-    const entry = document.createElement('div');
-    entry.className = `log-entry ${level}`;
-    
-    // Handle different types of messages
-    let formattedMessage = message;
-    if (typeof message === 'object' || Array.isArray(message)) {
-        try {
-            // If it's an array of objects, stringify each object
-            if (Array.isArray(message)) {
-                formattedMessage = message.map(item => {
-                    if (typeof item === 'object') {
-                        return JSON.stringify(item, null, 2);
-                    }
-                    return item;
-                }).join(', ');
-            } else {
-                // Single object
-                formattedMessage = JSON.stringify(message, null, 2);
-            }
-            
-            // Add syntax highlighting
-            formattedMessage = formattedMessage
-                .replace(/&/g, '&amp;')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
-                .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
-                    let cls = 'number';
-                    if (/^"/.test(match)) {
-                        if (/:$/.test(match)) {
-                            cls = 'key';
-                        } else {
-                            cls = 'string';
-                        }
-                    } else if (/true|false/.test(match)) {
-                        cls = 'boolean';
-                    } else if (/null/.test(match)) {
-                        cls = 'null';
-                    }
-                    return '<span class="' + cls + '">' + match + '</span>';
-                });
-        } catch (e) {
-            formattedMessage = message.toString();
-        }
-    }
-    
-    // Add appropriate icon based on level
-    let icon = '';
-    switch(level) {
-        case 'error':
-            icon = '<i class="ri-error-warning-fill padr-5"></i>';
-            break;
-        case 'warn':
-            icon = '<i class="ri-error-warning-line padr-5"></i>';
-            break;
-        case 'info':
-            icon = '<i class="ri-information-2-line padr-5"></i>';
-            break;
-        case 'debug':
-            icon = '<i class="ri-message-2-line padr-5"></i>';
-            break;
-    }
-    
-    entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${icon}${formattedMessage}`;
-    terminalContent.appendChild(entry);
-    terminalContent.scrollTop = terminalContent.scrollHeight;
-}
-
-// Override console methods
-const originalConsole = {
-    log: console.log,
-    error: console.error,
-    warn: console.warn,
-    info: console.info,
-    debug: console.debug
-};
-
-// Logger object
-const logger = {
-    error: (...args) => {
-        originalConsole.error.apply(console, args);
-        // Convert each argument to a string if it's an object
-        const formattedArgs = args.map(arg => {
-            if (typeof arg === 'object') {
-                try {
-                    return JSON.stringify(arg, null, 2);
-                } catch (e) {
-                    return arg.toString();
-                }
-            }
-            return arg;
-        });
-        addLogEntry(LOG_LEVELS.ERROR, formattedArgs.join(' '));
-    },
-    warn: (...args) => {
-        originalConsole.warn.apply(console, args);
-        const formattedArgs = args.map(arg => {
-            if (typeof arg === 'object') {
-                try {
-                    return JSON.stringify(arg, null, 2);
-                } catch (e) {
-                    return arg.toString();
-                }
-            }
-            return arg;
-        });
-        addLogEntry(LOG_LEVELS.WARN, formattedArgs.join(' '));
-    },
-    info: (...args) => {
-        originalConsole.info.apply(console, args);
-        const formattedArgs = args.map(arg => {
-            if (typeof arg === 'object') {
-                try {
-                    return JSON.stringify(arg, null, 2);
-                } catch (e) {
-                    return arg.toString();
-                }
-            }
-            return arg;
-        });
-        addLogEntry(LOG_LEVELS.INFO, formattedArgs.join(' '));
-    },
-    debug: (...args) => {
-        originalConsole.debug.apply(console, args);
-        const formattedArgs = args.map(arg => {
-            if (typeof arg === 'object') {
-                try {
-                    return JSON.stringify(arg, null, 2);
-                } catch (e) {
-                    return arg.toString();
-                }
-            }
-            return arg;
-        });
-        addLogEntry(LOG_LEVELS.DEBUG, formattedArgs.join(' '));
-    },
-    log: (...args) => {
-        originalConsole.log.apply(console, args);
-        const formattedArgs = args.map(arg => {
-            if (typeof arg === 'object') {
-                try {
-                    return JSON.stringify(arg, null, 2);
-                } catch (e) {
-                    return arg.toString();
-                }
-            }
-            return arg;
-        });
-        addLogEntry(LOG_LEVELS.LOG, formattedArgs.join(' '));
-    }
-};
-
-// Override console methods
-console.log = logger.log;
-console.error = logger.error;
-console.warn = logger.warn;
-console.info = logger.info;
-console.debug = logger.debug;
 
 // Event listeners
 document.addEventListener('keydown', (e) => {
     // Toggle terminal with Ctrl + 0
     if (e.ctrlKey && e.key === '0') {
         e.preventDefault();
-        toggleTerminal();
+        // TODO: Implement terminal
     }
 });
 
-closeTerminal.addEventListener('click', closeTerminalPanel);
-
-// Expose logger to window
-window.logger = logger;
-
-// Add a welcome message
-console.log('Terminal initialized. Press Ctrl + ` to toggle visibility.');
 
 function openEditItemWithRangeWindow(item) {
     window.api.send('open-edit-item-with-range-window', item);
@@ -1450,3 +1357,47 @@ function openEditItemWithRangeWindow(item) {
 function openEditItemWindow(item) {
     window.api.send('open-edit-item-window', item);
 }
+
+// Toast notification system to replace alerts
+window.showToast = function(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        console.error('Toast container not found');
+        return;
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <span class="close-btn" onclick="this.parentElement.remove()">&times;</span>
+        ${message}
+    `;
+    
+    container.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 300);
+        }, duration);
+    }
+    
+    // Return toast element for manual control if needed
+    return toast;
+};
+
+// Helper functions for different types
+window.showSuccess = (message, duration) => showToast(message, 'success', duration);
+window.showError = (message, duration) => showToast(message, 'error', duration);
+window.showWarning = (message, duration) => showToast(message, 'warning', duration);
+window.showInfo = (message, duration) => showToast(message, 'info', duration);

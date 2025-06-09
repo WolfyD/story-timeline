@@ -3,24 +3,181 @@
  * Handles the core timeline functionality including rendering, interaction, and state management.
  */
 
-// ===== Debug Logging Utility =====
-let debugLog = (...args) => {
-    try {
-        const { ipcRenderer } = window.require ? window.require('electron') : {};
-        if (ipcRenderer && ipcRenderer.send) {
-            ipcRenderer.send('log', args.map(a => (typeof a === 'object' ? JSON.stringify(a) : a)).join(' '));
-        }
-    } catch (e) {
-        console.log(...args);
-    }
-};
-
 // ===== DOM Elements =====
 const timeline = document.getElementById("timeline");
 const container = document.getElementById("timeline-container");
 const hoverMarker = document.getElementById("timeline-hover-marker");
 const hoverMarkerStick = document.getElementById("timeline-hover-marker-stick");
 const globalHoverBubble = document.getElementById('global-hover-bubble');
+const timelineCanvas = document.getElementById('timeline-canvas');
+
+// ===== TimelineCanvas Class =====
+class TimelineCanvas {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.resizeCanvas();
+        
+        // Debug logging
+        console.log('TimelineCanvas initialized:', {
+            canvasWidth: this.canvas.width,
+            canvasHeight: this.canvas.height,
+            containerWidth: container.getBoundingClientRect().width,
+            containerHeight: container.getBoundingClientRect().height
+        });
+        
+        // Handle window resize
+        window.addEventListener('resize', () => this.resizeCanvas());
+    }
+
+    resizeCanvas() {
+        const rect = this.canvas.parentElement.getBoundingClientRect();
+        this.canvas.width = rect.width;
+        this.canvas.height = rect.height;
+        
+        // Debug logging
+        console.log('Canvas resized:', {
+            width: this.canvas.width,
+            height: this.canvas.height
+        });
+    }
+
+    drawTick(x, isFullYear, year = null) {
+        const ctx = this.ctx;
+        const containerRect = container.getBoundingClientRect();
+        const centerY = containerRect.height / 2;
+        
+        // Draw tick line
+        ctx.beginPath();
+        ctx.strokeStyle = '#000';
+        ctx.lineWidth = isFullYear ? 2 : 1;
+        if(isFullYear){
+            ctx.moveTo(x, centerY - 20);
+            ctx.lineTo(x, centerY + 20);
+        }
+        else{
+            ctx.moveTo(x, centerY - 10);
+            ctx.lineTo(x, centerY + 10);
+        }
+        ctx.stroke();
+
+        // Draw year label for full year ticks
+        if (isFullYear && year !== null) {
+            ctx.fillStyle = '#4b2e2e';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'top';
+            ctx.fillText(year.toString(), x, centerY + 25);
+        }
+    }
+
+    drawConnectingLine(x, startY, endY, isHighlighted = false) {
+
+        const ctx = this.ctx;
+        ctx.beginPath();
+        
+        if (isHighlighted) {
+            // Add glow effect
+            ctx.shadowColor = '#4a90e2'; // Blue glow color
+            ctx.shadowBlur = 10;
+            ctx.strokeStyle = '#4a90e2'; // Brighter blue for the line
+            ctx.lineWidth = 2;
+        } else {
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 1;
+        }
+        
+        ctx.moveTo(x, startY);
+        ctx.lineTo(x, endY);
+        ctx.stroke();
+        
+        // Reset shadow
+        ctx.shadowBlur = 0;
+    }
+
+    update() {
+        const { focusYear, granularity, pixelsPerSubtick, offsetPx } = timelineState;
+        const containerRect = container.getBoundingClientRect();
+        const centerX = containerRect.width / 2;
+        const centerY = containerRect.height / 2;
+
+        // Clear the canvas
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+
+        if(timelineState.displayRadius % 2 == 0){
+            this.ctx.fillStyle = '#eedd0011';
+            this.ctx.fillRect(
+                centerX - timelineState.displayRadius,
+                -500,
+                timelineState.displayRadius * 2,
+                1000
+            );
+        }
+
+        // Calculate the leftmost and rightmost visible years based on current offset and size
+        const leftYear = focusYear - ((centerX + offsetPx) / (granularity * pixelsPerSubtick));
+        const rightYear = focusYear + ((containerRect.width - centerX - offsetPx) / (granularity * pixelsPerSubtick));
+
+        // Add a buffer of subticks on both sides for edge safety
+        const bufferSubticks = granularity * (granularity < 60 ? 10 : 2);
+        const startSubtick = Math.floor(leftYear * granularity) - bufferSubticks;
+        const endSubtick = Math.ceil(rightYear * granularity) + bufferSubticks;
+
+        // Draw ticks
+        for (let i = startSubtick; i <= endSubtick; i++) {
+            const year = i / granularity;
+            const x = centerX + (year - focusYear) * pixelsPerSubtick * granularity + offsetPx;
+            const isFullYear = i % granularity === 0;
+            
+            // Only draw if the tick is within the canvas bounds
+            if (x >= 0 && x <= this.canvas.width) {
+                this.drawTick(x, isFullYear, isFullYear ? Math.floor(year) : null);
+            }
+        }
+
+        // get center year from center of the screen
+        const new_centerYear = calculateYearFromPosition(centerX + containerRect.left);
+
+        // Draw connecting lines for visible items
+        const visibleItems = getVisibleItems(centerX, new_centerYear);
+        visibleItems.forEach(item => {
+            if (!item || item.type === 'Age' || item.type === 'Period') return;
+
+            const itemYear = parseFloat(item.year || item.date || 0);
+            const itemSubtick = parseInt(item.subtick || 0);
+            const itemX = centerX + (itemYear - focusYear) * pixelsPerSubtick * granularity + offsetPx + (itemSubtick / granularity) * pixelsPerSubtick * granularity;
+
+
+            // Only draw if the line is within the canvas bounds
+            if (itemX >= 0 && itemX <= this.canvas.width) {
+                // Find the corresponding item box using data-id
+                const itemBox = document.querySelector(`.timeline-item-box[data-id="${item.id}"], .timeline-picture-box[data-id="${item.id}"]`);
+                if (itemBox) {
+                    const boxRect = itemBox.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    const isAbove = itemBox.classList.contains('above');
+                    const isHighlighted = itemBox.classList.contains('highlighted');
+                    
+                    // Calculate start and end points for the line
+                    const startY = centerY;
+                    let endY;
+                    
+                    if (isAbove) {
+                        // For items above the timeline, connect to the bottom of the box
+                        endY = boxRect.bottom - containerRect.top;
+                    } else {
+                        // For items below the timeline, connect to the top of the box
+                        endY = boxRect.top - containerRect.top;
+                    }
+                    
+                    this.drawConnectingLine(itemX, startY, endY, isHighlighted);
+                }
+            }
+        });
+    }
+}
+
+// Initialize TimelineCanvas
+const canvas = new TimelineCanvas(timelineCanvas);
 
 // ===== State Management =====
 /**
@@ -37,7 +194,8 @@ const timelineState = {
     granularity: 22,
     pixelsPerSubtick: 1,
     offsetPx: 0,
-    items: []
+    items: [],
+    displayRadius: 10
 };
 
 /**
@@ -328,112 +486,56 @@ function getHoverLabel(v, granularity) {
  */
 function updateMainContent(centerX, centerYear) {
     const mainContentRight = document.querySelector('.main-content-right');
+    if (!mainContentRight) return;
+
+    // Clear existing content
     mainContentRight.innerHTML = '';
 
-    // Get items at center position
-    const centerItems = timelineState.items.filter(item => {
-        if (!item || !item.type) return false;
-        const itemYear = parseFloat(item.year || item.date || 0);
-        const itemSubtick = parseInt(item.subtick || 0);
-        const endYear = parseFloat(item.end_year || item.year || 0);
-        const endSubtick = parseInt(item.end_subtick || item.subtick || 0);
-        const itemPosition = itemYear + (itemSubtick / timelineState.granularity);
-        const itemEndPosition = endYear + (endSubtick / timelineState.granularity);
-        return centerYear >= itemPosition && centerYear <= itemEndPosition;
+    // Find age and period items where the center point falls between start and end positions
+    const ageItems = timelineState.items.filter(item => {
+        if (!item || item.type?.toLowerCase() !== 'age') return false;
+        
+        // Calculate exact pixel positions for start and end
+        const startX = calculatePositionFromYear(item.year) + (item.subtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        const endX = calculatePositionFromYear(item.end_year || item.year) + ((item.end_subtick || item.subtick) / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        
+        // Check if centerX is between start and end positions
+        return centerX >= startX && centerX <= endX;
     });
 
-    // Find the closest note to center
-    const closestNote = findClosestNote(centerX);
-    
-    if (closestNote) {
-        // Find age and period items
-        const ageItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'age');
-        const periodItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'period')
-            .sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
-
-        if (ageItems.length > 0) {
-            const age = ageItems[0];
-            const ageDiv = document.createElement('div');
-            ageDiv.className = 'center-age';
-
-            const title = document.createElement('h1');
-            title.textContent = age.title || '(No Title)';
-            ageDiv.appendChild(title);
-
-            if (age.description) {
-                const description = document.createElement('p');
-                description.textContent = age.description;
-                ageDiv.appendChild(description);
-            }
-
-            mainContentRight.appendChild(ageDiv);
-        }
-
-        // Add periods if they exist
-        if (periodItems.length > 0) {
-            const periodsDiv = document.createElement('div');
-            periodsDiv.className = 'center-periods';
-
-            periodItems.forEach((period, index) => {
-                const periodDiv = document.createElement('div');
-                periodDiv.className = 'center-period';
-
-                const title = document.createElement(`h${Math.min(index + 2, 6)}`);
-                title.textContent = period.title || '(No Title)';
-                periodDiv.appendChild(title);
-
-                if (period.description) {
-                    const description = document.createElement('p');
-                    description.textContent = period.description;
-                    periodDiv.appendChild(description);
-                }
-
-                periodsDiv.appendChild(periodDiv);
-            });
-
-            mainContentRight.appendChild(periodsDiv);
-        }
-
-        // Add the note content
-        const noteDiv = document.createElement('div');
-        noteDiv.className = 'center-note';
+    const periodItems = timelineState.items.filter(item => {
+        if (!item || item.type?.toLowerCase() !== 'period') return false;
         
-        // Add separator if there was an h1
-        if (mainContentRight.querySelector('h1')) {
-            const hr = document.createElement('hr');
-            noteDiv.appendChild(hr);
-        }
+        // Calculate exact pixel positions for start and end
+        const startX = calculatePositionFromYear(item.year) + (item.subtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        const endX = calculatePositionFromYear(item.end_year || item.year) + ((item.end_subtick || item.subtick) / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        
+        // Check if centerX is between start and end positions
+        return centerX >= startX && centerX <= endX;
+    }).sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
 
-        // Add title
-        if (closestNote.title) {
-            const title = document.createElement('h2');
-            title.textContent = closestNote.title.split(' ')
-                .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-                .join(' ');
-            noteDiv.appendChild(title);
-        }
+    console.log("TIMELINE STATE", timelineState);
 
-        // Add description in italic
-        if (closestNote.description) {
-            const description = document.createElement('p');
-            description.className = 'note-description';
-            description.textContent = closestNote.description;
-            noteDiv.appendChild(description);
-        }
+    // Find note items within 10px of center
+    const noteItems = timelineState.items.filter(item => {
+        if (!item || (item.type?.toLowerCase() == 'age' || item.type?.toLowerCase() == 'period')) return false;
+        if(!item.show_in_notes) return false;
+        const itemYear = parseFloat(item.year || item.date || 0);
+        const itemSubtick = parseInt(item.subtick || 0);
+        const itemX = centerX + (itemYear - timelineState.focusYear) * timelineState.pixelsPerSubtick * timelineState.granularity + timelineState.offsetPx + (itemSubtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        return Math.abs(itemX - centerX) <= timelineState.displayRadius;
+    }).sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
 
-        mainContentRight.appendChild(noteDiv);
-    } else {
-        // Find age and period items
-        const ageItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'age');
-        const periodItems = centerItems.filter(item => item.type && item.type.toLowerCase() === 'period')
-            .sort((a, b) => (a.item_index || 0) - (b.item_index || 0));
+    // Add all visible ages
+    if (ageItems.length > 0) {
+        const agesDiv = document.createElement('div');
+        agesDiv.className = 'center-ages';
 
-        if (ageItems.length > 0) {
-            const age = ageItems[0];
+        ageItems.forEach((age, index) => {
             const ageDiv = document.createElement('div');
             ageDiv.className = 'center-age';
 
-            const title = document.createElement('h1');
+            const title = document.createElement(`h${Math.min(index + 1, 6)}`);
             title.textContent = age.title || '(No Title)';
             ageDiv.appendChild(title);
 
@@ -443,33 +545,162 @@ function updateMainContent(centerX, centerYear) {
                 ageDiv.appendChild(description);
             }
 
-            mainContentRight.appendChild(ageDiv);
-        }
+            agesDiv.appendChild(ageDiv);
+        });
 
-        // Add periods if they exist
-        if (periodItems.length > 0) {
-            const periodsDiv = document.createElement('div');
-            periodsDiv.className = 'center-periods';
+        mainContentRight.appendChild(agesDiv);
+    }
 
-            periodItems.forEach((period, index) => {
-                const periodDiv = document.createElement('div');
-                periodDiv.className = 'center-period';
+    // Add all visible periods
+    if (periodItems.length > 0) {
+        const periodsDiv = document.createElement('div');
+        periodsDiv.className = 'center-periods';
 
-                const title = document.createElement(`h${Math.min(index + 2, 6)}`);
-                title.textContent = period.title || '(No Title)';
-                periodDiv.appendChild(title);
+        periodItems.forEach(period => {
+            const periodDiv = document.createElement('div');
+            periodDiv.className = 'center-period';
 
-                if (period.description) {
-                    const description = document.createElement('p');
-                    description.textContent = period.description;
-                    periodDiv.appendChild(description);
+            const title = document.createElement('h2');
+            title.textContent = period.title || '(No Title)';
+            periodDiv.appendChild(title);
+
+            if (period.description) {
+                const description = document.createElement('p');
+                description.textContent = period.description;
+                periodDiv.appendChild(description);
+            }
+
+            periodsDiv.appendChild(periodDiv);
+        });
+
+        mainContentRight.appendChild(periodsDiv);
+    }
+
+    let pictureItems = [];
+    let newNoteItems = [];
+
+    if(noteItems.length > 0){
+        pictureItems = noteItems.filter(item => item.type?.toLowerCase() === 'picture');
+        newNoteItems = noteItems.filter(item => item.type?.toLowerCase() !== 'picture');
+    }
+
+    if(pictureItems.length > 0){
+        const picturesDiv = document.createElement('div');
+        picturesDiv.className = 'center-notes';
+
+        pictureItems.forEach(picture => {
+            const pictureDiv = document.createElement('div');
+            pictureDiv.className = 'center-note picture-note';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'note-content';
+
+            const title = document.createElement('h2');
+            title.textContent = picture.title || '(No Title)';
+            contentDiv.appendChild(title);
+
+            pictureDiv.appendChild(contentDiv);
+
+            if (picture.pictures && picture.pictures.length > 0) {
+                if (picture.pictures.length === 1) {
+                    const img = document.createElement('img');
+                    img.className = 'note-image';
+                    img.src = `file://${picture.pictures[0].file_path}`;
+                    pictureDiv.appendChild(img);
+                } else {
+                    const imagesContainer = document.createElement('div');
+                    imagesContainer.className = 'note-images-container';
+                    imagesContainer.style.display = 'flex';
+                    imagesContainer.style.flexDirection = 'row';
+                    imagesContainer.style.gap = '10px';
+                    imagesContainer.style.alignItems = 'center';
+
+                    picture.pictures.forEach(pic => {
+                        const img = document.createElement('img');
+                        img.className = 'note-image';
+                        img.src = `file://${pic.file_path}`;
+                        imagesContainer.appendChild(img);
+                    });
+
+                    pictureDiv.appendChild(imagesContainer);
                 }
+            }
 
-                periodsDiv.appendChild(periodDiv);
-            });
+            picturesDiv.appendChild(pictureDiv);
+        });
 
-            mainContentRight.appendChild(periodsDiv);
-        }
+        mainContentRight.appendChild(picturesDiv);
+    }
+
+    // Add all visible notes
+    if (newNoteItems.length > 0) {
+        // Sort notes by importance (higher first), then start date, then alphabetical by title
+        newNoteItems.sort((a, b) => {
+            // First sort by importance (higher importance first)
+            const aImportance = a.importance || 5;
+            const bImportance = b.importance || 5;
+            if (aImportance !== bImportance) {
+                return bImportance - aImportance; // Higher importance first
+            }
+            
+            // Then sort by start date (earlier first)
+            const aDate = a.year + (a.subtick || 0) / timelineState.granularity;
+            const bDate = b.year + (b.subtick || 0) / timelineState.granularity;
+            if (aDate !== bDate) {
+                return aDate - bDate; // Earlier date first
+            }
+            
+            // Finally sort alphabetically by title
+            const aTitle = (a.title || '').toLowerCase();
+            const bTitle = (b.title || '').toLowerCase();
+            return aTitle.localeCompare(bTitle);
+        });
+
+        const notesDiv = document.createElement('div');
+        notesDiv.className = 'center-notes';
+
+        newNoteItems.forEach(note => {
+            const noteDiv = document.createElement('div');
+            noteDiv.className = 'center-note';
+
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'note-content';
+
+            const title = document.createElement('h2');
+            title.textContent = note.title || '(No Title)';
+            contentDiv.appendChild(title);
+
+            if (note.description) {
+                const description = document.createElement('p');
+                description.textContent = note.description;
+                contentDiv.appendChild(description);
+            }
+
+            if (note.tags && note.tags.length > 0) {
+                const tagsDiv = document.createElement('div');
+                tagsDiv.className = 'note-tags';
+                note.tags.forEach(tag => {
+                    const tagSpan = document.createElement('span');
+                    tagSpan.className = 'note-tag';
+                    tagSpan.textContent = tag;
+                    tagsDiv.appendChild(tagSpan);
+                });
+                contentDiv.appendChild(tagsDiv);
+            }
+
+            noteDiv.appendChild(contentDiv);
+
+            if (note.pictures && note.pictures.length > 0) {
+                const img = document.createElement('img');
+                img.className = 'note-image';
+                img.src = `file://${note.pictures[0].file_path}`;
+                noteDiv.appendChild(img);
+            }
+
+            notesDiv.appendChild(noteDiv);
+        });
+
+        mainContentRight.appendChild(notesDiv);
     }
 }
 
@@ -528,11 +759,13 @@ function sendTimelineUpdate() {
     });
 }
 
-// Add frame timing variables at the top of the file
+// Frame timing variables with improved stability
 let lastFrameTime = 0;
 const targetFrameTime = 1000 / 60; // 60fps
 const minFrameTime = 1000 / 30;    // 30fps minimum
 let currentQuality = 1.0;          // Start at full quality
+let isScrolling = false;           // Track if we're currently scrolling
+let scrollTimeout = null;          // For debouncing scroll end
 
 /**
  * Renders the timeline
@@ -552,17 +785,26 @@ function renderTimeline() {
     const now = performance.now();
     const timeSinceLastFrame = now - lastFrameTime;
     
-    // Skip if we're rendering too fast
-    if (timeSinceLastFrame < minFrameTime) {
-        requestAnimationFrame(renderTimeline);
-        return;
+    // Only apply quality adjustments when not scrolling
+    if (!isScrolling) {
+        // Skip if we're rendering too fast
+        if (timeSinceLastFrame < minFrameTime) {
+            requestAnimationFrame(renderTimeline);
+            return;
+        }
+        
+        // Calculate quality based on frame time, but with a minimum threshold
+        currentQuality = Math.max(0.5, Math.min(1, timeSinceLastFrame / targetFrameTime));
+    } else {
+        // During scrolling, maintain a stable quality level
+        currentQuality = 0.5;
     }
-    
-    // Calculate quality based on frame time
-    currentQuality = Math.min(1, timeSinceLastFrame / targetFrameTime);
     
     // Store current frame time
     lastFrameTime = now;
+
+    // Update canvas
+    canvas.update();
 
     const { focusYear, granularity, pixelsPerSubtick, offsetPx } = timelineState;
     const containerRect = container.getBoundingClientRect();
@@ -594,7 +836,7 @@ function renderTimeline() {
     const { ages, periods } = findVisibleAgesAndPeriods(centerX, centerYear);
 
     // Find the closest note to center
-    const closestNote = findClosestNote(centerX);
+    //const closestNote = findClosestNote(centerX);
     
     // Update the main content based on center position
     updateMainContent(centerX, centerYear);
@@ -609,6 +851,30 @@ function renderTimeline() {
 
     // Track rendered items count
     let renderedItemCount = 0;
+    
+    // Calculate uniform box width once for performance optimization
+    let uniformBoxWidth = null;
+    function getUniformBoxWidth() {
+        if (uniformBoxWidth === null) {
+            // Create a temporary box to measure width
+            const testBox = document.createElement('div');
+            testBox.className = 'timeline-item-box';
+            testBox.style.position = 'absolute';
+            testBox.style.left = '0px';
+            testBox.style.top = '0px';
+            testBox.style.visibility = 'hidden';
+            
+            // Add minimal content to get realistic width
+            const testSpan = document.createElement('span');
+            testSpan.textContent = 'Test';
+            testBox.appendChild(testSpan);
+            
+            timeline.appendChild(testBox);
+            uniformBoxWidth = testBox.offsetWidth;
+            timeline.removeChild(testBox);
+        }
+        return uniformBoxWidth;
+    }
 
     // Find all items that overlap with the current center position
     const overlappingItems = visibleItems.filter(item => {
@@ -701,47 +967,6 @@ function renderTimeline() {
     const existingPeriodItems = container.querySelectorAll('.timeline-period-item');
     existingPeriodItems.forEach(item => item.remove());
 
-    // Render ticks with quality-based detail
-    const tickInterval = Math.max(1, Math.floor(1 / currentQuality)); // Adjust tick density based on quality
-    for (let i = startSubtick; i <= endSubtick; i += tickInterval) {
-        const year = i / granularity;
-        const x = centerX + (year - focusYear) * pixelsPerSubtick * granularity + offsetPx;
-        const isFullYear = i % granularity === 0;
-        
-        // Always render full year ticks
-        if (isFullYear) {
-            const el = document.createElement("div");
-            el.className = "tick fullyear";
-            el.style.left = `${x}px`;
-            el.style.position = 'absolute';
-            const label = document.createElement("div");
-            label.className = "tick-fullyear";
-            label.innerText = year;
-            el.appendChild(label);
-            timeline.appendChild(el);
-        } 
-        // Only render subtick labels if quality is high enough
-        else if (currentQuality > 0.5) {
-            const el = document.createElement("div");
-            el.className = "tick subtick";
-            el.style.left = `${x}px`;
-            el.style.position = 'absolute';
-            const label = document.createElement("div");
-            label.className = "tick-subyear";
-            label.innerText = getNumberLineLabel(year, granularity);
-            el.appendChild(label);
-            timeline.appendChild(el);
-        }
-        // For low quality, just render the tick without label
-        else {
-            const el = document.createElement("div");
-            el.className = "tick subtick";
-            el.style.left = `${x}px`;
-            el.style.position = 'absolute';
-            timeline.appendChild(el);
-        }
-    }
-
     // Track positions of items for stacking
     const itemPositions = new Map(); // For regular items
     const periodPositions = []; // For period items
@@ -785,12 +1010,6 @@ function renderTimeline() {
                 if (item.color) {
                     ageItem.style.backgroundColor = item.color;
                 }
-                
-                // Add hover bubble to document body instead of age item
-                const hoverBubble = document.createElement('div');
-                hoverBubble.className = 'age-hover-bubble';
-                hoverBubble.textContent = item.title;
-                document.body.appendChild(hoverBubble);
 
                 // Add mousemove event listener to update bubble position
                 ageItem.addEventListener('mousemove', (e) => {
@@ -890,12 +1109,6 @@ function renderTimeline() {
                 periodItem.setAttribute('data-year', item.year);
                 periodItem.setAttribute('data-end-year', item.end_year);
                 periodItem.setAttribute('data-ystack', stackLevel);
-                
-                // Add hover bubble to document body instead of period item
-                const periodHoverBubble = document.createElement('div');
-                periodHoverBubble.className = 'period-hover-bubble';
-                periodHoverBubble.textContent = item.title;
-                document.body.appendChild(periodHoverBubble);
 
                 // Add mousemove event listener to update bubble position
                 periodItem.addEventListener('mousemove', (e) => {
@@ -1070,54 +1283,21 @@ function renderTimeline() {
                     boxTop = y - verticalOffset;
                 }
 
-                const boxWidth = 150;
                 const isRightOfCenter = itemX >= centerX;
-                const leftMargin = 10; // px, for left side
-                const rightMargin = 10; // px, for right side
+                const connectionMargin = 10; // px, consistent distance from timeline line
                 let boxLeft;
                 if (isRightOfCenter) {
-                    // Box's right edge is at itemX - rightMargin
-                    boxLeft = itemX - rightMargin;
+                    // Box's left edge starts at a fixed distance from the timeline line
+                    boxLeft = itemX + connectionMargin;
                 } else {
-                    // Box's left edge is at itemX + leftMargin
-                    boxLeft = itemX + leftMargin - boxWidth;
+                    // Box's right edge ends at a fixed distance from the timeline line
+                    // We'll calculate this dynamically based on actual box width after creation
+                    boxLeft = itemX - connectionMargin;
                 }
-
-                // Create the line (always vertical at itemX)
-                const line = document.createElement('div');
-                line.className = 'timeline-item-line';
-                line.style.position = 'absolute';
-                line.style.left = `${itemX}px`;
-                // Give the line a unique id for linking
-                const lineId = `timeline-line-${idx}`;
-                line.setAttribute('data-line-id', lineId);
-                line.id = lineId;
-
-                if (isAbove) {
-                    if (item.type === 'picture') {
-                        line.style.top = `${timelineY - 70}px`; // Start 70px above timeline
-                        line.style.height = '70px';
-                        boxTop = timelineY - 70 - 100; // Position box above the stem
-                    } else {
-                        line.style.top = `${boxTop + itemBoxHeight}px`;
-                        line.style.height = `${timelineY - (boxTop + itemBoxHeight)}px`;
-                    }
-                } else {
-                    if (item.type === 'picture') {
-                        line.style.top = `${timelineY}px`;
-                        line.style.height = '70px';
-                        boxTop = timelineY + 70; // Position box below the stem
-                    } else {
-                        line.style.top = `${timelineY}px`;
-                        line.style.height = `${boxTop - timelineY}px`;
-                    }
-                }
-                timeline.appendChild(line);
 
                 // Create the box
                 const box = document.createElement('div');
-                
-                
+
                 if (item.type.toLowerCase() === 'picture' || (item.pictures && item.pictures.length > 0 && item.type.toLowerCase() !== 'note' && item.type.toLowerCase() !== 'event')) {
                     box.className = 'timeline-picture-box' + (isAbove ? ' above' : ' below');
                     const img = document.createElement('img');
@@ -1129,6 +1309,21 @@ function renderTimeline() {
                     box.style.top = isAbove ? `${timelineY - 170}px` : `${timelineY + 70}px`; // Position above/below the stem
                 } else {
                     box.className = 'timeline-item-box' + (isAbove ? ' above' : ' below');
+
+                    let color = item.color;
+                    // TODO: HERE IS THE BOX SHADOW CODE
+                    if(color && color != 'transparent' && color.toLowerCase() != 'transparent' && color.toLowerCase() != 'none' && color.toLowerCase() != '#000000' && color.toLowerCase() != '#ffffff'){
+                        //alert(color);
+                        let boxColor = document.createElement('div');
+                        boxColor.className = 'timeline-item-box-color';
+                        boxColor.style.width = `5px`;
+                        boxColor.style.height = `100%`;
+                        boxColor.style.backgroundColor = color;
+                        boxColor.style.position = 'absolute';
+                        boxColor.style.left = `0px`;
+                        boxColor.style.top = `0px`;
+                        box.appendChild(boxColor);
+                    }
                     
                     if (item.type && item.type.toLowerCase() === 'note') {
                         // Add the calligraphic letter SVG
@@ -1164,12 +1359,27 @@ function renderTimeline() {
                     }
                     
                     box.style.position = 'absolute';
+                    
+                    // Use cached uniform box width for performance
+                    const actualBoxWidth = getUniformBoxWidth();
+                    
+                    // Calculate final position with 10% width adjustment towards timeline line
+                    const widthAdjustment = actualBoxWidth * 0.1;
+                    
+                    if (isRightOfCenter) {
+                        // Box's left edge starts at fixed distance, then move back 10% towards line
+                        boxLeft = itemX + connectionMargin - widthAdjustment;
+                    } else {
+                        // Box's right edge ends at fixed distance, then move back 10% towards line
+                        boxLeft = itemX - connectionMargin - actualBoxWidth + widthAdjustment;
+                    }
+                    
                     box.style.left = `${boxLeft}px`;
                     box.style.top = `${boxTop}px`;
                 }
                 box.setAttribute('data-id', item.id || item['story-id'] || idx);
                 box.setAttribute('data-year', `${itemYear}.${itemSubtick.toString().padStart(2, '0')}`);
-                box.setAttribute('data-line-id', lineId);
+                //box.setAttribute('data-line-id', lineId);
                 box.setAttribute('data-type', item.type); // Add type for debugging
 
                 // Add click handler
@@ -1187,8 +1397,8 @@ function renderTimeline() {
                 // Highlight on hover
                 box.addEventListener('mouseenter', function() {
                     box.classList.add('highlighted');
-                    const lineElem = document.getElementById(lineId);
-                    if (lineElem) lineElem.classList.add('highlighted-line');
+                    //const lineElem = document.getElementById(lineId);
+                    //if (lineElem) lineElem.classList.add('highlighted-line');
                     
                     if (globalHoverBubble) {
                         // Get the year and subtick from the data attributes
@@ -1204,15 +1414,18 @@ function renderTimeline() {
                         globalHoverBubble.style.top = `${boxRect.top - 25}px`;
                         globalHoverBubble.style.opacity = '1';
                     }
+                    // Update canvas to show highlight
+                    canvas.update();
                 });
                 box.addEventListener('mouseleave', function() {
                     box.classList.remove('highlighted');
-                    const lineElem = document.getElementById(lineId);
-                    if (lineElem) lineElem.classList.remove('highlighted-line');
+                    //const lineElem = document.getElementById(lineId);
+                    //if (lineElem) lineElem.classList.remove('highlighted-line');
                     
                     if (globalHoverBubble) {
                         globalHoverBubble.style.opacity = '0';
                     }
+                    canvas.update();
                 });
                 timeline.appendChild(box);
                 itemBoxes.push(box);
@@ -1531,6 +1744,22 @@ function checkAndCorrectEndBoundary() {
 
 function middleMouseScrollStep() {
     if (!isMiddleMouseDragging) return;
+
+    // Set quality control state
+    isScrolling = true;
+    currentQuality = 0.5; // Set stable quality during navigation
+    
+    // Clear any existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+    
+    // Set timeout to detect when navigation ends
+    scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+        currentQuality = 1.0; // Reset to full quality
+    }, 150); // 150ms debounce
+
     const dx = middleMouseCurrentX - middleMouseStartX;
     // Speed factor: px per second, scaled down for smoothness
     const speed = dx * -5; // adjust 0.5 for desired sensitivity
@@ -1697,16 +1926,32 @@ container.addEventListener("wheel", (event) => {
  * @param {number} year - Year to jump to
  * 
  * How it works:
- * 1. Checks if target is before start marker
- * 2. Updates focus year
- * 3. Resets offset
- * 4. Re-renders timeline
+ * 1. Set quality control state
+ * 2. Clear any existing timeout
+ * 3. Set timeout to detect when navigation ends
+ * 4. Check if there's a start marker and if target is before it
+ * 5. Updates focus year
+ * 6. Resets offset
+ * 7. Re-renders timeline
  * 
  * Possible errors:
  * - Invalid year
  * - Render failure
  */
 function jumpToYear(year) {
+    // Set quality control state
+    isScrolling = true;
+    currentQuality = 0.1; // Start with very low quality for initial jump
+    
+    // Clear any existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+
+    scrollTimeout = setTimeout(() => {
+        currentQuality = 1; // Reset to full quality
+    }, 500);
+
     // Check if there's a start marker and if target is before it
     if (timelineMarkers.start) {
         const startYear = timelineMarkers.start.year;
@@ -1741,10 +1986,21 @@ function jumpToYear(year) {
     timelineState.focusYear = year;
     timelineState.offsetPx = 0;
 
-    // Request animation frame for smooth rendering
-    requestAnimationFrame(() => {
-        renderTimeline();
-    });
+    // Progressive rendering sequence
+    let qualitySteps = [0.2, 0.4, 0.6, 0.8, 1.0];
+    let currentStep = 0;
+
+    function renderStep() {
+        if (currentStep < qualitySteps.length) {
+            currentQuality = qualitySteps[currentStep];
+            renderTimeline();
+            currentStep++;
+            requestAnimationFrame(renderStep);
+        }
+    }
+
+    // Start progressive rendering
+    requestAnimationFrame(renderStep);
 }
 
 /**
@@ -1752,14 +2008,32 @@ function jumpToYear(year) {
  * @param {number} years - Number of years to scroll
  * 
  * How it works:
- * 1. Updates offset
- * 2. Re-renders timeline
+ * 1. Set quality control state
+ * 2. Clear any existing timeout
+ * 3. Set timeout to detect when navigation ends
+ * 4. Updates offset
+ * 5. Re-renders timeline
  * 
  * Possible errors:
  * - Invalid years value
  * - Render failure
  */
 function scrollBy(years) {
+    // Set quality control state
+    isScrolling = true;
+    currentQuality = 0.5; // Set stable quality during navigation
+    
+    // Clear any existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+    
+    // Set timeout to detect when navigation ends
+    scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+        currentQuality = 1.0; // Reset to full quality
+    }, 150); // 150ms debounce
+
     timelineState.offsetPx -= years * timelineState.granularity * timelineState.pixelsPerSubtick;
     renderTimeline();
 }
@@ -1781,7 +2055,7 @@ function scrollBy(years) {
  * - Invalid settings
  * - Render failure
  */
-function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 10 }) {
+function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 10, displayRadius = 10 }) {
     // Assign stable indices to regular items
     let regularItemIndex = 0;
     items.forEach(item => {
@@ -1795,7 +2069,7 @@ function setInitialSettings({ focusYear, granularity, items, pixelsPerSubtick = 
     timelineState.items = items;
     timelineState.pixelsPerSubtick = pixelsPerSubtick;
     timelineState.offsetPx = 0;
-
+    timelineState.displayRadius = displayRadius;
     // Step 1: Check for timeline markers when timeline loads
     checkTimelineMarkers();
     
@@ -1866,11 +2140,12 @@ container.addEventListener('mouseout', (e) => {
         img.style.transform = '';
     });
 });
-
+/*
 function findClosestNote(centerX) {
     // Get all note items
     const noteItems = timelineState.items.filter(item => 
-        item && item.type && item.type.toLowerCase() === 'note'
+        //item && item.type && item.type.toLowerCase() === 'note'
+        item && item.show_in_notes == 1
     );
 
     if (noteItems.length === 0) {
@@ -1891,8 +2166,12 @@ function findClosestNote(centerX) {
         }
     });
 
+    if(!noteRadius){
+        var noteRadius = 10;
+    }
+
     // Only return the note if it's within 10px
-    if (closestDistance <= 10) {
+    if (closestDistance <= noteRadius) {
         return closestNote;
     } else {
         return null;
@@ -1931,7 +2210,7 @@ function findClosestItem(centerX) {
     }
     return null;
 }
-
+*/
 function findVisibleAgesAndPeriods(centerX, centerYear) {
     // Get all items that could be visible
     const visibleItems = timelineState.items.filter(item => {
@@ -2251,8 +2530,11 @@ function setTimelineStart() {
             const validYear = endYear - 1;
             const validSubtick = 0;
             
-            // Show error message
-            alert(`Timeline start must be before the end marker. The latest valid position is ${validYear}.${validSubtick}`);
+            if (window.showError) {
+                window.showError(`Timeline start must be before the end marker. The latest valid position is ${validYear}.${validSubtick}`);
+            } else {
+                console.error(`Timeline start must be before the end marker. The latest valid position is ${validYear}.${validSubtick}`);
+            }
             return;
         }
     }
@@ -2339,8 +2621,11 @@ function setTimelineEnd() {
             const validYear = startYear + 1;
             const validSubtick = 0;
             
-            // Show error message
-            alert(`Timeline end must be after the start marker. The earliest valid position is ${validYear}.${validSubtick}`);
+            if (window.showError) {
+                window.showError(`Timeline end must be after the start marker. The earliest valid position is ${validYear}.${validSubtick}`);
+            } else {
+                console.error(`Timeline end must be after the start marker. The earliest valid position is ${validYear}.${validSubtick}`);
+            }
             return;
         }
     }
@@ -2395,11 +2680,15 @@ window.api.receive('all-items', (items) => {
  * - Invalid input
  * - Render failure
  */
-function jumpToDate() {
-    const input = document.getElementById('jump-to-date');
-    const value = parseFloat(input.value);
-    
-    if (isNaN(value)) return;
+function jumpToDate(i_year = null, i_subtick = null) {
+    const floatYear = i_year + (i_subtick / timelineState.granularity);
+    let value = 0;
+    if(!i_year) {
+        const input = document.getElementById('jump-to-date');
+        value = parseFloat(input.value);
+    } else {
+        value = floatYear;
+    }
     
     let year = Math.floor(value);
     let subtick = Math.round((value - year) * timelineState.granularity);
@@ -2418,6 +2707,8 @@ function jumpToDate() {
             year = startYear;
             subtick = startSubtick;
             // Update input value to show the actual position
+            input = document.getElementById('jump-to-date');
+            if(!input) return;
             input.value = `${year}.${subtick.toString().padStart(2, '0')}`;
         }
     }
@@ -2725,4 +3016,36 @@ window.api.receive('recalculate-period-stacks', () => {
     computePeriodStackLevels();
     renderTimeline();
 });
+
+// Add scroll event handler to track scrolling state
+container.addEventListener('wheel', () => {
+    isScrolling = true;
+    currentQuality = 0.2; // Set stable quality during scroll
+    
+    // Clear any existing timeout
+    if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+    }
+    
+    // Set timeout to detect when scrolling ends
+    scrollTimeout = setTimeout(() => {
+        isScrolling = false;
+        currentQuality = 1.0; // Reset to full quality
+    }, 150); // 150ms debounce
+});
+
+/**
+ * Checks if any timeline items are currently hovered and updates the global hover bubble visibility
+ */
+function checkHoveredItems() {
+    const hoveredItems = document.querySelectorAll('.timeline-item-box:hover, .timeline-age-item:hover, .timeline-period-item:hover');
+    if (globalHoverBubble) {
+        if (hoveredItems.length === 0) {
+            globalHoverBubble.style.opacity = '0';
+        }
+    }
+}
+
+// Set up periodic check for hovered items
+setInterval(checkHoveredItems, 500);
 

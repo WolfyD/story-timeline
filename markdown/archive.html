@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Archive</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/archive.css">
+    <link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css" type="text/css" />
+</head>
+<body>
+    <div class="archive-container">
+        <div class="archive-header">
+            <div class="archive-title">Archive</div>
+            <button class="close-button" id="archive-close">&times;</button>
+        </div>
+
+        <div class="archive-tabs">
+            <div class="archive-tab active" data-tab="items">Timeline Items</div>
+            <div class="archive-tab" data-tab="stories">Story References</div>
+            <div class="archive-tab" data-tab="media">Media Files</div>
+            <div class="archive-tab" data-tab="tags">Tags</div>
+            <div class="archive-tab separator"></div>
+            <div class="archive-tab" data-tab="characters">Characters</div>
+            <div class="archive-tab" data-tab="other">Misteries of the future 2</div>
+            
+        </div>
+
+        <!-- Timeline Items Tab -->
+        <div class="tab-content active" id="items-tab">
+            <div class="archive-filters">
+                <button class="archive-filter active" data-type="all">All <i class="ri-list-check"></i></button>
+                <button class="archive-filter" data-type="event">Events <i class="ri-calendar-event-fill"></i></button>
+                <button class="archive-filter" data-type="age">Ages <i class="ri-hourglass-fill"></i></button>
+                <button class="archive-filter" data-type="period">Periods <i class="ri-calendar-2-fill"></i></button>
+                <button class="archive-filter" data-type="bookmark">Bookmarks <i class="ri-bookmark-fill"></i></button>
+                <button class="archive-filter" data-type="picture">Pictures <i class="ri-image-fill"></i></button>
+                <button class="archive-filter" data-type="note">Notes <i class="ri-sticky-note-fill"></i></button>
+            </div>
+
+            <input type="text" class="archive-search" placeholder="Search items..." id="items-search">
+
+            <div class="archive-content" id="items-content">
+                <!-- Timeline items will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- Story References Tab -->
+        <div class="tab-content" id="stories-tab">
+            <input type="text" class="archive-search" placeholder="Search stories..." id="stories-search">
+
+            <div class="archive-content" id="stories-content">
+                <!-- Story references will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- Media Files Tab -->
+        <div class="tab-content" id="media-tab">
+            <input type="text" class="archive-search" placeholder="Search media..." id="media-search">
+
+            <div class="archive-content" id="media-content">
+                <!-- Media files will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- Tags Tab -->
+        <div class="tab-content" id="tags-tab">
+            <input type="text" class="archive-search" placeholder="Search tags..." id="tags-search">
+
+            <div class="archive-content" id="tags-content">
+                <!-- Tags will be dynamically added here -->
+            </div>
+        </div>
+
+        <!-- Characters Tab -->
+        <div class="tab-content" id="characters-tab">
+            <input type="text" class="archive-search" placeholder="Search characters..." id="characters-search">
+
+            <div class="archive-content" id="characters-content">
+                <!-- Characters will be dynamically added here -->  
+                <div class="placeholder">Coming soon...<br /> &gt;.&lt;&apos;</div>
+            </div>
+        </div>
+        
+
+    </div>
+
+    <div id="archive-modal" class="modal hidden">
+        <div class="modal-content" id="modal-content"></div>
+        <button class="modal-close" id="modal-close">&times;</button>
+    </div>
+
+    <script src="../archive.js"></script>
+</body>
+</html> 

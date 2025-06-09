@@ -1,5 +1,8 @@
+/* Import the unified design system */
+@import url('design-system.css');
+
 body {
-    background-color: #f5e6d4;
+    background: var(--color-bg-primary);
     color: #4b2e2e;
     font-family: var(--default-font), "Times New Roman", serif;
     padding: 20px;
@@ -50,21 +53,166 @@ textarea {
 
 .image-preview {
     position: relative;
-    width: 100%;
-    height: auto;
-    border: 2px solid #4b2e2e;
-    border-radius: 4px;
+    background: #f9f9f9;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    margin-bottom: 10px;
     overflow: hidden;
 }
 
 .image-preview img {
     width: 100%;
-    height: auto;
-    display: block;
-    object-fit: contain;
+    height: 200px;
+    object-fit: cover;
+    transition: transform 1s ease;
 }
 
-.image-preview .remove-image {
+.image-preview img:hover {
+    transform: scale(1.05);
+    object-fit: contain;
+    transition: transform 1s ease;
+}
+
+/* Description icon overlay */
+.image-description-icon {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    width: 24px;
+    height: 24px;
+    background: rgba(75, 46, 46, 0.9);
+    color: #f5e6d4;
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    z-index: 2;
+    transition: all 0.2s ease;
+    opacity: 0.8;
+}
+
+.image-description-icon:hover {
+    opacity: 1;
+    background: rgba(93, 58, 58, 0.95);
+    transform: scale(1.1);
+}
+
+.image-description-icon.has-description {
+    background: rgba(40, 167, 69, 0.9);
+}
+
+.image-description-icon.has-description:hover {
+    background: rgba(34, 139, 58, 0.95);
+}
+
+/* Description editor area */
+.image-description-editor {
+    display: none;
+    background: #fff;
+    border-top: 1px solid #ddd;
+    padding: 10px;
+}
+
+.image-description-editor.visible {
+    display: block;
+}
+
+.image-description-editor textarea {
+    width: 100%;
+    min-height: 60px;
+    padding: 8px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 13px;
+    font-family: inherit;
+    resize: vertical;
+    box-sizing: border-box;
+}
+
+.image-description-editor textarea:focus {
+    outline: none;
+    border-color: #4b2e2e;
+    box-shadow: 0 0 0 2px rgba(75, 46, 46, 0.2);
+}
+
+.image-description-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.btn-description-save,
+.btn-description-cancel {
+    padding: 4px 12px;
+    border: none;
+    border-radius: 3px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.btn-description-save {
+    background: #4b2e2e;
+    color: #f5e6d4;
+}
+
+.btn-description-save:hover {
+    background: #5d3a3a;
+}
+
+.btn-description-cancel {
+    background: #6c757d;
+    color: white;
+}
+
+.btn-description-cancel:hover {
+    background: #5a6268;
+}
+
+.image-preview-info {
+    padding: 8px;
+    background: #fff;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.image-preview-name {
+    font-size: 13px;
+    color: #333;
+    font-weight: 500;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.image-status {
+    font-size: 10px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-weight: bold;
+    margin-left: 8px;
+}
+
+.image-status.new {
+    background: #28a745;
+    color: white;
+}
+
+.image-status.existing {
+    background: #17a2b8;
+    color: white;
+}
+
+.remove-image {
     position: absolute;
     top: 5px;
     right: 5px;
@@ -78,6 +226,12 @@ textarea {
     display: flex;
     align-items: center;
     justify-content: center;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+.remove-image:hover {
+    background: rgba(75, 46, 46, 1);
 }
 
 .add-image-btn {
@@ -333,5 +487,101 @@ button[type="submit"]:hover {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
+#showInNotes {
+    height: 28px;
+    width: 28px;
+    filter: hue-rotate(200deg);
+}
 
+/* Image Options Modal */
+.image-options-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.6);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.image-options-content {
+    background: #f5e6d4;
+    padding: 30px;
+    border-radius: 8px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    text-align: center;
+    min-width: 350px;
+}
+
+.image-options-content h3 {
+    margin: 0 0 20px 0;
+    color: #4b2e2e;
+    font-size: 20px;
+}
+
+.image-options {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.image-option-btn {
+    flex: 1;
+    padding: 20px 15px;
+    background: #fff;
+    border: 2px solid #4b2e2e;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.image-option-btn:hover {
+    background: #4b2e2e;
+    color: #f5e6d4;
+}
+
+.image-option-btn i {
+    font-size: 24px;
+    margin-bottom: 5px;
+}
+
+.image-option-btn span {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.image-option-btn small {
+    font-size: 12px;
+    opacity: 0.8;
+}
+
+.cancel-btn {
+    padding: 8px 20px;
+    background: #6c757d;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.cancel-btn:hover {
+    background: #5a6268;
+}
+
+/* Icon fallbacks for when icon fonts aren't available */
+.icon-upload::before {
+    content: "📁";
+}
+
+.icon-library::before {
+    content: "🖼️";
+}
 

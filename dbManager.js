@@ -82,7 +82,6 @@ class DatabaseManager {
         // Initialize currentTimelineId with the first timeline
         const firstTimeline = this.db.prepare('SELECT id FROM timelines ORDER BY id ASC LIMIT 1').get();
         this.currentTimelineId = firstTimeline ? firstTimeline.id : null;
-        console.log('[dbManager.js] Initialized current timeline ID to:', this.currentTimelineId);
     }
 
     initializeTables() {
@@ -98,9 +97,16 @@ class DatabaseManager {
             WHERE type='table' AND name='timelines'
         `).get();
 
+        // Check if item_pictures table exists
+        const itemPicturesExists = this.db.prepare(`
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='item_pictures'
+        `).get();
+
         // If no universe_data and timelines exists, DB is already initialized
-        if (!universeDataExists && timelinesExists) {
-            console.log('Database already initialized, skipping initialization');
+        if (!universeDataExists && timelinesExists && !itemPicturesExists) {
+            // But still ensure new tables exist
+            this.ensureNewTables();
             return;
         }
 
@@ -128,11 +134,7 @@ class DatabaseManager {
                 font_size_scale REAL DEFAULT 1.0,
                 pixels_per_subtick INTEGER DEFAULT 20,
                 custom_css TEXT,
-                custom_main_css TEXT,
-                custom_items_css TEXT,
-                use_timeline_css INTEGER DEFAULT 0,
-                use_main_css INTEGER DEFAULT 0,
-                use_items_css INTEGER DEFAULT 0,
+                use_custom_css INTEGER DEFAULT 0,
                 is_fullscreen INTEGER DEFAULT 0,
                 show_guides INTEGER DEFAULT 1,
                 window_size_x INTEGER DEFAULT 1000,
@@ -141,6 +143,7 @@ class DatabaseManager {
                 window_position_y INTEGER DEFAULT 100,
                 use_custom_scaling INTEGER DEFAULT 0,
                 custom_scale REAL DEFAULT 1.0,
+                display_radius INTEGER DEFAULT 10,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
             )
@@ -215,6 +218,7 @@ class DatabaseManager {
                 creation_granularity INTEGER,
                 timeline_id INTEGER,
                 item_index INTEGER DEFAULT 0,
+                show_in_notes INTEGER DEFAULT 1,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (story_id) REFERENCES stories(id),
@@ -262,6 +266,9 @@ class DatabaseManager {
             )
         `);
 
+        // Ensure new tables are created
+        this.ensureNewTables();
+
         // Notes table
         this.db.exec(`
             CREATE TABLE IF NOT EXISTS notes (
@@ -302,6 +309,9 @@ class DatabaseManager {
             if (!columnExists('items', 'item_index')) {
                 this.db.exec('ALTER TABLE items ADD COLUMN item_index INTEGER DEFAULT 0');
             }
+            if (!columnExists('items', 'show_in_notes')) {
+                this.db.exec('ALTER TABLE items ADD COLUMN show_in_notes INTEGER DEFAULT 1');
+            }
 
             // Add columns to pictures table
             const pictureColumns = [
@@ -328,6 +338,26 @@ class DatabaseManager {
         }
     }
 
+    // Ensure new tables that might not exist in older databases are created
+    ensureNewTables() {
+        console.log('[dbManager.js] Ensuring new tables exist...');
+        
+        // Item-Pictures junction table (for image reuse functionality)
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS item_pictures (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id TEXT NOT NULL,
+                picture_id INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+                FOREIGN KEY (picture_id) REFERENCES pictures(id) ON DELETE CASCADE,
+                UNIQUE(item_id, picture_id)
+            )
+        `);
+
+        console.log('[dbManager.js] New tables ensured');
+    }
+
     // Helper method to check and add missing columns
     ensureTableColumns(tableName, requiredColumns) {
         // Get current columns
@@ -345,85 +375,290 @@ class DatabaseManager {
     }
 
     async migrateDatabase() {
+        console.log('--> [dbManager.js] Migrating database...');
+
+        // Check and add show_in_notes column to items table if it doesn't exist
+        this.ensureTableColumns('items', [
+            {
+                name: 'show_in_notes',
+                type: 'INTEGER',
+                default: 1
+            }
+        ]);
+
+        // Check and add importance column to items table if it doesn't exist
+        this.ensureTableColumns('items', [
+            {
+                name: 'importance',
+                type: 'INTEGER',
+                default: 5
+            }
+        ]);
+
+        // Check and add display_radius column to settings table if it doesn't exist
+        this.ensureTableColumns('settings', [
+            {
+                name: 'display_radius',
+                type: 'INTEGER',
+                default: 10
+            }
+        ]);
+
+        // Migrate CSS columns to consolidate them
+        await this.migrateCSSColumns();
+        
+        // Check if the pictures has item_id column by querying the sqlite_master table
+        const hasItemIdColumn = this.db.prepare(`
+            SELECT COUNT(*) as count FROM sqlite_master WHERE type='table' AND name='pictures' AND sql LIKE '%item_id%'
+        `).get();
+        
+        if (hasItemIdColumn.count === 0) {
+            console.log('[dbManager.js] Pictures table has no item_id column, skipping migration');
+            return;
+        }
+        
+        // Migrate to new picture reference system
+        await this.migratePictureReferences();
+    }
+
+    async migrateCSSColumns() {
+        console.log('--> [dbManager.js] Migrating CSS columns...');
+
+        // Check if we need to migrate (if the old columns still exist)
+        const columns = this.db.prepare(`PRAGMA table_info(settings)`).all();
+        const columnNames = columns.map(col => col.name);
+        
+        const hasOldColumns = columnNames.includes('custom_main_css') || columnNames.includes('custom_items_css') ||
+                             columnNames.includes('use_main_css') || columnNames.includes('use_items_css');
+
+        if (!hasOldColumns) {
+            console.log('[dbManager.js] CSS columns already migrated, skipping...');
+            return;
+        }
+
         try {
-            // Start a transaction
             this.db.prepare('BEGIN').run();
 
-            // Check if universe_data table exists
-            const tableExists = this.db.prepare(`
-                SELECT name FROM sqlite_master 
-                WHERE type='table' AND name='universe_data'
-            `).get();
+            // Get all existing settings with their CSS data
+            const existingSettings = this.db.prepare(`
+                SELECT id, timeline_id,
+                       COALESCE(custom_css, '') as custom_css,
+                       COALESCE(custom_main_css, '') as custom_main_css,
+                       COALESCE(custom_items_css, '') as custom_items_css,
+                       COALESCE(use_timeline_css, 0) as use_timeline_css,
+                       COALESCE(use_main_css, 0) as use_main_css,
+                       COALESCE(use_items_css, 0) as use_items_css
+                FROM settings
+            `).all();
 
-            if (tableExists) {
-                console.log('Found universe_data table, starting migration...');
+            console.log(`[dbManager.js] Found ${existingSettings.length} settings records to migrate`);
+
+            // Consolidate CSS for each settings record
+            for (const setting of existingSettings) {
+                // Combine all CSS sections that have content
+                const cssComponents = [];
                 
-                // Get the current universe data
-                const universeData = this.db.prepare('SELECT * FROM universe_data ORDER BY id DESC LIMIT 1').get();
-                
-                if (universeData) {
-                    // Create a new timeline with the universe data
-                    const insertStmt = this.db.prepare(`
-                        INSERT INTO timelines (
-                            title, author, description, start_year, granularity, created_at, updated_at
-                        ) VALUES (
-                            @title, @author, @description, @start_year, @granularity, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
-                        )
-                    `);
-
-                    insertStmt.run({
-                        title: universeData.title || 'Untitled Timeline',
-                        author: universeData.author || '',
-                        description: universeData.description || '',
-                        start_year: universeData.start_year || 0,
-                        granularity: universeData.granularity || 4
-                    });
-
-                    const timelineId = this.db.prepare('SELECT id FROM timelines ORDER BY id DESC LIMIT 1').get().id;
-
-                    // Update items with timeline_id and default type_id
-                    const itemStmt = this.db.prepare(`
-                        UPDATE items 
-                        SET timeline_id = @timeline_id,
-                            type_id = CASE 
-                                WHEN type_id IS NULL THEN 1 
-                                ELSE type_id 
-                            END
-                        WHERE timeline_id IS NULL
-                    `);
-
-                    itemStmt.run({ timeline_id: timelineId });
-
-                    // Update settings with timeline_id
-                    const settingsStmt = this.db.prepare(`
-                        UPDATE settings 
-                        SET timeline_id = @timeline_id 
-                        WHERE timeline_id IS NULL
-                    `);
-
-                    settingsStmt.run({ timeline_id: timelineId });
-                    console.log('Updated settings with timeline_id');
-
-                    // Migrate pictures from base64 to files
-                    await this.migratePictures(true);
+                if (setting.custom_css && setting.custom_css.trim()) {
+                    cssComponents.push(setting.custom_css.trim());
+                }
+                if (setting.custom_main_css && setting.custom_main_css.trim()) {
+                    cssComponents.push('/* Main CSS */\n' + setting.custom_main_css.trim());
+                }
+                if (setting.custom_items_css && setting.custom_items_css.trim()) {
+                    cssComponents.push('/* Items CSS */\n' + setting.custom_items_css.trim());
                 }
 
-                // Drop the universe_data table
-                this.db.prepare('DROP TABLE IF EXISTS universe_data').run();
-                console.log('Migration completed successfully');
+                // Join with double newlines for separation
+                const consolidatedCSS = cssComponents.join('\n\n');
+
+                // Determine if any custom CSS should be enabled
+                const useCustomCSS = setting.use_timeline_css || setting.use_main_css || setting.use_items_css ? 1 : 0;
+
+                // Update the record with consolidated data
+                this.db.prepare(`
+                    UPDATE settings 
+                    SET custom_css = ?,
+                        use_timeline_css = ?
+                    WHERE id = ?
+                `).run(consolidatedCSS, useCustomCSS, setting.id);
+
+                console.log(`[dbManager.js] Migrated CSS for settings ID ${setting.id} (${consolidatedCSS.length} chars, enabled: ${useCustomCSS})`);
             }
 
-            // Reindex items within the same transaction
-            this.reindexItems(true);
+            // Now remove the old columns by recreating the table
+            console.log('[dbManager.js] Removing old CSS columns...');
 
-            // Commit the transaction
+            // Create new settings table with consolidated schema
+            this.db.prepare(`CREATE TABLE IF NOT EXISTS settings_new (
+                id INTEGER PRIMARY KEY,
+                timeline_id INTEGER,
+                font TEXT DEFAULT 'Arial',
+                font_size_scale REAL DEFAULT 1.0,
+                pixels_per_subtick INTEGER DEFAULT 20,
+                custom_css TEXT,
+                use_custom_css INTEGER DEFAULT 0,
+                is_fullscreen INTEGER DEFAULT 0,
+                show_guides INTEGER DEFAULT 1,
+                window_size_x INTEGER DEFAULT 1000,
+                window_size_y INTEGER DEFAULT 700,
+                window_position_x INTEGER DEFAULT 300,
+                window_position_y INTEGER DEFAULT 100,
+                use_custom_scaling INTEGER DEFAULT 0,
+                custom_scale REAL DEFAULT 1.0,
+                display_radius INTEGER DEFAULT 10,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
+            )`).run();
+
+            // Copy data to new table (renaming use_timeline_css to use_custom_css)
+            this.db.prepare(`INSERT INTO settings_new (
+                id, timeline_id, font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
+                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                use_custom_scaling, custom_scale, display_radius, updated_at
+            ) SELECT 
+                id, timeline_id, font, font_size_scale, pixels_per_subtick, custom_css, use_timeline_css,
+                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                use_custom_scaling, custom_scale, display_radius, updated_at
+            FROM settings`).run();
+
+            // Drop old table and rename new one
+            this.db.prepare('DROP TABLE settings').run();
+            this.db.prepare('ALTER TABLE settings_new RENAME TO settings').run();
+
             this.db.prepare('COMMIT').run();
+            console.log('[dbManager.js] CSS columns migration completed successfully');
+
         } catch (error) {
-            // Rollback on error
             this.db.prepare('ROLLBACK').run();
-            console.error('Error during database migration:', error);
+            console.error('[dbManager.js] Error migrating CSS columns:', error);
             throw error;
         }
+    }
+
+    async migratePictureReferences() {
+        console.log('--> [dbManager.js] Migrating picture references...');
+
+        // Check if migration is needed by checking if the pictures table has item_id
+        const hasItemPicturesTable = this.db.prepare(`
+            SELECT COUNT(*) as count FROM pictures WHERE item_id IS NOT NULL
+        `).get();
+
+        if (hasItemPicturesTable.count === 0) {
+            return;
+        }
+
+        console.log('[dbManager.js] Migrating picture references...');
+
+        try {
+            this.db.prepare('BEGIN').run();
+
+            // Get all existing pictures with item_id
+            const existingPictures = this.db.prepare(`
+                SELECT id, item_id FROM pictures WHERE item_id IS NOT NULL
+            `).all();
+
+            console.log(`[dbManager.js] Found ${existingPictures.length} pictures with item_id`);
+
+            // ---------------------------------------- Removing old columns from pictures table
+
+            console.log('--> [dbManager.js] Cleaning up orphaned images...');
+            // Clean up orphaned images
+            this.cleanupOrphanedImages();
+
+            console.log('--> [dbManager.js] Migrating pictures table...');
+
+            //this.db.prepare('BEGIN').run();
+               
+            // Create new pictures table
+            this.db.prepare(`CREATE TABLE IF NOT EXISTS pictures_new (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                file_path TEXT,
+                file_name TEXT,
+                file_size INTEGER,
+                file_type TEXT,
+                width INTEGER,
+                height INTEGER,
+                title TEXT,
+                description TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )`).run();
+
+            // Clean up old columns from pictures table
+            console.log('[dbManager.js] Removing old columns from pictures table...');
+
+
+            // Copy data to new table
+            this.db.prepare(`INSERT INTO pictures_new (id, file_path, file_name, file_size, file_type, width, height, title, description) SELECT id, file_path, file_name, file_size, file_type, width, height, title, description FROM pictures`).run();
+
+            // Drop old table
+            this.db.prepare('DROP TABLE pictures').run();
+
+            // Rename new table to old table name
+            this.db.prepare('ALTER TABLE pictures_new RENAME TO pictures').run();
+
+
+            // ---------------------------------------- Creating references in the junction table
+
+            // Create references in the junction table
+            const insertRefStmt = this.db.prepare(`
+                INSERT OR IGNORE INTO item_pictures (item_id, picture_id)
+                VALUES (?, ?)
+            `);
+
+            for (const pic of existingPictures) {
+                console.log(`[dbManager.js] Migrating picture ${pic.id} to item ${pic.item_id}`);
+                insertRefStmt.run(pic.item_id, pic.id);
+            }
+
+            console.log(`[dbManager.js] Migrated ${existingPictures.length} picture references`);
+
+            this.db.prepare('COMMIT').run();
+
+
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('Error migrating picture references:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Clean up orphaned images
+     * This function is called after the migration of the pictures table.
+     * It deletes images that are not referenced by any items.
+     * It also deletes the physical files of the images.
+     * @returns {number} The number of deleted images
+     */
+    cleanupOrphanedImages() {
+        const fs = require('fs');
+        
+        // Find images that are not referenced by any items
+        const orphanedImages = this.db.prepare(`
+            SELECT p.id, p.file_path, p.file_name
+            FROM pictures p
+            LEFT JOIN item_pictures ip ON p.id = ip.picture_id
+            WHERE ip.picture_id IS NULL AND p.item_id IS NULL
+        `).all();
+
+        let deletedCount = 0;
+        for (const image of orphanedImages) {
+            try {
+                // Delete from database
+                this.db.prepare('DELETE FROM pictures WHERE id = ?').run(image.id);
+                
+                // Delete physical file
+                if (image.file_path && fs.existsSync(image.file_path)) {
+                    fs.unlinkSync(image.file_path);
+                    console.log(`[dbManager.js] Cleaned up orphaned image: ${image.file_name}`);
+                }
+                deletedCount++;
+            } catch (error) {
+                console.error(`[dbManager.js] Failed to cleanup image ${image.file_name}:`, error);
+            }
+        }
+
+        console.log(`[dbManager.js] Cleaned up ${deletedCount} orphaned images`);
+        return deletedCount;
     }
 
     initializeDefaultData() {
@@ -438,11 +673,7 @@ class DatabaseManager {
                 font_size_scale: 1.0,
                 pixels_per_subtick: 20,
                 custom_css: '',
-                custom_main_css: '',
-                custom_items_css: '',
-                use_timeline_css: 0,
-                use_main_css: 0,
-                use_items_css: 0,
+                use_custom_css: 0,
                 is_fullscreen: 0,
                 show_guides: 1,
                 window_size_x: 1000,
@@ -455,13 +686,11 @@ class DatabaseManager {
 
             const insertStmt = this.db.prepare(`
                 INSERT INTO settings (
-                    id, font, font_size_scale, pixels_per_subtick, custom_css,
-                    custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                    id, font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
                     is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
                     use_custom_scaling, custom_scale
                 ) VALUES (
-                    @id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                    @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                    @id, @font, @font_size_scale, @pixels_per_subtick, @custom_css, @use_custom_css,
                     @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
                     @use_custom_scaling, @custom_scale
                 )
@@ -613,12 +842,8 @@ class DatabaseManager {
             font: settings.font,
             fontSizeScale: settings.font_size_scale,
             pixelsPerSubtick: settings.pixels_per_subtick,
-            customCSS: settings.custom_css,
-            customMainCSS: settings.custom_main_css,
-            customItemsCSS: settings.custom_items_css,
-            useTimelineCSS: settings.use_timeline_css === 1,
-            useMainCSS: settings.use_main_css === 1,
-            useItemsCSS: settings.use_items_css === 1,
+            customCSS: settings.custom_css || '',
+            useCustomCSS: settings.use_custom_css === 1,
             isFullscreen: settings.is_fullscreen === 1,
             showGuides: settings.show_guides === 1,
             useCustomScaling: settings.use_custom_scaling === 1,
@@ -632,7 +857,8 @@ class DatabaseManager {
                 y: settings.window_position_y
             },
             useCustomScaling: settings.use_custom_scaling === 1,
-            customScale: settings.custom_scale
+            customScale: settings.custom_scale,
+            displayRadius: settings.display_radius
         };
     }
 
@@ -653,16 +879,14 @@ class DatabaseManager {
             const insertStmt = this.db.prepare(`
                 INSERT INTO settings (
                     timeline_id, font, font_size_scale, pixels_per_subtick,
-                    custom_css, custom_main_css, custom_items_css,
-                    use_timeline_css, use_main_css, use_items_css,
+                    custom_css, use_custom_css,
                     is_fullscreen, show_guides,
                     window_size_x, window_size_y,
                     window_position_x, window_position_y,
                     use_custom_scaling, custom_scale
                 ) VALUES (
                     @timeline_id, @font, @font_size_scale, @pixels_per_subtick,
-                    @custom_css, @custom_main_css, @custom_items_css,
-                    @use_timeline_css, @use_main_css, @use_items_css,
+                    @custom_css, @use_custom_css,
                     @is_fullscreen, @show_guides,
                     @window_size_x, @window_size_y,
                     @window_position_x, @window_position_y,
@@ -680,11 +904,7 @@ class DatabaseManager {
                 font_size_scale = @font_size_scale,
                 pixels_per_subtick = @pixels_per_subtick,
                 custom_css = @custom_css,
-                custom_main_css = @custom_main_css,
-                custom_items_css = @custom_items_css,
-                use_timeline_css = @use_timeline_css,
-                use_main_css = @use_main_css,
-                use_items_css = @use_items_css,
+                use_custom_css = @use_custom_css,
                 is_fullscreen = @is_fullscreen,
                 show_guides = @show_guides,
                 window_size_x = @window_size_x,
@@ -693,6 +913,7 @@ class DatabaseManager {
                 window_position_y = @window_position_y,
                 use_custom_scaling = @use_custom_scaling,
                 custom_scale = @custom_scale,
+                display_radius = @display_radius,
                 updated_at = CURRENT_TIMESTAMP
             WHERE timeline_id = @timeline_id
         `);
@@ -732,15 +953,31 @@ class DatabaseManager {
         return stmt.all();
     }
 
-    getAllPictures() {
-        // Get all items for the current timeline
-        const items = this.getAllItems();
-
-        let itemIds_string = items.map(item => "'" + item.id + "'").join(',');
-
-        // Get all pictures for the current timeline
-        const stmt = this.db.prepare("SELECT * FROM pictures where item_id is null or item_id = '' or item_id in (" + itemIds_string + ") ORDER BY file_name");
+    getAllStoryReferences() {
+        const stmt = this.db.prepare('SELECT * FROM item_story_refs ORDER BY item_id');
         return stmt.all();
+
+    }
+
+    getAllPictures() {
+        // Get only pictures that are used within the current timeline
+        const stmt = this.db.prepare(`
+            SELECT p.*,
+                   COUNT(DISTINCT ip.item_id) as usage_count,
+                   GROUP_CONCAT(DISTINCT ip.item_id) as linked_items
+            FROM pictures p
+            INNER JOIN item_pictures ip ON p.id = ip.picture_id
+            INNER JOIN items i ON ip.item_id = i.id AND i.timeline_id = ?
+            GROUP BY p.id
+            ORDER BY p.file_name
+        `);
+
+        // Add a filter that filters out pictures that don't exist on the filesystem
+        const fs = require('fs');
+        const pictures = stmt.all(this.currentTimelineId);
+        return pictures.filter(pic => fs.existsSync(pic.file_path));
+
+        return stmt.all(this.currentTimelineId);
     }
 
     // Item operations
@@ -765,7 +1002,7 @@ class DatabaseManager {
         return stmt.all(itemId);
     }
 
-    addItem(item) {
+    async addItem(item) {
         try {
             // Generate a new ID if one isn't provided
             const itemId = item.id || require('uuid').v4();
@@ -783,36 +1020,34 @@ class DatabaseManager {
             // Insert the item
             const stmt = this.db.prepare(`
                 INSERT INTO items (
-                    id, title, description, content, year, subtick,
-                    original_subtick, end_year, end_subtick, original_end_subtick,
-                    creation_granularity, book_title, chapter, page, type_id, color, timeline_id, item_index
-                ) VALUES (
-                    @id, @title, @description, @content, @year, @subtick,
-                    @original_subtick, @end_year, @end_subtick, @original_end_subtick,
-                    @creation_granularity, @book_title, @chapter, @page, @type_id, @color, @timeline_id, @item_index
-                )
+                    id, title, description, content, year, subtick, original_subtick,
+                    end_year, end_subtick, original_end_subtick, creation_granularity,
+                    book_title, chapter, page, type_id, color, timeline_id, item_index, show_in_notes, importance
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
-            const result = stmt.run({
-                id: itemId,
-                title: item.title,
-                description: item.description || '',
-                content: item.content || '',
-                year: item.year,
-                subtick: item.subtick,
-                original_subtick: item.original_subtick || item.subtick,
-                end_year: item.end_year || item.year,
-                end_subtick: item.end_subtick || item.subtick,
-                original_end_subtick: item.original_end_subtick || item.original_subtick || item.subtick,
-                creation_granularity: item.creation_granularity || this.getUniverseData().granularity,
-                book_title: item.book_title || '',
-                chapter: item.chapter || '',
-                page: item.page || '',
-                type_id: typeId,
-                color: item.color || null,
-                timeline_id: item.timeline_id || this.currentTimelineId,
-                item_index: nextIndex
-            });
+            stmt.run(
+                item.id,
+                item.title,
+                item.description,
+                item.content,
+                item.year,
+                item.subtick,
+                item.original_subtick || item.subtick,
+                item.end_year || item.year,
+                item.end_subtick || item.subtick,
+                item.original_end_subtick || item.original_subtick || item.subtick,
+                item.creation_granularity || this.getUniverseData().granularity,
+                item.book_title || '',
+                item.chapter || '',
+                item.page || '',
+                typeId,
+                item.color,
+                item.timeline_id || this.currentTimelineId,
+                nextIndex,
+                item.show_in_notes !== undefined ? (item.show_in_notes ? 1 : 0) : 1,
+                item.importance !== undefined ? parseInt(item.importance) : 5
+            );
 
             // Add tags if any
             if (item.tags && item.tags.length > 0) {
@@ -826,19 +1061,30 @@ class DatabaseManager {
 
             // Add pictures if any
             if (item.pictures && item.pictures.length > 0) {
-                // First, update any pictures that were uploaded before the item was created
-                const pictureIds = item.pictures
-                    .filter(pic => pic.id) // Only include pictures that have an ID (were already saved)
-                    .map(pic => pic.id);
-                
-                if (pictureIds.length > 0) {
-                    this.updatePicturesItemId(pictureIds, itemId);
-                }
+                // Check if any pictures have new image reuse markers
+                const hasEnhancedPictures = item.pictures.some(pic => 
+                    pic.isReference || pic.isNew || pic.temp_path
+                );
 
-                // Then add any new pictures
-                const newPictures = item.pictures.filter(pic => !pic.id);
-                if (newPictures.length > 0) {
-                    this.addPicturesToItem(itemId, newPictures);
+                if (hasEnhancedPictures) {
+                    // Use the enhanced method for new image reuse functionality
+                    await this.addPicturesToItemEnhanced(itemId, item.pictures);
+                } else {
+                    // Use the old method for backward compatibility
+                    // First, update any pictures that were uploaded before the item was created
+                    const pictureIds = item.pictures
+                        .filter(pic => pic.id) // Only include pictures that have an ID (were already saved)
+                        .map(pic => pic.id);
+                    
+                    if (pictureIds.length > 0) {
+                        this.updatePicturesItemId(pictureIds, itemId);
+                    }
+
+                    // Then add any new pictures
+                    const newPictures = item.pictures.filter(pic => !pic.id);
+                    if (newPictures.length > 0) {
+                        this.addPicturesToItem(itemId, newPictures);
+                    }
                 }
             }
 
@@ -889,6 +1135,8 @@ class DatabaseManager {
             book_title: item.book_title,
             chapter: item.chapter,
             page: item.page,
+            show_in_notes: item.show_in_notes === 1,
+            importance: item.importance || 5,
             tags: item.tags ? item.tags.split(',') : [],
             story_refs: item.story_refs ? item.story_refs.split(',').map(ref => {
                 const [id, title] = ref.split(':');
@@ -961,7 +1209,9 @@ class DatabaseManager {
                 book_title = @book_title,
                 chapter = @chapter,
                 page = @page,
-                color = @color
+                color = @color,
+                show_in_notes = @show_in_notes,
+                importance = @importance
             WHERE id = @id
         `);
 
@@ -981,7 +1231,9 @@ class DatabaseManager {
             book_title: item.book_title,
             chapter: item.chapter,
             page: item.page,
-            color: item.color
+            color: item.color,
+            show_in_notes: item.show_in_notes !== undefined ? (item.show_in_notes ? 1 : 0) : 1,
+            importance: item.importance !== undefined ? parseInt(item.importance) : 5
         });
 
         // Update tags if present
@@ -1007,13 +1259,87 @@ class DatabaseManager {
     }
 
     deleteItem(id) {
+        try {
+            this.db.prepare('BEGIN').run();
+
+            // Get pictures that will become orphaned after this item is deleted
+            const orphanedPictures = this.db.prepare(`
+                SELECT p.id, p.file_path
+                FROM pictures p
+                LEFT JOIN item_pictures ip ON p.id = ip.picture_id
+                WHERE ip.item_id = ?
+                AND (
+                    SELECT COUNT(*) 
+                    FROM item_pictures ip2 
+                    WHERE ip2.picture_id = p.id AND ip2.item_id != ?
+                ) = 0
+            `).all(id, id);
+
+            // Delete related records first
+            this.db.prepare('DELETE FROM item_tags WHERE item_id = ?').run(id);
+            this.db.prepare('DELETE FROM item_pictures WHERE item_id = ?').run(id);
+            
+            // Delete orphaned pictures from the new system
+            for (const pic of orphanedPictures) {
+                this.db.prepare('DELETE FROM pictures WHERE id = ?').run(pic.id);
+                // Also delete the physical file
+                const fs = require('fs');
+                if (pic.file_path && fs.existsSync(pic.file_path)) {
+                    try {
+                        fs.unlinkSync(pic.file_path);
+                        console.log(`[dbManager.js] Deleted orphaned image file: ${pic.file_path}`);
+                    } catch (error) {
+                        console.error(`[dbManager.js] Failed to delete image file: ${pic.file_path}`, error);
+                    }
+                }
+            }
+            
+            // Delete the item
+            const stmt = this.db.prepare('DELETE FROM items WHERE id = ?');
+            const result = stmt.run(id);
+
+            this.db.prepare('COMMIT').run();
+            return result;
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('Error deleting item:', error);
+            throw error;
+        }
+    }
+
+    getMedia(id) {
+        const stmt = this.db.prepare('SELECT * FROM pictures WHERE id = ?');
+        return stmt.get(id);
+    }
+
+    deleteMedia(id, file_path) {
+        try{
+            // Delete related records first
+            this.db.prepare('DELETE FROM item_pictures WHERE picture_id = ?').run(id);
+            this.db.prepare('DELETE FROM pictures WHERE id = ?').run(id);
+
+            // Delete the physical file
+            const fs = require('fs');
+            if (file_path && fs.existsSync(file_path)) {
+                try {
+                    fs.unlinkSync(file_path);
+                    console.log(`[dbManager.js] Deleted orphaned image file: ${file_path}`);
+                } catch (error) {
+                    console.error(`[dbManager.js] Failed to delete image file: ${file_path}`, error);
+                }
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error deleting media:', error);
+            throw error;
+        }
+    }
+
+    deleteStory(id) {
         // Delete related records first
-        this.db.prepare('DELETE FROM item_tags WHERE item_id = ?').run(id);
-        this.db.prepare('DELETE FROM pictures WHERE item_id = ?').run(id);
-        
-        // Delete the item
-        const stmt = this.db.prepare('DELETE FROM items WHERE id = ?');
-        return stmt.run(id);
+        this.db.prepare('DELETE FROM item_story_refs WHERE story_id = ?').run(id);
+        this.db.prepare('DELETE FROM stories WHERE id = ?').run(id);
     }
 
     // Tag operations
@@ -1034,6 +1360,23 @@ class DatabaseManager {
         return stmt.all().map(row => row.name);
     }
 
+    getAllTagsWithCounts() {
+        // The following query counts the number of items associated with each tag using the item_tags table
+        const stmt = this.db.prepare(`
+            SELECT t.name, t.id, COUNT(it.item_id) as item_count, GROUP_CONCAT(DISTINCT it.item_id) as item_ids
+            FROM tags t
+            LEFT JOIN item_tags it ON t.id = it.tag_id
+            GROUP BY t.name
+            ORDER BY item_count DESC
+        `);
+        return stmt.all();
+    }
+
+    deleteTag(tagId) {
+        const stmt = this.db.prepare('DELETE FROM tags WHERE id = ?');
+        return stmt.run(tagId);
+    }
+
     getItemTags(itemId) {
         const stmt = this.db.prepare(`
             SELECT t.name 
@@ -1047,13 +1390,12 @@ class DatabaseManager {
     // Picture operations
     addPicturesToItem(itemId, pictures) {
         const stmt = this.db.prepare(`
-            INSERT INTO pictures (item_id, file_path, file_name, file_size, file_type, width, height, title, description)
-            VALUES (@item_id, @file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
+            INSERT INTO pictures (file_path, file_name, file_size, file_type, width, height, title, description)
+            VALUES (@file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
         `);
 
         for (const pic of pictures) {
-            stmt.run({
-                item_id: itemId,
+            const result = stmt.run({
                 file_path: pic.file_path,
                 file_name: pic.file_name,
                 file_size: pic.file_size,
@@ -1063,36 +1405,211 @@ class DatabaseManager {
                 title: pic.title,
                 description: pic.description
             });
+
+            // Create a reference in the junction table
+            if (result.lastInsertRowid) {
+                this.addImageReference(itemId, result.lastInsertRowid);
+            }
+        }
+    }
+
+    // Enhanced picture operations for image reuse
+    addImageReference(itemId, pictureId) {
+        const stmt = this.db.prepare(`
+            INSERT OR IGNORE INTO item_pictures (item_id, picture_id)
+            VALUES (?, ?)
+        `);
+        return stmt.run(itemId, pictureId);
+    }
+
+    removeImageReference(itemId, pictureId) {
+        const stmt = this.db.prepare(`
+            DELETE FROM item_pictures WHERE item_id = ? AND picture_id = ?
+        `);
+        return stmt.run(itemId, pictureId);
+    }
+
+    getPictureUsageCount(pictureId) {
+        const stmt = this.db.prepare(`
+            SELECT COUNT(*) as count 
+            FROM item_pictures 
+            WHERE picture_id = ?
+        `);
+        return stmt.get(pictureId).count;
+    }
+
+    updatePictureDescription(pictureId, description) {
+        const stmt = this.db.prepare(`
+            UPDATE pictures 
+            SET description = @description 
+            WHERE id = @pictureId
+        `);
+        return stmt.run({
+            pictureId: pictureId,
+            description: description || ''
+        });
+    }
+
+    async addPicturesToItemEnhanced(itemId, pictures) {
+        for (const pic of pictures) {
+            console.log(`[dbManager.js] Processing picture for item ${itemId}:`, {
+                isReference: pic.isReference,
+                isNew: pic.isNew,
+                hasTempPath: !!pic.temp_path,
+                hasId: !!pic.id,
+                title: pic.title,
+                file_name: pic.file_name
+            });
+
+            if (pic.isReference && pic.id) {
+                // Add reference to existing image
+                console.log(`[dbManager.js] Adding reference to existing image ${pic.id}`);
+                this.addImageReference(itemId, pic.id);
+            } else if (pic.isNew || pic.temp_path) {
+                // Process and save new image, then create reference
+                console.log(`[dbManager.js] Saving new image via saveNewImage`);
+                const result = await this.saveNewImage({
+                    file_path: pic.temp_path || pic.file_path,
+                    file_name: pic.file_name,
+                    file_size: pic.file_size,
+                    file_type: pic.file_type,
+                    description: pic.description || ''
+                });
+
+                if (result && result.id) {
+                    console.log(`[dbManager.js] Created new image with ID ${result.id}, adding reference`);
+                    this.addImageReference(itemId, result.id);
+                } else {
+                    console.error(`[dbManager.js] Failed to save new image, no result returned`);
+                }
+            } else if (pic.file_path && !pic.id && !pic.isReference && !pic.isNew) {
+                // Fallback: save image to pictures table directly (for backward compatibility)
+                console.log(`[dbManager.js] Using fallback method to save image directly`);
+                const stmt = this.db.prepare(`
+                    INSERT INTO pictures (file_path, file_name, file_size, file_type, width, height, title, description)
+                    VALUES (@file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
+                `);
+
+                const result = stmt.run({
+                    file_path: pic.file_path,
+                    file_name: pic.file_name,
+                    file_size: pic.file_size,
+                    file_type: pic.file_type,
+                    width: pic.width,
+                    height: pic.height,
+                    title: pic.title,
+                    description: pic.description
+                });
+
+                // Create a reference for the new image
+                if (result.lastInsertRowid) {
+                    console.log(`[dbManager.js] Created fallback image with ID ${result.lastInsertRowid}, adding reference`);
+                    this.addImageReference(itemId, result.lastInsertRowid);
+                } else {
+                    console.error(`[dbManager.js] Failed to save fallback image`);
+                }
+            } else {
+                console.warn(`[dbManager.js] Skipping picture - no valid processing path found`, pic);
+            }
         }
     }
 
     getItemPictures(itemId) {
-        const stmt = this.db.prepare('SELECT * FROM pictures WHERE item_id = ?');
-        return stmt.all(itemId);
+        // Try the new junction table first
+        const junctionStmt = this.db.prepare(`
+            SELECT p.* 
+            FROM pictures p
+            JOIN item_pictures ip ON p.id = ip.picture_id
+            WHERE ip.item_id = ?
+        `);
+        const junctionResults = junctionStmt.all(itemId);
+
+        // If we found results in the junction table, return them
+        if (junctionResults.length > 0) {
+            return junctionResults;
+        }
+
+        // Fallback to old method for backward compatibility
+        //const oldStmt = this.db.prepare('SELECT * FROM pictures WHERE item_id = ?');
+        //return oldStmt.all(itemId);
+        return [];
     }
 
-    updateItemPictures(itemId, pictures) {
-        // Remove all existing pictures for this item
-        this.db.prepare('DELETE FROM pictures WHERE item_id = ?').run(itemId);
+    async updateItemPictures(itemId, pictures) {
+        try {
+            this.db.prepare('BEGIN').run();
 
-        // Add new pictures
-        const stmt = this.db.prepare(`
-            INSERT INTO pictures (item_id, file_path, file_name, file_size, file_type, width, height, title, description)
-            VALUES (@item_id, @file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
-        `);
+            // Get existing picture references to preserve descriptions for existing images
+            const existingPictures = this.getItemPictures(itemId);
+            const existingPictureMap = new Map(existingPictures.map(pic => [pic.id, pic]));
 
-        for (const pic of pictures) {
-            stmt.run({
-                item_id: itemId,
-                file_path: pic.file_path,
-                file_name: pic.file_name,
-                file_size: pic.file_size,
-                file_type: pic.file_type,
-                width: pic.width,
-                height: pic.height,
-                title: pic.title,
-                description: pic.description
-            });
+            // Remove all existing picture references for this item
+            this.db.prepare('DELETE FROM item_pictures WHERE item_id = ?').run(itemId);
+
+            // Process pictures: update descriptions for existing ones, add new ones
+            if (pictures && pictures.length > 0) {
+                for (const pic of pictures) {
+                    console.log(`[dbManager.js] Updating picture for item ${itemId}:`, {
+                        isReference: pic.isReference,
+                        isNew: pic.isNew,
+                        hasTempPath: !!pic.temp_path,
+                        hasId: !!pic.id,
+                        wasLinked: existingPictureMap.has(pic.id),
+                        title: pic.title,
+                        file_name: pic.file_name
+                    });
+
+                    if (pic.isReference && pic.id) {
+                        // Handle reference to existing image (could be new reference or existing)
+                        if (existingPictureMap.has(pic.id)) {
+                            console.log(`[dbManager.js] Updating description for existing referenced image ${pic.id}`);
+                            // Update description for existing referenced image
+                            const updateStmt = this.db.prepare(`
+                                UPDATE pictures 
+                                SET description = @description 
+                                WHERE id = @id
+                            `);
+                            updateStmt.run({
+                                id: pic.id,
+                                description: pic.description || ''
+                            });
+                        } else {
+                            console.log(`[dbManager.js] Adding new reference to existing image ${pic.id}`);
+                            // Update description for the referenced image
+                            if (pic.description) {
+                                const updateStmt = this.db.prepare(`
+                                    UPDATE pictures 
+                                    SET description = @description 
+                                    WHERE id = @id
+                                `);
+                                updateStmt.run({
+                                    id: pic.id,
+                                    description: pic.description
+                                });
+                            }
+                        }
+                        
+                        // Re-add the reference (for both existing and new references)
+                        this.addImageReference(itemId, pic.id);
+                    } else if (pic.isNew || pic.temp_path) {
+                        // For completely new images, use the enhanced method
+                        console.log(`[dbManager.js] Processing new image via addPicturesToItemEnhanced`);
+                        await this.addPicturesToItemEnhanced(itemId, [pic]);
+                    } else if (pic.file_path && !pic.id && !pic.isReference) {
+                        // Fallback for legacy images without proper flags
+                        console.log(`[dbManager.js] Processing legacy image via addPicturesToItemEnhanced`);
+                        await this.addPicturesToItemEnhanced(itemId, [pic]);
+                    } else {
+                        console.warn(`[dbManager.js] Skipping picture in update - no valid processing path found`, pic);
+                    }
+                }
+            }
+
+            this.db.prepare('COMMIT').run();
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('Error updating item pictures:', error);
+            throw error;
         }
     }
 
@@ -1194,6 +1711,13 @@ class DatabaseManager {
         return stmt.get(title, author);
     }
 
+    // Get all timeline data
+    getAllTimelineData() {
+        let id = this.currentTimelineId;
+        const stmt = this.db.prepare('SELECT * FROM timelines where id = ?');
+        return stmt.all(id);
+    }
+
     getAllTimelines() {
         const stmt = this.db.prepare(`
             WITH timeline_years AS (
@@ -1246,13 +1770,11 @@ class DatabaseManager {
         // First create settings for this timeline
         const settingsStmt = this.db.prepare(`
             INSERT INTO settings (
-                font, font_size_scale, pixels_per_subtick, custom_css,
-                custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
                 is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
                 use_custom_scaling, custom_scale
             ) VALUES (
-                @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                @font, @font_size_scale, @pixels_per_subtick, @custom_css, @use_custom_css,
                 @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
                 @use_custom_scaling, @custom_scale
             )
@@ -1264,11 +1786,7 @@ class DatabaseManager {
             font_size_scale: 1.0,
             pixels_per_subtick: 20,
             custom_css: '',
-            custom_main_css: '',
-            custom_items_css: '',
-            use_timeline_css: 0,
-            use_main_css: 0,
-            use_items_css: 0,
+            use_custom_css: 0,
             is_fullscreen: 0,
             show_guides: 1,
             window_size_x: 1000,
@@ -1349,7 +1867,10 @@ class DatabaseManager {
             
             // Then delete item-related records
             this.db.prepare('DELETE FROM item_tags WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
-            this.db.prepare('DELETE FROM pictures WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
+            this.db.prepare('DELETE FROM item_pictures WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
+
+            // Delete pictures that have no item_pictures references
+            this.db.prepare('DELETE FROM pictures WHERE id NOT IN (SELECT picture_id FROM item_pictures)').run();
             this.db.prepare('DELETE FROM item_story_refs WHERE item_id IN (SELECT id FROM items WHERE timeline_id = ?)').run(timelineId);
             
             // Then delete the items themselves
@@ -1398,11 +1919,7 @@ class DatabaseManager {
                 font_size_scale: 1.0,
                 pixels_per_subtick: 20,
                 custom_css: '',
-                custom_main_css: '',
-                custom_items_css: '',
-                use_timeline_css: 0,
-                use_main_css: 0,
-                use_items_css: 0,
+                use_custom_css: 0,
                 is_fullscreen: 0,
                 show_guides: 1,
                 window_size_x: 1000,
@@ -1415,13 +1932,11 @@ class DatabaseManager {
 
             const insertStmt = this.db.prepare(`
                 INSERT INTO settings (
-                    timeline_id, font, font_size_scale, pixels_per_subtick, custom_css,
-                    custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                    timeline_id, font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
                     is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
                     use_custom_scaling, custom_scale
                 ) VALUES (
-                    @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                    @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                    @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css, @use_custom_css,
                     @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
                     @use_custom_scaling, @custom_scale
                 )
@@ -1457,11 +1972,7 @@ class DatabaseManager {
                 fontSizeScale: settings.font_size_scale,
                 pixelsPerSubtick: settings.pixels_per_subtick,
                 customCSS: settings.custom_css,
-                customMainCSS: settings.custom_main_css,
-                customItemsCSS: settings.custom_items_css,
-                useTimelineCSS: settings.use_timeline_css === 1,
-                useMainCSS: settings.use_main_css === 1,
-                useItemsCSS: settings.use_items_css === 1,
+                useCustomCSS: settings.use_custom_css === 1,
                 isFullscreen: settings.is_fullscreen === 1,
                 showGuides: settings.show_guides === 1,
                 size: {
@@ -1473,7 +1984,8 @@ class DatabaseManager {
                     y: settings.window_position_y
                 },
                 useCustomScaling: settings.use_custom_scaling === 1,
-                customScale: settings.custom_scale
+                customScale: settings.custom_scale,
+                displayRadius: settings.display_radius
             }
         };
     }
@@ -1485,11 +1997,7 @@ class DatabaseManager {
                 font_size_scale = @font_size_scale,
                 pixels_per_subtick = @pixels_per_subtick,
                 custom_css = @custom_css,
-                custom_main_css = @custom_main_css,
-                custom_items_css = @custom_items_css,
-                use_timeline_css = @use_timeline_css,
-                use_main_css = @use_main_css,
-                use_items_css = @use_items_css,
+                use_custom_css = @use_custom_css,
                 is_fullscreen = @is_fullscreen,
                 show_guides = @show_guides,
                 window_size_x = @window_size_x,
@@ -1559,35 +2067,33 @@ class DatabaseManager {
         };
     }
 
-    // Modified addPicturesToItem to handle file storage
+    // Modified addPicturesToItem to handle file storage with junction table
     async addPicturesToItem(itemId, pictures) {
         for (const pic of pictures) {
             if (pic.picture) {
                 const fileInfo = await this.saveImageFile(pic.picture, itemId);
                 const stmt = this.db.prepare(`
                     INSERT INTO pictures (
-                        item_id, file_path, file_name, file_size, file_type,
+                        file_path, file_name, file_size, file_type,
                         width, height, title, description
                     ) VALUES (
-                        @item_id, @file_path, @file_name, @file_size, @file_type,
+                        @file_path, @file_name, @file_size, @file_type,
                         @width, @height, @title, @description
                     )
                 `);
 
-                stmt.run({
-                    item_id: itemId,
+                const result = stmt.run({
                     ...fileInfo,
                     title: pic.title || 'Untitled',
                     description: pic.description || ''
                 });
+
+                // Create a reference in the junction table
+                if (result.lastInsertRowid) {
+                    this.addImageReference(itemId, result.lastInsertRowid);
+                }
             }
         }
-    }
-
-    // Modified getItemPictures to return file paths instead of base64
-    getItemPictures(itemId) {
-        const stmt = this.db.prepare('SELECT * FROM pictures WHERE item_id = ?');
-        return stmt.all(itemId);
     }
 
     // Add a new timeline
@@ -1615,15 +2121,13 @@ class DatabaseManager {
         // Then create settings for this timeline
         const settingsStmt = this.db.prepare(`
             INSERT INTO settings (
-                timeline_id, font, font_size_scale, pixels_per_subtick, custom_css,
-                custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                timeline_id, font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
                 is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
-                use_custom_scaling, custom_scale
+                use_custom_scaling, custom_scale, display_radius
             ) VALUES (
-                @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css, @use_custom_css,
                 @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
-                @use_custom_scaling, @custom_scale
+                @use_custom_scaling, @custom_scale, @display_radius
             )
         `);
 
@@ -1633,11 +2137,7 @@ class DatabaseManager {
             font_size_scale: 1.0,
             pixels_per_subtick: 20,
             custom_css: '',
-            custom_main_css: '',
-            custom_items_css: '',
-            use_timeline_css: 0,
-            use_main_css: 0,
-            use_items_css: 0,
+            use_custom_css: 0,
             is_fullscreen: 0,
             show_guides: 1,
             window_size_x: 1000,
@@ -1645,7 +2145,8 @@ class DatabaseManager {
             window_position_x: 300,
             window_position_y: 100,
             use_custom_scaling: 0,
-            custom_scale: 1.0
+            custom_scale: 1.0,
+            display_radius: 10
         };
 
         settingsStmt.run(defaultSettings);
@@ -1681,6 +2182,15 @@ class DatabaseManager {
         const fs = require('fs');
 
         try {
+            // Add stack trace to see what's calling this method
+            console.log(`[dbManager.js] saveNewImage called with:`, {
+                file_path: fileInfo.file_path,
+                file_name: fileInfo.file_name,
+                file_size: fileInfo.file_size,
+                description: fileInfo.description
+            });
+            console.log(`[dbManager.js] saveNewImage call stack:`, new Error().stack);
+
             // Get the current timeline ID
             const timeline = this.getUniverseData();
             if (!timeline || !timeline.id) {
@@ -1757,22 +2267,21 @@ class DatabaseManager {
                 width: finalMetadata.width,
                 height: finalMetadata.height,
                 title: path.parse(fileInfo.file_name).name,
-                description: ''
+                description: fileInfo.description || ''
             };
 
             // Insert into pictures table
             const stmt = this.db.prepare(`
                 INSERT INTO pictures (
-                    item_id, file_path, file_name, file_size, file_type,
+                    file_path, file_name, file_size, file_type,
                     width, height, title, description
                 ) VALUES (
-                    @item_id, @file_path, @file_name, @file_size, @file_type,
+                    @file_path, @file_name, @file_size, @file_type,
                     @width, @height, @title, @description
                 )
             `);
 
             const result = stmt.run({
-                item_id: fileInfo.item_id || null,  // Allow null for standalone images
                 ...fileInfoObj
             });
 
@@ -1786,19 +2295,16 @@ class DatabaseManager {
         }
     }
 
-    // Add a new method to update item_id for pictures after item creation
+    // Add image references for pictures after item creation
     updatePicturesItemId(pictureIds, itemId) {
         if (!Array.isArray(pictureIds) || pictureIds.length === 0 || !itemId) {
             return;
         }
 
-        const stmt = this.db.prepare(`
-            UPDATE pictures 
-            SET item_id = @item_id 
-            WHERE id IN (${pictureIds.map(() => '?').join(',')})
-        `);
-
-        return stmt.run({ item_id: itemId }, ...pictureIds);
+        // Instead of updating the old item_id column, create references in the junction table
+        for (const pictureId of pictureIds) {
+            this.addImageReference(itemId, pictureId);
+        }
     }
 
     /**
@@ -1869,9 +2375,11 @@ class DatabaseManager {
             CREATE INDEX IF NOT EXISTS idx_item_tags_tag_id ON item_tags(tag_id);
         `);
 
-        // Pictures table indexes
+        // Item-Pictures junction table indexes
         this.db.exec(`
-            CREATE INDEX IF NOT EXISTS idx_pictures_item_id ON pictures(item_id);
+            CREATE INDEX IF NOT EXISTS idx_item_pictures_item_id ON item_pictures(item_id);
+            CREATE INDEX IF NOT EXISTS idx_item_pictures_picture_id ON item_pictures(picture_id);
+            CREATE INDEX IF NOT EXISTS idx_item_pictures_combined ON item_pictures(item_id, picture_id);
         `);
 
         // Item-Story References table indexes

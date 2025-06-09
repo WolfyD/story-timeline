@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>Story Timeline</title>
+    <link rel="stylesheet" href="../css/main.css" type="text/css" />
+    <link rel="stylesheet" href="../css/splash.css" type="text/css" />
+  </head>
+  <body>
+    <div class="splash_container">
+      <div class="splash_header">
+        <h1 class="splash_title">Story Timeline</h1>
+        <p class="splash_subtitle">Create and manage your story timelines</p>
+      </div>
+
+      <div class="splash_timelines_container">
+        <div class="splash_timelines_header">
+          <h2>Your Timelines</h2>
+          <button id="splash_create_timeline_button" class="splash_create_timeline_button">
+            <span class="splash_plus_icon">+</span>
+            New Timeline
+          </button>
+        </div>
+
+        <div id="splash_timelines_list" class="splash_timelines_list">
+          <!-- Timeline items will be inserted here -->
+        </div>
+      </div>
+
+      <!-- Debug Item Generator UI -->
+      <div id="debug_item_generator" class="debug_item_generator" style="display: none;">
+        <div class="debug_item_generator_container">
+          <h3>Debug Item Generator</h3>
+          <div class="debug_item_generator_inputs">
+            <input type="number" id="debug_item_count" min="1" value="10" placeholder="Number of items">
+            <button id="debug_generate_items">Generate Items</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Duplicate Timeline Modal -->
+    <div id="duplicate-timeline-modal" class="splash_modal">
+      <div class="splash_modal_content">
+        <div class="splash_modal_header">
+          <h3>Duplicate Timeline</h3>
+        </div>
+        <div class="splash_modal_body">
+          <label for="duplicate-timeline-name">Timeline Name:</label>
+          <input type="text" id="duplicate-timeline-name" class="splash_modal_input" placeholder="Enter timeline name">
+        </div>
+        <div class="splash_modal_footer">
+          <button id="duplicate-timeline-cancel" class="splash_modal_button splash_modal_button_secondary">Cancel</button>
+          <button id="duplicate-timeline-confirm" class="splash_modal_button splash_modal_button_primary">Duplicate</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+      // Toast notification system
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+          <span>${message}</span>
+          <button class="close-btn" onclick="this.parentElement.remove()">×</button>
+        `;
+        
+        // Add to container
+        container.appendChild(toast);
+        
+        // Show toast with animation
+        setTimeout(() => toast.classList.add('show'), 100);
+        
+        // Auto remove after 4 seconds
+        setTimeout(() => {
+          if (toast.parentElement) {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+          }
+        }, 4000);
+      }
+
+      // Convenience functions
+      window.showSuccess = (message) => showToast(message, 'success');
+      window.showError = (message) => showToast(message, 'error');
+      window.showWarning = (message) => showToast(message, 'warning');
+      window.showInfo = (message) => showToast(message, 'info');
+    </script>
+    <script src="../splash.js"></script>
+  </body>
+</html> 

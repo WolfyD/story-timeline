@@ -37,7 +37,6 @@ let timeline_id; // Add timeline_id to global scope
 // Get the current timeline ID when window loads
 window.addEventListener('DOMContentLoaded', async function() {
     timeline_id = await window.api.getCurrentTimelineId();
-    console.log('[addItem.js] Got timeline ID on load:', timeline_id);
 });
 
 // Get story suggestions from main window
@@ -181,6 +180,45 @@ function removeTag(tag) {
 
 // Handle image uploads
 document.getElementById('addImageBtn').addEventListener('click', function() {
+    showImageOptions();
+});
+
+function showImageOptions() {
+    // Create options modal
+    const optionsHTML = `
+        <div id="imageOptionsModal" class="image-options-modal">
+            <div class="image-options-content">
+                <h3>Add Image</h3>
+                <div class="image-options">
+                    <button class="image-option-btn" onclick="selectNewImage()">
+                        <i class="ri-upload-cloud-line"></i>
+                        <span>Upload New Image</span>
+                        <small>Add a new image file</small>
+                    </button>
+                    <button class="image-option-btn" onclick="selectExistingImage()">
+                        <i class="ri-gallery-line"></i>
+                        <span>Choose Existing Image</span>
+                        <small>Select from timeline images</small>
+                    </button>
+                </div>
+                <button class="cancel-btn" onclick="closeImageOptions()">Cancel</button>
+            </div>
+        </div>
+    `;
+    
+    // Remove existing modal if any
+    const existingModal = document.getElementById('imageOptionsModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Add modal to body
+    document.body.insertAdjacentHTML('beforeend', optionsHTML);
+}
+
+function selectNewImage() {
+    closeImageOptions();
+    
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = 'image/*';
@@ -204,45 +242,187 @@ document.getElementById('addImageBtn').addEventListener('click', function() {
                     temp_path: tempPath,
                     file_name: file.name,
                     file_size: file.size,
-                    file_type: file.type
+                    file_type: file.type,
+                    isNew: true // Mark as new image
                 };
 
                 // Add to images array
                 images.push(tempImageInfo);
 
                 // Create preview
-                const container = document.querySelector('.image-upload-container');
-                const preview = document.createElement('div');
-                preview.className = 'image-preview';
-                preview.innerHTML = `
-                    <img src="file://${tempPath}">
-                    <button class="remove-image" onclick="removeImage(this, '${imageId}')">&times;</button>
-                `;
-                container.insertBefore(preview, document.getElementById('addImageBtn'));
+                addImagePreview(tempImageInfo, true);
             } catch (error) {
                 console.error('Error saving temporary file:', error);
-                alert('Error preparing image for upload. Please try again.');
+                console.error('Error preparing image for upload. Please try again.');
             }
         }
     };
     input.click();
-});
+}
+
+function selectExistingImage() {
+    closeImageOptions();
+    
+    // Show image library with both single and multi-select support
+    imageLibrary.show(
+        // Single image selection callback
+        (selectedImage) => {
+            // Create a reference to the existing image
+            const existingImageRef = {
+                id: selectedImage.id,
+                file_path: selectedImage.file_path,
+                file_name: selectedImage.file_name,
+                file_size: selectedImage.file_size,
+                file_type: selectedImage.file_type,
+                width: selectedImage.width,
+                height: selectedImage.height,
+                title: selectedImage.title,
+                description: selectedImage.description,
+                isExisting: true // Mark as existing image
+            };
+
+            // Add to images array
+            images.push(existingImageRef);
+
+            // Create preview
+            addImagePreview(existingImageRef, false);
+        },
+        // Multi-image selection callback
+        (selectedImages) => {
+            // Handle multiple image selection
+            selectedImages.forEach(selectedImage => {
+                const existingImageRef = {
+                    id: selectedImage.id,
+                    file_path: selectedImage.file_path,
+                    file_name: selectedImage.file_name,
+                    file_size: selectedImage.file_size,
+                    file_type: selectedImage.file_type,
+                    width: selectedImage.width,
+                    height: selectedImage.height,
+                    title: selectedImage.title,
+                    description: selectedImage.description,
+                    isExisting: true // Mark as existing image
+                };
+
+                // Add to images array
+                images.push(existingImageRef);
+
+                // Create preview
+                addImagePreview(existingImageRef, false);
+            });
+        }
+    );
+}
+
+function addImagePreview(imageInfo, isNew = false) {
+    const container = document.querySelector('.image-upload-container');
+    const preview = document.createElement('div');
+    preview.className = 'image-preview';
+    preview.innerHTML = `
+        <img src="file://${imageInfo.file_path || imageInfo.temp_path}" alt="${imageInfo.file_name || 'Image'}">
+        <button class="image-description-icon ${imageInfo.description ? 'has-description' : ''}" 
+                onclick="toggleImageDescription(this, '${imageInfo.id || Date.now()}')" 
+                title="${imageInfo.description ? 'Edit description' : 'Add description'}">
+            <i class="ri-information-line"></i>
+        </button>
+        <div class="image-description-editor">
+            <textarea placeholder="Add a description for this image..." 
+                      onchange="updateImageDescription('${imageInfo.id || Date.now()}', this.value)">${imageInfo.description || ''}</textarea>
+            <div class="image-description-actions">
+                <button type="button" class="btn-description-save" onclick="saveImageDescription(this, '${imageInfo.id || Date.now()}')">Save</button>
+                <button type="button" class="btn-description-cancel" onclick="cancelImageDescription(this)">Cancel</button>
+            </div>
+        </div>
+        <div class="image-preview-info">
+            <span class="image-preview-name">${imageInfo.file_name}</span>
+            ${isNew ? '<span class="image-status new">New</span>' : '<span class="image-status existing">Existing</span>'}
+        </div>
+        <button class="remove-image" onclick="removeImage(this, '${imageInfo.id}')">&times;</button>
+    `;
+    container.insertBefore(preview, document.getElementById('addImageBtn'));
+}
+
+function closeImageOptions() {
+    const modal = document.getElementById('imageOptionsModal');
+    if (modal) {
+        modal.remove();
+    }
+}
 
 function removeImage(button, imageId) {
-    console.log('[addItem.js] Removing image with ID:', imageId);
-    console.log('[addItem.js] Images before removal:', [...images]);
     
-    const index = images.findIndex(img => img.id === imageId);
-    console.log('[addItem.js] Found index to remove:', index);
+    const index = images.findIndex(img => img.id === parseInt(imageId));
     
     if (index > -1) {
         images.splice(index, 1);
-        console.log('[addItem.js] Images after removal:', [...images]);
     } else {
-        console.log('[addItem.js] No matching image found to remove');
     }
     
     button.parentElement.remove();
+}
+
+// Image description functions
+function toggleImageDescription(button, imageId) {
+    event.preventDefault();
+    const preview = button.closest('.image-preview');
+    const editor = preview.querySelector('.image-description-editor');
+    const isVisible = editor.classList.contains('visible');
+    
+    if (isVisible) {
+        editor.classList.remove('visible');
+    } else {
+        // Close any other open editors
+        document.querySelectorAll('.image-description-editor.visible').forEach(e => {
+            e.classList.remove('visible');
+        });
+        editor.classList.add('visible');
+        const textarea = editor.querySelector('textarea');
+        textarea.focus();
+    }
+}
+
+function updateImageDescription(imageId, description) {
+    const imageIndex = images.findIndex(img => (img.id || img.temp_id) == imageId);
+    if (imageIndex > -1) {
+        images[imageIndex].description = description;
+    }
+}
+
+function saveImageDescription(button, imageId) {
+    const preview = button.closest('.image-preview');
+    const editor = preview.querySelector('.image-description-editor');
+    const textarea = editor.querySelector('textarea');
+    const description = textarea.value.trim();
+    const icon = preview.querySelector('.image-description-icon');
+    
+    // Update the image object
+    updateImageDescription(imageId, description);
+    
+    // Update icon appearance
+    if (description) {
+        icon.classList.add('has-description');
+        icon.title = 'Edit description';
+    } else {
+        icon.classList.remove('has-description');
+        icon.title = 'Add description';
+    }
+    
+    // Hide editor
+    editor.classList.remove('visible');
+}
+
+function cancelImageDescription(button) {
+    const preview = button.closest('.image-preview');
+    const editor = preview.querySelector('.image-description-editor');
+    const textarea = editor.querySelector('textarea');
+    
+    // Reset textarea to the original value
+    const imageId = button.onclick.toString().match(/'([^']+)'/)[1];
+    const imageData = images.find(img => (img.id || img.temp_id) == imageId);
+    textarea.value = imageData ? (imageData.description || '') : '';
+    
+    // Hide editor
+    editor.classList.remove('visible');
 }
 
 // --- Story References Logic ---
@@ -389,7 +569,7 @@ if (isEditMode && editItemId) {
             document.getElementById('chapter').value = item.chapter || '';
             document.getElementById('page').value = item.page || '';
             if (item.color) {
-                document.getElementById('colorInput').value = item.color;
+                document.getElementById('color').value = item.color;
             }
 
             // Clear existing tags and images
@@ -463,19 +643,19 @@ if (isEditMode && editItemId) {
         e.preventDefault();
         
         // Use the stored timeline ID
-        console.log('[addItem.js] Using stored timeline ID:', timeline_id);
         
         // Process all images before submitting
         const processedImages = [];
         for (const imageInfo of images) {
             try {
                 // Only process images that have a temp_path (newly added images)
-                if (imageInfo.temp_path) {
+                if (imageInfo.isNew && imageInfo.temp_path) {
                     const result = await window.api.invoke('save-new-image', {
                         file_path: imageInfo.temp_path,
                         file_name: imageInfo.file_name,
                         file_size: imageInfo.file_size,
-                        file_type: imageInfo.file_type
+                        file_type: imageInfo.file_type,
+                        description: imageInfo.description || ''
                     });
 
                     // Check if result is valid
@@ -498,13 +678,30 @@ if (isEditMode && editItemId) {
                     };
 
                     processedImages.push(processedImage);
+                } else if (imageInfo.isExisting) {
+                    // For existing images, we need to create a reference in the database
+                    // This will link the existing image to the new item
+                    const existingImageRef = {
+                        id: imageInfo.id,
+                        file_path: imageInfo.file_path,
+                        file_name: imageInfo.file_name,
+                        file_size: imageInfo.file_size,
+                        file_type: imageInfo.file_type,
+                        width: imageInfo.width,
+                        height: imageInfo.height,
+                        title: imageInfo.title,
+                        description: imageInfo.description,
+                        isReference: true // Mark as reference to existing image
+                    };
+                    
+                    processedImages.push(existingImageRef);
                 } else {
-                    // For existing images, just add them to processedImages
+                    // For existing images in edit mode, just add them to processedImages
                     processedImages.push(imageInfo);
                 }
             } catch (error) {
-                console.error('Error processing image:', error);
-                alert('Error processing image: ' + error.message);
+                console.error('Error processing image: ' + error.message);
+                console.error('Error preparing image for upload. Please try again.');
                 return; // Stop form submission if image processing fails
             }
         }
@@ -526,11 +723,16 @@ if (isEditMode && editItemId) {
             story: '',
             'story-id': '',
             type: (urlParams.get('type') || 'event').charAt(0).toUpperCase() + (urlParams.get('type') || 'event').slice(1),
-            color: document.getElementById('colorInput')?.value || null,
-            timeline_id: timeline_id
+            color: document.getElementById('color')?.value,
+            timeline_id: timeline_id,
+            show_in_notes: document.getElementById('showInNotes').checked
         };
 
-        console.log('[addItem.js] Form data being submitted:', formData);
+        // Get importance value
+        const importanceInput = document.getElementById('importance');
+        if (importanceInput) {
+            formData.importance = parseInt(importanceInput.value) || 5;
+        }
 
         try {
             if (formData.story_refs.length > 0) {
@@ -543,15 +745,13 @@ if (isEditMode && editItemId) {
             window.close();
         } catch (error) {
             console.error('Error submitting form:', error);
-            alert('An error occurred. Please try again.');
+            console.error('An error occurred. Please try again.');
         }
     });
 }
 
 // Debug function to fill all fields with random data
 document.getElementById('testFillBtn').addEventListener('click', function() {
-
-    console.log("TEST FILLING");
 
     // Helper function to generate random text
     function randomText(length = 10) {
@@ -606,13 +806,6 @@ window.addEventListener('DOMContentLoaded', function() {
     const subtick = urlParams.get('subtick');
     let granularity = urlParams.get('granularity');
     type = urlParams.get('type'); // Get type from URL parameters
-    
-    console.log('[addItem.js] Initializing form with URL parameters:', {
-        year,
-        subtick,
-        granularity,
-        type
-    });
 
     // Validate type parameter
     if (!type || !['event', 'bookmark', 'picture', 'note'].includes(type.toLowerCase())) {
@@ -647,14 +840,6 @@ function initializeForm() {
     type = urlParams.get('type'); // Get type from URL parameters
     const timeline_id = urlParams.get('timeline_id');
 
-    console.log('[addItem.js] Initializing form with URL parameters:', {
-        year,
-        subtick,
-        granularity,
-        type,
-        timeline_id
-    });
-
     // Validate type parameter
     if (!type || !['event', 'bookmark', 'picture', 'note'].includes(type.toLowerCase())) {
         console.error('Invalid or missing type parameter. Must be one of: event, bookmark, picture, note');
@@ -668,7 +853,6 @@ function initializeForm() {
     // Set year and subtick values
     if (year !== null) document.getElementById('yearInput').value = year;
     if (subtick !== null) document.getElementById('subtickInput').value = subtick;
-    console.log('[addItem.js] subtick:', subtick);
 
     // Set subtick max based on granularity
     if (granularity) {
@@ -685,3 +869,45 @@ function updateTypeLabel() {
         label.textContent = type.charAt(0).toUpperCase() + type.slice(1);
     }
 }
+
+// Add color preview functionality
+function updateColorPreview(color) {
+    document.getElementById('colorPreview').style.backgroundColor = color;
+    document.getElementById('colorHex').value = color.toUpperCase();
+}
+
+// Handle color picker changes
+document.getElementById('color').addEventListener('input', (e) => {
+    updateColorPreview(e.target.value);
+});
+
+// Handle hex input changes
+document.getElementById('colorHex').addEventListener('input', (e) => {
+    let value = e.target.value;
+    // Ensure the value starts with #
+    if (!value.startsWith('#')) {
+        value = '#' + value;
+    }
+    // Validate hex color format
+    if (/^#[0-9A-Fa-f]{6}$/.test(value)) {
+        document.getElementById('color').value = value;
+        updateColorPreview(value);
+    }
+});
+
+// Handle hex input blur (when user leaves the field)
+document.getElementById('colorHex').addEventListener('blur', (e) => {
+    let value = e.target.value;
+    // Ensure the value starts with #
+    if (!value.startsWith('#')) {
+        value = '#' + value;
+    }
+    // If the value is not a valid hex color, reset it to the color picker's value
+    if (!/^#[0-9A-Fa-f]{6}$/.test(value)) {
+        value = document.getElementById('color').value;
+        e.target.value = value.toUpperCase();
+    }
+});
+
+// Initialize color preview
+updateColorPreview(document.getElementById('color').value);
