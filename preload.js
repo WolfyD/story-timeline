@@ -56,6 +56,8 @@ contextBridge.exposeInMainWorld('api', {
             'refresh-timeline',
             'jumpToYear',
             'jumpToDate',
+            'duplicate-timeline',
+            'reset-timeline-css',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -129,7 +131,8 @@ contextBridge.exposeInMainWorld('api', {
             'force-timeline-refresh',
             'refresh-timeline',
             'jumpToYear',
-            'jumpToDate'
+            'jumpToDate',
+            'timeline-duplicated'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

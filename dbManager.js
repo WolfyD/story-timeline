@@ -2026,15 +2026,13 @@ class DatabaseManager {
         // Then create settings for this timeline
         const settingsStmt = this.db.prepare(`
             INSERT INTO settings (
-                timeline_id, font, font_size_scale, pixels_per_subtick, custom_css,
-                custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                timeline_id, font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
                 is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
-                use_custom_scaling, custom_scale
+                use_custom_scaling, custom_scale, display_radius
             ) VALUES (
-                @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css, @use_custom_css,
                 @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
-                @use_custom_scaling, @custom_scale
+                @use_custom_scaling, @custom_scale, @display_radius
             )
         `);
 
@@ -2052,7 +2050,8 @@ class DatabaseManager {
             window_position_x: 300,
             window_position_y: 100,
             use_custom_scaling: 0,
-            custom_scale: 1.0
+            custom_scale: 1.0,
+            display_radius: 10
         };
 
         settingsStmt.run(defaultSettings);

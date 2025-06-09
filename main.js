@@ -789,6 +789,148 @@ async function saveData(newData) {
  * Possible errors:
  * - IPC setup failure
  */
+// Function to duplicate a complete timeline with all its data
+async function duplicateTimelineComplete(sourceTimelineId, newName) {
+  try {
+    // Get the source timeline data
+    const sourceTimeline = dbManager.getTimelineWithSettings(sourceTimelineId);
+    if (!sourceTimeline) {
+      throw new Error('Source timeline not found');
+    }
+
+    // Create a new timeline with the new name
+    const newTimeline = {
+      title: newName,
+      author: sourceTimeline.author,
+      description: sourceTimeline.description,
+      start_year: sourceTimeline.start_year,
+      granularity: sourceTimeline.granularity
+    };
+
+    const newTimelineId = dbManager.addTimeline(newTimeline);
+    console.log(`Created new timeline with ID: ${newTimelineId}`);
+
+    // Copy settings
+    const sourceSettings = sourceTimeline.settings;
+    const newSettings = {
+      timeline_id: newTimelineId,
+      font: sourceSettings.font,
+      font_size_scale: sourceSettings.fontSizeScale,
+      pixels_per_subtick: sourceSettings.pixelsPerSubtick,
+      custom_css: sourceSettings.customCSS,
+      use_custom_css: sourceSettings.useCustomCSS ? 1 : 0,
+      is_fullscreen: sourceSettings.isFullscreen ? 1 : 0,
+      show_guides: sourceSettings.showGuides ? 1 : 0,
+      window_size_x: sourceSettings.size.x,
+      window_size_y: sourceSettings.size.y,
+      window_position_x: sourceSettings.position.x,
+      window_position_y: sourceSettings.position.y,
+      use_custom_scaling: sourceSettings.useCustomScaling ? 1 : 0,
+      custom_scale: sourceSettings.customScale,
+      display_radius: sourceSettings.displayRadius
+    };
+
+    dbManager.updateTimelineSettings(newTimelineId, newSettings);
+    console.log(`Copied settings for timeline ${newTimelineId}`);
+
+    // Get all items from the source timeline
+    const sourceItems = dbManager.getItemsByTimeline(sourceTimelineId);
+    console.log(`Found ${sourceItems.length} items to copy`);
+
+    // Create a map to track old picture ID to new picture ID mappings
+    const pictureIdMap = new Map();
+
+    // Copy each item
+    for (const sourceItem of sourceItems) {
+      const newItemId = require('uuid').v4();
+      
+      // Copy item data
+      const newItem = {
+        id: newItemId,
+        title: sourceItem.title,
+        description: sourceItem.description,
+        content: sourceItem.content,
+        type: sourceItem.type,
+        year: sourceItem.year,
+        subtick: sourceItem.subtick,
+        original_subtick: sourceItem.original_subtick,
+        end_year: sourceItem.end_year,
+        end_subtick: sourceItem.end_subtick,
+        original_end_subtick: sourceItem.original_end_subtick,
+        creation_granularity: sourceItem.creation_granularity,
+        book_title: sourceItem.book_title,
+        chapter: sourceItem.chapter,
+        page: sourceItem.page,
+        color: sourceItem.color,
+        timeline_id: newTimelineId,
+        show_in_notes: sourceItem.show_in_notes,
+        tags: sourceItem.tags,
+        story_refs: sourceItem.story_refs
+      };
+
+      // Handle pictures - we need to copy the actual image files and create new picture records
+      if (sourceItem.pictures && sourceItem.pictures.length > 0) {
+        const newPictures = [];
+        
+        for (const sourcePicture of sourceItem.pictures) {
+          let newPictureId = pictureIdMap.get(sourcePicture.id);
+          
+          if (!newPictureId) {
+            // Copy the physical image file
+            const sourceImagePath = sourcePicture.file_path;
+            if (fs.existsSync(sourceImagePath)) {
+              const newImageDir = path.join(app.getPath('userData'), 'media', 'pictures', newTimelineId.toString());
+              if (!fs.existsSync(newImageDir)) {
+                fs.mkdirSync(newImageDir, { recursive: true });
+              }
+
+              const timestamp = Date.now();
+              const randomStr = Math.random().toString(36).substring(7);
+              const extension = path.extname(sourcePicture.file_name);
+              const newFileName = `img_${timestamp}_${randomStr}${extension}`;
+              const newImagePath = path.join(newImageDir, newFileName);
+
+              // Copy the file
+              await fs.promises.copyFile(sourceImagePath, newImagePath);
+
+              // Create new picture record
+              const newPictureData = await dbManager.saveNewImage({
+                file_path: newImagePath,
+                file_name: newFileName,
+                file_size: sourcePicture.file_size,
+                file_type: sourcePicture.file_type,
+                description: sourcePicture.description || ''
+              });
+
+              newPictureId = newPictureData.id;
+              pictureIdMap.set(sourcePicture.id, newPictureId);
+            }
+          }
+
+          if (newPictureId) {
+            newPictures.push({
+              id: newPictureId,
+              isReference: true
+            });
+          }
+        }
+
+        newItem.pictures = newPictures;
+      }
+
+      // Add the new item
+      await dbManager.addItem(newItem);
+    }
+
+    console.log(`Successfully duplicated timeline ${sourceTimelineId} to ${newTimelineId} with name "${newName}"`);
+    return newTimelineId;
+
+  } catch (error) {
+    console.error('Error in duplicateTimelineComplete:', error);
+    throw error;
+  }
+}
+
 function setupIpcHandlers() {
   ipcMain.handle('get-current-timeline-id', () => {
     return data.timeline_id;
@@ -1126,6 +1268,8 @@ function setupIpcHandlers() {
     event.reply('timelines-list', timelines);
   });
 
+
+
   // Handle opening a timeline
   ipcMain.on('open-timeline', (event, timelineId) => {
     const timeline = dbManager.getTimelineWithSettings(timelineId);
@@ -1428,6 +1572,46 @@ function setupIpcHandlers() {
       fs.mkdirSync(timelineMediaDir, { recursive: true });
     }
     require('electron').shell.openPath(timelineMediaDir);
+  });
+
+  // Handle timeline duplication
+  ipcMain.on('duplicate-timeline', async (event, { timelineId, newName }) => {
+    try {
+      // Duplicate the timeline in the database
+      const duplicatedTimelineId = await duplicateTimelineComplete(timelineId, newName);
+      
+      event.reply('timeline-duplicated', { 
+        success: true, 
+        newTimelineId: duplicatedTimelineId 
+      });
+      
+      // Refresh the timelines list
+      const timelines = dbManager.getAllTimelines();
+      event.reply('timelines-list', timelines);
+    } catch (error) {
+      console.error('Error duplicating timeline:', error);
+      event.reply('timeline-duplicated', { 
+        success: false, 
+        error: error.message 
+      });
+    }
+  });
+
+  // Handle resetting timeline CSS
+  ipcMain.on('reset-timeline-css', (event, timelineId) => {
+    try {
+      // Reset the custom CSS for this timeline
+      const settings = dbManager.getTimelineSettings(timelineId);
+      if (settings) {
+        dbManager.updateTimelineSettings(timelineId, {
+          ...settings,
+          use_custom_css: 0
+        });
+        console.log(`Custom CSS disabled for timeline ${timelineId}`);
+      }
+    } catch (error) {
+      console.error('Error resetting timeline CSS:', error);
+    }
   });
 
   // Handle new image uploads

@@ -100,7 +100,11 @@ function openTimeline(timelineId) {
 let pendingDeleteTimelineId = null;
 
 // Function to delete a timeline
-function deleteTimeline(timelineId) {
+function deleteTimeline(timelineId, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
     // First get the timeline info to show in the warning
     window.api.send('get-timeline-info', timelineId);
     pendingDeleteTimelineId = timelineId;
@@ -135,7 +139,11 @@ window.api.receive('timeline-deleted', (timelineId) => {
 });
 
 // Function to open timeline images directory
-function openTimelineImages(timelineId) {
+function openTimelineImages(timelineId, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
     window.api.send('open-timeline-images', timelineId);
 }
 
@@ -162,17 +170,32 @@ function renderTimelines(timelines) {
                 <p class="splash_timeline_years">${timeline.year_range}</p>
             </div>
             <div class="splash_timeline_actions">
-                <button class="splash_timeline_action_button" onclick="openTimelineImages('${timeline.id}')" title="Open Images Folder">
+                <button class="splash_timeline_action_button" onclick="duplicateTimeline('${timeline.id}', '${timeline.title.replace(/'/g, "\\'")}', event)" title="Duplicate Timeline">
+                    📋
+                </button>
+                <button class="splash_timeline_action_button" onclick="openTimelineImages('${timeline.id}', event)" title="Open Images Folder">
                     📁
                 </button>
-                <button class="splash_timeline_action_button" onclick="deleteTimeline('${timeline.id}')" title="Delete Timeline">
-                    🗑️
+                <div class="splash_timeline_menu_container">
+                                    <button class="splash_timeline_action_button splash_timeline_menu_button" onclick="toggleTimelineMenu('${timeline.id}', event)" title="More Options">
+                    ⋯
                 </button>
+                    <div class="splash_timeline_menu" id="menu-${timeline.id}">
+                        <button class="splash_timeline_menu_item" onclick="resetTimelineCSS('${timeline.id}', event)">
+                            🔧 Disable Custom CSS
+                        </button>
+                        <button class="splash_timeline_menu_item" onclick="deleteTimeline('${timeline.id}', event)">
+                            🗑️ Delete Timeline
+                        </button>
+                    </div>
+                </div>
             </div>
         `;
         timelineElement.addEventListener('click', (e) => {
-            // Don't trigger if clicking on action buttons
-            if (!e.target.closest('.splash_timeline_action_button')) {
+            // Don't trigger if clicking on action buttons or menu items
+            if (!e.target.closest('.splash_timeline_action_button') && 
+                !e.target.closest('.splash_timeline_menu_item') && 
+                !e.target.closest('.splash_timeline_menu')) {
                 openTimeline(timeline.id);
             }
         });
@@ -180,7 +203,127 @@ function renderTimelines(timelines) {
     });
 }
 
+// Function to duplicate a timeline
+function duplicateTimeline(timelineId, currentTitle, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const modal = document.getElementById('duplicate-timeline-modal');
+    const input = document.getElementById('duplicate-timeline-name');
+    const confirmBtn = document.getElementById('duplicate-timeline-confirm');
+    const cancelBtn = document.getElementById('duplicate-timeline-cancel');
+    
+    // Set default name
+    input.value = `${currentTitle}_copy`;
+    
+    // Show modal
+    modal.style.display = 'block';
+    input.focus();
+    input.select();
+    
+    // Handle confirm
+    confirmBtn.onclick = async () => {
+        const newName = input.value.trim();
+        
+        if (!newName) {
+            window.showError('Timeline name cannot be empty');
+            return;
+        }
+        
+        // Check if name already exists
+        const existingTimelines = await getExistingTimelines();
+        if (existingTimelines.some(t => t.title === newName)) {
+            window.showError('A timeline with this name already exists');
+            return;
+        }
+        
+        modal.style.display = 'none';
+        
+        // Show loading
+        window.showInfo('Duplicating timeline...');
+        
+        // Send duplication request
+        window.api.send('duplicate-timeline', { timelineId, newName });
+    };
+    
+    // Handle cancel
+    cancelBtn.onclick = () => {
+        modal.style.display = 'none';
+    };
+    
+    // Handle Enter key
+    input.onkeydown = (e) => {
+        if (e.key === 'Enter') {
+            confirmBtn.click();
+        } else if (e.key === 'Escape') {
+            cancelBtn.click();
+        }
+    };
+}
+
+// Global variable to store timelines for validation
+let timelinesForValidation = [];
+
+// Function to get existing timelines for validation
+async function getExistingTimelines() {
+    return timelinesForValidation;
+}
+
+// Function to toggle timeline menu
+function toggleTimelineMenu(timelineId, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const menu = document.getElementById(`menu-${timelineId}`);
+    const isVisible = menu.style.display === 'block';
+    
+    // Hide all other menus first
+    document.querySelectorAll('.splash_timeline_menu').forEach(m => {
+        m.style.display = 'none';
+    });
+    
+    // Toggle this menu
+    menu.style.display = isVisible ? 'none' : 'block';
+    
+    // Close menu when clicking outside
+    if (!isVisible) {
+        setTimeout(() => {
+            document.addEventListener('click', function closeMenu(e) {
+                if (!e.target.closest('.splash_timeline_menu_container')) {
+                    menu.style.display = 'none';
+                    document.removeEventListener('click', closeMenu);
+                }
+            });
+        }, 10);
+    }
+}
+
+// Function to reset timeline CSS
+function resetTimelineCSS(timelineId, event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    if (confirm('This will disable custom CSS for this timeline. The timeline will use default styling. Continue?')) {
+        window.api.send('reset-timeline-css', timelineId);
+        window.showSuccess('Custom CSS disabled for this timeline');
+    }
+}
+
 // Listen for timeline list updates
 window.api.receive('timelines-list', (timelines) => {
+    timelinesForValidation = timelines; // Store for validation
     renderTimelines(timelines);
+});
+
+// Listen for timeline duplication result
+window.api.receive('timeline-duplicated', (result) => {
+    if (result.success) {
+        window.showSuccess(`Timeline duplicated successfully!`);
+        loadTimelines(); // Refresh the list
+    } else {
+        window.showError(`Failed to duplicate timeline: ${result.error}`);
+    }
 }); 

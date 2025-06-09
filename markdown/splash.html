@@ -39,6 +39,60 @@
       </div>
     </div>
 
+    <!-- Duplicate Timeline Modal -->
+    <div id="duplicate-timeline-modal" class="splash_modal">
+      <div class="splash_modal_content">
+        <div class="splash_modal_header">
+          <h3>Duplicate Timeline</h3>
+        </div>
+        <div class="splash_modal_body">
+          <label for="duplicate-timeline-name">Timeline Name:</label>
+          <input type="text" id="duplicate-timeline-name" class="splash_modal_input" placeholder="Enter timeline name">
+        </div>
+        <div class="splash_modal_footer">
+          <button id="duplicate-timeline-cancel" class="splash_modal_button splash_modal_button_secondary">Cancel</button>
+          <button id="duplicate-timeline-confirm" class="splash_modal_button splash_modal_button_primary">Duplicate</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script>
+      // Toast notification system
+      function showToast(message, type = 'info') {
+        const container = document.getElementById('toast-container');
+        
+        // Create toast element
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+          <span>${message}</span>
+          <button class="close-btn" onclick="this.parentElement.remove()">×</button>
+        `;
+        
+        // Add to container
+        container.appendChild(toast);
+        
+        // Show toast with animation
+        setTimeout(() => toast.classList.add('show'), 100);
+        
+        // Auto remove after 4 seconds
+        setTimeout(() => {
+          if (toast.parentElement) {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+          }
+        }, 4000);
+      }
+
+      // Convenience functions
+      window.showSuccess = (message) => showToast(message, 'success');
+      window.showError = (message) => showToast(message, 'error');
+      window.showWarning = (message) => showToast(message, 'warning');
+      window.showInfo = (message) => showToast(message, 'info');
+    </script>
     <script src="../splash.js"></script>
   </body>
 </html> 
