@@ -136,11 +136,7 @@ class DatabaseManager {
                 font_size_scale REAL DEFAULT 1.0,
                 pixels_per_subtick INTEGER DEFAULT 20,
                 custom_css TEXT,
-                custom_main_css TEXT,
-                custom_items_css TEXT,
-                use_timeline_css INTEGER DEFAULT 0,
-                use_main_css INTEGER DEFAULT 0,
-                use_items_css INTEGER DEFAULT 0,
+                use_custom_css INTEGER DEFAULT 0,
                 is_fullscreen INTEGER DEFAULT 0,
                 show_guides INTEGER DEFAULT 1,
                 window_size_x INTEGER DEFAULT 1000,
@@ -400,6 +396,9 @@ class DatabaseManager {
                 default: 10
             }
         ]);
+
+        // Migrate CSS columns to consolidate them
+        await this.migrateCSSColumns();
         
         // Check if the pictures has item_id column by querying the sqlite_master table
         const hasItemIdColumn = this.db.prepare(`
@@ -413,6 +412,120 @@ class DatabaseManager {
         
         // Migrate to new picture reference system
         await this.migratePictureReferences();
+    }
+
+    async migrateCSSColumns() {
+        console.log('--> [dbManager.js] Migrating CSS columns...');
+
+        // Check if we need to migrate (if the old columns still exist)
+        const columns = this.db.prepare(`PRAGMA table_info(settings)`).all();
+        const columnNames = columns.map(col => col.name);
+        
+        const hasOldColumns = columnNames.includes('custom_main_css') || columnNames.includes('custom_items_css') ||
+                             columnNames.includes('use_main_css') || columnNames.includes('use_items_css');
+
+        if (!hasOldColumns) {
+            console.log('[dbManager.js] CSS columns already migrated, skipping...');
+            return;
+        }
+
+        try {
+            this.db.prepare('BEGIN').run();
+
+            // Get all existing settings with their CSS data
+            const existingSettings = this.db.prepare(`
+                SELECT id, timeline_id,
+                       COALESCE(custom_css, '') as custom_css,
+                       COALESCE(custom_main_css, '') as custom_main_css,
+                       COALESCE(custom_items_css, '') as custom_items_css,
+                       COALESCE(use_timeline_css, 0) as use_timeline_css,
+                       COALESCE(use_main_css, 0) as use_main_css,
+                       COALESCE(use_items_css, 0) as use_items_css
+                FROM settings
+            `).all();
+
+            console.log(`[dbManager.js] Found ${existingSettings.length} settings records to migrate`);
+
+            // Consolidate CSS for each settings record
+            for (const setting of existingSettings) {
+                // Combine all CSS sections that have content
+                const cssComponents = [];
+                
+                if (setting.custom_css && setting.custom_css.trim()) {
+                    cssComponents.push(setting.custom_css.trim());
+                }
+                if (setting.custom_main_css && setting.custom_main_css.trim()) {
+                    cssComponents.push('/* Main CSS */\n' + setting.custom_main_css.trim());
+                }
+                if (setting.custom_items_css && setting.custom_items_css.trim()) {
+                    cssComponents.push('/* Items CSS */\n' + setting.custom_items_css.trim());
+                }
+
+                // Join with double newlines for separation
+                const consolidatedCSS = cssComponents.join('\n\n');
+
+                // Determine if any custom CSS should be enabled
+                const useCustomCSS = setting.use_timeline_css || setting.use_main_css || setting.use_items_css ? 1 : 0;
+
+                // Update the record with consolidated data
+                this.db.prepare(`
+                    UPDATE settings 
+                    SET custom_css = ?,
+                        use_timeline_css = ?
+                    WHERE id = ?
+                `).run(consolidatedCSS, useCustomCSS, setting.id);
+
+                console.log(`[dbManager.js] Migrated CSS for settings ID ${setting.id} (${consolidatedCSS.length} chars, enabled: ${useCustomCSS})`);
+            }
+
+            // Now remove the old columns by recreating the table
+            console.log('[dbManager.js] Removing old CSS columns...');
+
+            // Create new settings table with consolidated schema
+            this.db.prepare(`CREATE TABLE IF NOT EXISTS settings_new (
+                id INTEGER PRIMARY KEY,
+                timeline_id INTEGER,
+                font TEXT DEFAULT 'Arial',
+                font_size_scale REAL DEFAULT 1.0,
+                pixels_per_subtick INTEGER DEFAULT 20,
+                custom_css TEXT,
+                use_custom_css INTEGER DEFAULT 0,
+                is_fullscreen INTEGER DEFAULT 0,
+                show_guides INTEGER DEFAULT 1,
+                window_size_x INTEGER DEFAULT 1000,
+                window_size_y INTEGER DEFAULT 700,
+                window_position_x INTEGER DEFAULT 300,
+                window_position_y INTEGER DEFAULT 100,
+                use_custom_scaling INTEGER DEFAULT 0,
+                custom_scale REAL DEFAULT 1.0,
+                display_radius INTEGER DEFAULT 10,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
+            )`).run();
+
+            // Copy data to new table (renaming use_timeline_css to use_custom_css)
+            this.db.prepare(`INSERT INTO settings_new (
+                id, timeline_id, font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
+                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                use_custom_scaling, custom_scale, display_radius, updated_at
+            ) SELECT 
+                id, timeline_id, font, font_size_scale, pixels_per_subtick, custom_css, use_timeline_css,
+                is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
+                use_custom_scaling, custom_scale, display_radius, updated_at
+            FROM settings`).run();
+
+            // Drop old table and rename new one
+            this.db.prepare('DROP TABLE settings').run();
+            this.db.prepare('ALTER TABLE settings_new RENAME TO settings').run();
+
+            this.db.prepare('COMMIT').run();
+            console.log('[dbManager.js] CSS columns migration completed successfully');
+
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('[dbManager.js] Error migrating CSS columns:', error);
+            throw error;
+        }
     }
 
     async migratePictureReferences() {
@@ -553,11 +666,7 @@ class DatabaseManager {
                 font_size_scale: 1.0,
                 pixels_per_subtick: 20,
                 custom_css: '',
-                custom_main_css: '',
-                custom_items_css: '',
-                use_timeline_css: 0,
-                use_main_css: 0,
-                use_items_css: 0,
+                use_custom_css: 0,
                 is_fullscreen: 0,
                 show_guides: 1,
                 window_size_x: 1000,
@@ -570,13 +679,11 @@ class DatabaseManager {
 
             const insertStmt = this.db.prepare(`
                 INSERT INTO settings (
-                    id, font, font_size_scale, pixels_per_subtick, custom_css,
-                    custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                    id, font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
                     is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
                     use_custom_scaling, custom_scale
                 ) VALUES (
-                    @id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                    @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                    @id, @font, @font_size_scale, @pixels_per_subtick, @custom_css, @use_custom_css,
                     @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
                     @use_custom_scaling, @custom_scale
                 )
@@ -724,22 +831,12 @@ class DatabaseManager {
         if (!settings) return null;
 
         // Convert database snake_case to camelCase for frontend
-        // Consolidate the three CSS fields into one for backward compatibility
-        let consolidatedCSS = settings.custom_css || '';
-        if (settings.custom_main_css || settings.custom_items_css) {
-            consolidatedCSS = [
-                settings.custom_css || '',
-                settings.custom_main_css || '',
-                settings.custom_items_css || ''
-            ].filter(css => css.trim()).join('\n\n');
-        }
-
         return {
             font: settings.font,
             fontSizeScale: settings.font_size_scale,
             pixelsPerSubtick: settings.pixels_per_subtick,
-            customCSS: consolidatedCSS,
-            useCustomCSS: settings.use_timeline_css === 1 || settings.use_main_css === 1 || settings.use_items_css === 1,
+            customCSS: settings.custom_css || '',
+            useCustomCSS: settings.use_custom_css === 1,
             isFullscreen: settings.is_fullscreen === 1,
             showGuides: settings.show_guides === 1,
             useCustomScaling: settings.use_custom_scaling === 1,
@@ -775,16 +872,14 @@ class DatabaseManager {
             const insertStmt = this.db.prepare(`
                 INSERT INTO settings (
                     timeline_id, font, font_size_scale, pixels_per_subtick,
-                    custom_css, custom_main_css, custom_items_css,
-                    use_timeline_css, use_main_css, use_items_css,
+                    custom_css, use_custom_css,
                     is_fullscreen, show_guides,
                     window_size_x, window_size_y,
                     window_position_x, window_position_y,
                     use_custom_scaling, custom_scale
                 ) VALUES (
                     @timeline_id, @font, @font_size_scale, @pixels_per_subtick,
-                    @custom_css, @custom_main_css, @custom_items_css,
-                    @use_timeline_css, @use_main_css, @use_items_css,
+                    @custom_css, @use_custom_css,
                     @is_fullscreen, @show_guides,
                     @window_size_x, @window_size_y,
                     @window_position_x, @window_position_y,
@@ -802,7 +897,7 @@ class DatabaseManager {
                 font_size_scale = @font_size_scale,
                 pixels_per_subtick = @pixels_per_subtick,
                 custom_css = @custom_css,
-                use_timeline_css = @use_timeline_css,
+                use_custom_css = @use_custom_css,
                 is_fullscreen = @is_fullscreen,
                 show_guides = @show_guides,
                 window_size_x = @window_size_x,
@@ -1580,13 +1675,11 @@ class DatabaseManager {
         // First create settings for this timeline
         const settingsStmt = this.db.prepare(`
             INSERT INTO settings (
-                font, font_size_scale, pixels_per_subtick, custom_css,
-                custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
                 is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
                 use_custom_scaling, custom_scale
             ) VALUES (
-                @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                @font, @font_size_scale, @pixels_per_subtick, @custom_css, @use_custom_css,
                 @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
                 @use_custom_scaling, @custom_scale
             )
@@ -1598,11 +1691,7 @@ class DatabaseManager {
             font_size_scale: 1.0,
             pixels_per_subtick: 20,
             custom_css: '',
-            custom_main_css: '',
-            custom_items_css: '',
-            use_timeline_css: 0,
-            use_main_css: 0,
-            use_items_css: 0,
+            use_custom_css: 0,
             is_fullscreen: 0,
             show_guides: 1,
             window_size_x: 1000,
@@ -1735,11 +1824,7 @@ class DatabaseManager {
                 font_size_scale: 1.0,
                 pixels_per_subtick: 20,
                 custom_css: '',
-                custom_main_css: '',
-                custom_items_css: '',
-                use_timeline_css: 0,
-                use_main_css: 0,
-                use_items_css: 0,
+                use_custom_css: 0,
                 is_fullscreen: 0,
                 show_guides: 1,
                 window_size_x: 1000,
@@ -1752,13 +1837,11 @@ class DatabaseManager {
 
             const insertStmt = this.db.prepare(`
                 INSERT INTO settings (
-                    timeline_id, font, font_size_scale, pixels_per_subtick, custom_css,
-                    custom_main_css, custom_items_css, use_timeline_css, use_main_css, use_items_css,
+                    timeline_id, font, font_size_scale, pixels_per_subtick, custom_css, use_custom_css,
                     is_fullscreen, show_guides, window_size_x, window_size_y, window_position_x, window_position_y,
                     use_custom_scaling, custom_scale
                 ) VALUES (
-                    @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css,
-                    @custom_main_css, @custom_items_css, @use_timeline_css, @use_main_css, @use_items_css,
+                    @timeline_id, @font, @font_size_scale, @pixels_per_subtick, @custom_css, @use_custom_css,
                     @is_fullscreen, @show_guides, @window_size_x, @window_size_y, @window_position_x, @window_position_y,
                     @use_custom_scaling, @custom_scale
                 )
@@ -1794,11 +1877,7 @@ class DatabaseManager {
                 fontSizeScale: settings.font_size_scale,
                 pixelsPerSubtick: settings.pixels_per_subtick,
                 customCSS: settings.custom_css,
-                customMainCSS: settings.custom_main_css,
-                customItemsCSS: settings.custom_items_css,
-                useTimelineCSS: settings.use_timeline_css === 1,
-                useMainCSS: settings.use_main_css === 1,
-                useItemsCSS: settings.use_items_css === 1,
+                useCustomCSS: settings.use_custom_css === 1,
                 isFullscreen: settings.is_fullscreen === 1,
                 showGuides: settings.show_guides === 1,
                 size: {
@@ -1823,11 +1902,7 @@ class DatabaseManager {
                 font_size_scale = @font_size_scale,
                 pixels_per_subtick = @pixels_per_subtick,
                 custom_css = @custom_css,
-                custom_main_css = @custom_main_css,
-                custom_items_css = @custom_items_css,
-                use_timeline_css = @use_timeline_css,
-                use_main_css = @use_main_css,
-                use_items_css = @use_items_css,
+                use_custom_css = @use_custom_css,
                 is_fullscreen = @is_fullscreen,
                 show_guides = @show_guides,
                 window_size_x = @window_size_x,
@@ -1969,11 +2044,7 @@ class DatabaseManager {
             font_size_scale: 1.0,
             pixels_per_subtick: 20,
             custom_css: '',
-            custom_main_css: '',
-            custom_items_css: '',
-            use_timeline_css: 0,
-            use_main_css: 0,
-            use_items_css: 0,
+            use_custom_css: 0,
             is_fullscreen: 0,
             show_guides: 1,
             window_size_x: 1000,
