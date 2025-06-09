@@ -467,7 +467,7 @@ function selectNewImage() {
                 addImagePreview(tempImageInfo, true);
             } catch (error) {
                 console.error('Error saving temporary file:', error);
-                alert('Error preparing image for upload. Please try again.');
+                console.error('Error preparing image for upload. Please try again.');
             }
         }
     };
@@ -667,7 +667,7 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     // Ensure we have a valid timeline ID
     if (!timeline_id) {
         console.error('[addItemWithRange.js] No timeline ID available');
-        alert('Error: No active timeline found. Please try again.');
+        console.error('Error: No active timeline found. Please try again.');
         return;
     }
     
@@ -729,7 +729,7 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
             }
         } catch (error) {
             console.error('Error processing image:', error);
-            alert('Error processing image: ' + error.message);
+            console.error('Error: ' + error.message);
             return;
         }
     }

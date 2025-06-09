@@ -2470,8 +2470,11 @@ function setTimelineStart() {
             const validYear = endYear - 1;
             const validSubtick = 0;
             
-            // Show error message
-            alert(`Timeline start must be before the end marker. The latest valid position is ${validYear}.${validSubtick}`);
+            if (window.showError) {
+                window.showError(`Timeline start must be before the end marker. The latest valid position is ${validYear}.${validSubtick}`);
+            } else {
+                console.error(`Timeline start must be before the end marker. The latest valid position is ${validYear}.${validSubtick}`);
+            }
             return;
         }
     }
@@ -2558,8 +2561,11 @@ function setTimelineEnd() {
             const validYear = startYear + 1;
             const validSubtick = 0;
             
-            // Show error message
-            alert(`Timeline end must be after the start marker. The earliest valid position is ${validYear}.${validSubtick}`);
+            if (window.showError) {
+                window.showError(`Timeline end must be after the start marker. The earliest valid position is ${validYear}.${validSubtick}`);
+            } else {
+                console.error(`Timeline end must be after the start marker. The earliest valid position is ${validYear}.${validSubtick}`);
+            }
             return;
         }
     }

@@ -724,16 +724,22 @@ class DatabaseManager {
         if (!settings) return null;
 
         // Convert database snake_case to camelCase for frontend
+        // Consolidate the three CSS fields into one for backward compatibility
+        let consolidatedCSS = settings.custom_css || '';
+        if (settings.custom_main_css || settings.custom_items_css) {
+            consolidatedCSS = [
+                settings.custom_css || '',
+                settings.custom_main_css || '',
+                settings.custom_items_css || ''
+            ].filter(css => css.trim()).join('\n\n');
+        }
+
         return {
             font: settings.font,
             fontSizeScale: settings.font_size_scale,
             pixelsPerSubtick: settings.pixels_per_subtick,
-            customCSS: settings.custom_css,
-            customMainCSS: settings.custom_main_css,
-            customItemsCSS: settings.custom_items_css,
-            useTimelineCSS: settings.use_timeline_css === 1,
-            useMainCSS: settings.use_main_css === 1,
-            useItemsCSS: settings.use_items_css === 1,
+            customCSS: consolidatedCSS,
+            useCustomCSS: settings.use_timeline_css === 1 || settings.use_main_css === 1 || settings.use_items_css === 1,
             isFullscreen: settings.is_fullscreen === 1,
             showGuides: settings.show_guides === 1,
             useCustomScaling: settings.use_custom_scaling === 1,
@@ -796,11 +802,7 @@ class DatabaseManager {
                 font_size_scale = @font_size_scale,
                 pixels_per_subtick = @pixels_per_subtick,
                 custom_css = @custom_css,
-                custom_main_css = @custom_main_css,
-                custom_items_css = @custom_items_css,
                 use_timeline_css = @use_timeline_css,
-                use_main_css = @use_main_css,
-                use_items_css = @use_items_css,
                 is_fullscreen = @is_fullscreen,
                 show_guides = @show_guides,
                 window_size_x = @window_size_x,

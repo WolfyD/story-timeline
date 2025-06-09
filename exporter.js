@@ -40,7 +40,7 @@ class Exporter {
 
         } catch (error) {
             console.error('Error exporting document:', error);
-            alert('Error exporting document: ' + error.message);
+            console.error('Error exporting document: ' + error.message);
         }
     }
 }

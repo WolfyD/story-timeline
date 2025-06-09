@@ -613,13 +613,7 @@ function loadSettings() {
 
     // Load templates if CSS fields are empty
     if (!settings.customCSS || settings.customCSS === "") {
-      settings.customCSS = fs.readFileSync(path.join(__dirname, 'customCSSTemplate.txt'), 'utf8');
-    }
-    if (!settings.customMainCSS || settings.customMainCSS === "") {
-      settings.customMainCSS = fs.readFileSync(path.join(__dirname, 'customMainCSSTemplate.txt'), 'utf8');
-    }
-    if (!settings.customItemsCSS || settings.customItemsCSS === "") {
-      settings.customItemsCSS = fs.readFileSync(path.join(__dirname, 'customItemsCSSTemplate.txt'), 'utf8');
+      settings.customCSS = "";
     }
     
     // Send settings to renderer
@@ -654,11 +648,7 @@ function saveSettings(newSettings) {
     font_size_scale: parseFloat(newSettings.fontSizeScale || 1.0),
     pixels_per_subtick: parseInt(newSettings.pixelsPerSubtick || 20),
     custom_css: newSettings.customCSS || '',
-    custom_main_css: newSettings.customMainCSS || '',
-    custom_items_css: newSettings.customItemsCSS || '',
-    use_timeline_css: newSettings.useTimelineCSS ? 1 : 0,
-    use_main_css: newSettings.useMainCSS ? 1 : 0,
-    use_items_css: newSettings.useItemsCSS ? 1 : 0,
+    use_timeline_css: newSettings.useCustomCSS ? 1 : 0,
     is_fullscreen: mainWindow.isMaximized() ? 1 : 0,
     show_guides: newSettings.showGuides ? 1 : 0,
     window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
@@ -830,11 +820,7 @@ function setupIpcHandlers() {
         font_size_scale: parseFloat(updatedSettings.fontSizeScale || 1.0),
         pixels_per_subtick: parseInt(updatedSettings.pixelsPerSubtick || 20),
         custom_css: updatedSettings.customCSS || '',
-        custom_main_css: updatedSettings.customMainCSS || '',
-        custom_items_css: updatedSettings.customItemsCSS || '',
-        use_timeline_css: updatedSettings.useTimelineCSS ? 1 : 0,
-        use_main_css: updatedSettings.useMainCSS ? 1 : 0,
-        use_items_css: updatedSettings.useItemsCSS ? 1 : 0,
+        use_timeline_css: updatedSettings.useCustomCSS ? 1 : 0,
         is_fullscreen: mainWindow.isMaximized() ? 1 : 0,
         show_guides: updatedSettings.showGuides ? 1 : 0,
         window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),

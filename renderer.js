@@ -322,27 +322,32 @@ function settingsSetup(settings) {
     let pixelsPerSubtick = document.querySelector('#pixels-per-subtick');
     pixelsPerSubtick.value = settings.pixelsPerSubtick;
 
-    let customCSS = document.querySelector('#custom-css');
-    let customMainCSS = document.querySelector('#custom-main-css');
-    let customItemsCSS = document.querySelector('#custom-items-css');
+    // Set up unified custom CSS
+    let useCustomCSS = document.querySelector('#use-custom-css');
+    useCustomCSS.checked = settings.useCustomCSS || false;
+    toggleCustomCSS(settings.useCustomCSS || false);
     
-    // Set up timeline CSS
-    let useTimelineCSS = document.querySelector('#use-timeline-css');
-    useTimelineCSS.checked = settings.useTimelineCSS;
-    toggleTimelineCSS(settings.useTimelineCSS);
-    customCSS.value = settings.customCSS;
-
-    // Set up main CSS
-    let useMainCSS = document.querySelector('#use-main-css');
-    useMainCSS.checked = settings.useMainCSS;
-    toggleMainCSS(settings.useMainCSS);
-    customMainCSS.value = settings.customMainCSS;
-
-    // Set up items CSS
-    let useItemsCSS = document.querySelector('#use-items-css');
-    useItemsCSS.checked = settings.useItemsCSS;
-    toggleItemsCSS(settings.useItemsCSS);
-    customItemsCSS.value = settings.customItemsCSS;
+    // Initialize enhanced CSS editor if not already done
+    if (!window.cssEditor) {
+        window.cssEditor = new EnhancedCSSEditor('custom-css-editor', {
+            enableSelectorHelper: true,
+            enableAutoComplete: true,
+            enableLivePreview: false
+        });
+    }
+    
+    // Set consolidated CSS value (combine old separate CSS fields if they exist)
+    let consolidatedCSS = settings.customCSS || '';
+    if (settings.customMainCSS || settings.customItemsCSS) {
+        // If we have old separate CSS fields, combine them
+        consolidatedCSS = [
+            settings.customCSS || '',
+            settings.customMainCSS || '',
+            settings.customItemsCSS || ''
+        ].filter(css => css.trim()).join('\n\n');
+    }
+    
+    window.cssEditor.setValue(consolidatedCSS);
 
     let showGuides = document.querySelector('#show-guides');
     showGuides.checked = settings.showGuides;
@@ -371,65 +376,171 @@ function settingsSetup(settings) {
     checkAllLoaded();
 }
 
-function toggleTimelineCSS(use = false) {
-    const customCSS = document.querySelector('#custom-css');
+function toggleCustomCSS(use = false) {
     if(use) {
-        customCSS.removeAttribute('readonly');
-        // Apply the custom CSS
-        const styleElement = document.getElementById('custom-timeline-style') || document.createElement('style');
-        styleElement.id = 'custom-timeline-style';
-        styleElement.textContent = customCSS.value;
-        if (!document.getElementById('custom-timeline-style')) {
-            document.head.appendChild(styleElement);
+        // Enable the CSS editor
+        if (window.cssEditor) {
+            window.cssEditor.textarea.removeAttribute('readonly');
+            
+            // Set up live CSS updates
+            if (!window.cssEditor.textarea.dataset.liveUpdatesSetup) {
+                window.cssEditor.textarea.addEventListener('input', updateLiveCSS);
+                window.cssEditor.textarea.dataset.liveUpdatesSetup = 'true';
+            }
         }
+        
+        // Apply the current CSS immediately
+        updateLiveCSS();
     } else {
-        customCSS.setAttribute('readonly', 'readonly');
+        // Disable the CSS editor
+        if (window.cssEditor) {
+            window.cssEditor.textarea.setAttribute('readonly', 'readonly');
+        }
         // Remove the custom CSS
-        const styleElement = document.getElementById('custom-timeline-style');
+        const styleElement = document.getElementById('custom-style');
         if (styleElement) {
             styleElement.remove();
         }
     }
 }
 
-function toggleMainCSS(use = false) {
-    const customMainCSS = document.querySelector('#custom-main-css');
-    if(use) {
-        customMainCSS.removeAttribute('readonly');
-        // Apply the custom CSS
-        const styleElement = document.getElementById('custom-main-style') || document.createElement('style');
-        styleElement.id = 'custom-main-style';
-        styleElement.textContent = customMainCSS.value;
-        if (!document.getElementById('custom-main-style')) {
+function updateLiveCSS() {
+    if (window.cssEditor && document.querySelector('#use-custom-css').checked) {
+        const styleElement = document.getElementById('custom-style') || document.createElement('style');
+        styleElement.id = 'custom-style';
+        styleElement.textContent = window.cssEditor.getValue();
+        if (!document.getElementById('custom-style')) {
             document.head.appendChild(styleElement);
-        }
-    } else {
-        customMainCSS.setAttribute('readonly', 'readonly');
-        // Remove the custom CSS
-        const styleElement = document.getElementById('custom-main-style');
-        if (styleElement) {
-            styleElement.remove();
         }
     }
 }
 
-function toggleItemsCSS(use = false) {
-    const customItemsCSS = document.querySelector('#custom-items-css');
-    if(use) {
-        customItemsCSS.removeAttribute('readonly');
-        // Apply the custom CSS
-        const styleElement = document.getElementById('custom-items-style') || document.createElement('style');
-        styleElement.id = 'custom-items-style';
-        styleElement.textContent = customItemsCSS.value;
-        if (!document.getElementById('custom-items-style')) {
-            document.head.appendChild(styleElement);
-        }
-    } else {
-        customItemsCSS.setAttribute('readonly', 'readonly');
-        // Remove the custom CSS
-        const styleElement = document.getElementById('custom-items-style');
-        if (styleElement) {
-            styleElement.remove();
+function resetCSSToTemplate() {
+    if (window.cssEditor) {
+        // Load comprehensive CSS template with all major selectors
+        const defaultCSS = `/* ===== Main Application Styles ===== */
+
+/* Page Background and Layout */
+body {
+    /* Customize overall page background, fonts, and layout */
+}
+
+.main_title {
+    /* Customize the main story title */
+}
+
+.main_subtitle {
+    /* Customize the subtitle/author name */
+}
+
+/* ===== Timeline Container ===== */
+
+.timeline_container {
+    /* The main timeline container */
+}
+
+#timeline-canvas {
+    /* The timeline canvas background */
+}
+
+#center-line {
+    /* The main timeline center line */
+}
+
+/* ===== Timeline Items ===== */
+
+/* Event Items */
+.timeline-item-box {
+    /* Regular timeline event items */
+}
+
+.timeline-item-box:hover {
+    /* Event items on hover */
+}
+
+.timeline-item-box.highlighted {
+    /* Highlighted event items */
+}
+
+/* Note Items */
+.timeline-note-box {
+    /* Note-type timeline items */
+}
+
+/* Picture Items */
+.timeline-picture-box {
+    /* Picture timeline items */
+}
+
+.timeline-picture-box img {
+    /* Images within picture items */
+}
+
+/* Period and Age Items */
+.timeline-period-item {
+    /* Period timeline items */
+}
+
+.timeline-age-item {
+    /* Age timeline items */
+}
+
+/* Item Labels and Text */
+.timeline-item-title {
+    /* Item title text */
+}
+
+.timeline-item-date {
+    /* Item date displays */
+}
+
+/* Connecting Lines */
+.timeline-item-line {
+    /* Lines connecting items to timeline */
+}
+
+/* ===== Timeline Markers ===== */
+
+.timeline-bookmark-line {
+    /* Bookmark markers */
+}
+
+.timeline-bookmark-dot {
+    /* Bookmark dots */
+}
+
+.timeline-start-marker-triangle {
+    /* Timeline start marker */
+}
+
+.timeline-end-marker-triangle {
+    /* Timeline end marker */
+}
+
+/* ===== Settings Panel ===== */
+
+.settings_container {
+    /* Settings panel container */
+}
+
+.settings_div {
+    /* Settings content area */
+}
+
+.settings-input {
+    /* Form inputs in settings */
+}
+
+/* ===== Custom Styles ===== */
+
+/* Add your custom CSS rules here */
+
+`;
+        window.cssEditor.setValue(defaultCSS);
+        
+        // Apply the template immediately if CSS is enabled
+        if (document.querySelector('#use-custom-css').checked) {
+            updateLiveCSS();
         }
     }
 }
@@ -639,12 +750,8 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         font: document.querySelector('#font-select').selectedIndex,
         fontSizeScale: document.querySelector('#font-size-scale-input').value,
         isFullscreen: isFullscreen,
-        customCSS: document.querySelector('#custom-css').value,
-        customMainCSS: document.querySelector('#custom-main-css').value,
-        customItemsCSS: document.querySelector('#custom-items-css').value,
-        useTimelineCSS: document.querySelector('#use-timeline-css').checked,
-        useMainCSS: document.querySelector('#use-main-css').checked,
-        useItemsCSS: document.querySelector('#use-items-css').checked,
+        customCSS: window.cssEditor ? window.cssEditor.getValue() : '',
+        useCustomCSS: document.querySelector('#use-custom-css').checked,
         pixelsPerSubtick: document.querySelector('#pixels-per-subtick').value,
         showGuides: document.querySelector('#show-guides').checked,
         useCustomScaling: document.querySelector('#use-custom-scaling').checked,
@@ -785,12 +892,7 @@ window.api.receive('call-load-settings', async (settings) => {
     if (settings) {
         document.querySelector('#font-select').selectedIndex = settings.font;
         document.querySelector('#font-size-scale-input').value = settings.fontSizeScale;
-        document.querySelector('#custom-css').value = settings.customCSS || '';
-        document.querySelector('#custom-main-css').value = settings.customMainCSS || '';
-        document.querySelector('#custom-items-css').value = settings.customItemsCSS || '';
-        document.querySelector('#use-timeline-css').checked = settings.useTimelineCSS;
-        document.querySelector('#use-main-css').checked = settings.useMainCSS;
-        document.querySelector('#use-items-css').checked = settings.useItemsCSS;
+        document.querySelector('#use-custom-css').checked = settings.useCustomCSS || false;
         document.querySelector('#pixels-per-subtick').value = settings.pixelsPerSubtick;
         document.querySelector('#show-guides').checked = settings.showGuides;
         document.querySelector('#use-custom-scaling').checked = settings.useCustomScaling;
@@ -1010,7 +1112,7 @@ async function exportTimelineData() {
     try {
         await window.api.invoke('export-timeline-data', exportData);
     } catch (error) {
-        alert(`Error exporting timeline data: ${error}`);
+        showError(`Error exporting timeline data: ${error}`);
     }
 }
 
@@ -1030,7 +1132,7 @@ async function importTimelineData() {
     try {
         await window.api.invoke('import-timeline-data');
     } catch (error) {
-        alert(`Error importing timeline data: ${error}`);
+        showError(`Error importing timeline data: ${error}`);
     }
 }
 
@@ -1040,7 +1142,7 @@ window.api.receive('export-timeline-data-success', (filePath) => {
 });
 
 window.api.receive('export-timeline-data-error', (error) => {
-    alert(`Error exporting timeline data: ${error}`);
+    showError(`Error exporting timeline data: ${error}`);
 });
 
 window.api.receive('import-timeline-data-confirm', ({ itemCount, filePath, data }) => {
@@ -1059,11 +1161,11 @@ window.api.receive('import-timeline-data-success', (importedData) => {
     
     // Refresh items to show imported data
     refreshAllItems();
-    alert('Timeline data imported successfully');
+    showSuccess('Timeline data imported successfully');
 });
 
 window.api.receive('import-timeline-data-error', (error) => {
-    alert(`Error importing timeline data: ${error}`);
+    showError(`Error importing timeline data: ${error}`);
 });
 
 window.api.receive('app-version', (version) => {
@@ -1255,3 +1357,47 @@ function openEditItemWithRangeWindow(item) {
 function openEditItemWindow(item) {
     window.api.send('open-edit-item-window', item);
 }
+
+// Toast notification system to replace alerts
+window.showToast = function(message, type = 'info', duration = 5000) {
+    const container = document.getElementById('toast-container');
+    if (!container) {
+        console.error('Toast container not found');
+        return;
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <span class="close-btn" onclick="this.parentElement.remove()">&times;</span>
+        ${message}
+    `;
+    
+    container.appendChild(toast);
+    
+    // Trigger animation
+    setTimeout(() => {
+        toast.classList.add('show');
+    }, 10);
+    
+    // Auto-remove after duration
+    if (duration > 0) {
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.remove();
+                }
+            }, 300);
+        }, duration);
+    }
+    
+    // Return toast element for manual control if needed
+    return toast;
+};
+
+// Helper functions for different types
+window.showSuccess = (message, duration) => showToast(message, 'success', duration);
+window.showError = (message, duration) => showToast(message, 'error', duration);
+window.showWarning = (message, duration) => showToast(message, 'warning', duration);
+window.showInfo = (message, duration) => showToast(message, 'info', duration);

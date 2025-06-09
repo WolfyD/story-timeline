@@ -100,6 +100,33 @@ class EnhancedCSSEditor {
                 this.insertCurrentStyles();
             }
         });
+        
+        // Add input validation with visual feedback
+        selectorInput.addEventListener('input', (e) => {
+            const selector = e.target.value.trim();
+            if (selector) {
+                // Provide visual feedback for selector validity
+                if (this.isValidCSSSelector(selector)) {
+                    e.target.style.borderColor = '#28a745'; // Green for valid
+                    e.target.style.backgroundColor = '#f8fff9';
+                } else {
+                    e.target.style.borderColor = '#dc3545'; // Red for invalid
+                    e.target.style.backgroundColor = '#fff8f8';
+                }
+            } else {
+                // Reset to default colors
+                e.target.style.borderColor = '';
+                e.target.style.backgroundColor = '';
+            }
+        });
+        
+        // Reset colors when input loses focus
+        selectorInput.addEventListener('blur', (e) => {
+            setTimeout(() => {
+                e.target.style.borderColor = '';
+                e.target.style.backgroundColor = '';
+            }, 200);
+        });
     }
 
     populateSelectors() {
@@ -119,10 +146,37 @@ class EnhancedCSSEditor {
     getAllAvailableSelectors() {
         const selectors = new Set();
         
+        // Add common timeline selectors that we know exist
+        const commonTimelineSelectors = [
+            '#app', '#timeline', '#timeline-canvas', '#timeline-container', '#center-line',
+            '.timeline-item-box', '.timeline-item-box:hover', '.timeline-item-title', 
+            '.timeline-item-date', '.timeline-item-line',
+            '.timeline-period-item', '.timeline-period-item:hover', 
+            '.timeline-age-item', '.timeline-age-item:hover',
+            '.timeline-picture-box', '.timeline-picture-box img',
+            '.timeline-note-box', '.timeline-note-box:hover',
+            '.timeline-bookmark-line', '.timeline-bookmark-dot',
+            '.timeline-start-marker-triangle', '.timeline-end-marker-triangle',
+            '.main_title', '.main_subtitle', '.settings_container',
+            '.cascading-image', '.cascading-image.main', '.cascading-image.secondary',
+            '.center-note', '.center-note h1', '.center-note h2', '.center-note p',
+            '.center-age', '.center-age h1', '.center-age p',
+            '.item-viewer-modal', '.modal-content', '.modal-header', '.modal-body',
+            '.global-hover-bubble', '.info-bubble', '.period-hover-bubble', '.age-hover-bubble',
+            'body', 'html'
+        ];
+        
+        commonTimelineSelectors.forEach(sel => selectors.add(sel));
+        
         // Get selectors from existing stylesheets
         try {
             for (let sheet of document.styleSheets) {
                 try {
+                    // Check if stylesheet is accessible
+                    if (sheet.href && !sheet.href.startsWith(window.location.origin) && !sheet.href.startsWith('file://')) {
+                        continue; // Skip external stylesheets that might cause CORS issues
+                    }
+                    
                     const rules = sheet.cssRules || sheet.rules;
                     for (let rule of rules) {
                         if (rule.selectorText) {
@@ -133,31 +187,67 @@ class EnhancedCSSEditor {
                                 }
                             });
                         }
+                        
+                        // Handle nested rules (like @media queries)
+                        if (rule.cssRules) {
+                            for (let nestedRule of rule.cssRules) {
+                                if (nestedRule.selectorText) {
+                                    nestedRule.selectorText.split(',').forEach(sel => {
+                                        const cleaned = sel.trim();
+                                        if (cleaned && !cleaned.includes('@')) {
+                                            selectors.add(cleaned);
+                                        }
+                                    });
+                                }
+                            }
+                        }
                     }
                 } catch (e) {
+                    console.warn('Could not access stylesheet:', sheet.href, e);
                     continue;
                 }
             }
         } catch (e) {
-            console.warn('Could not access some stylesheets');
+            console.warn('Could not access stylesheets:', e);
         }
         
         // Get classes and IDs from DOM elements
         document.querySelectorAll('*').forEach(el => {
-            // Add classes
+            // Add classes with common pseudo-selectors
             if (el.className && typeof el.className === 'string') {
                 el.className.split(' ').forEach(cls => {
                     const cleaned = cls.trim();
                     if (cleaned && !cleaned.includes(' ')) {
                         selectors.add(`.${cleaned}`);
+                        // Add common pseudo-selectors
+                        selectors.add(`.${cleaned}:hover`);
+                        selectors.add(`.${cleaned}:focus`);
+                        selectors.add(`.${cleaned}:active`);
+                        selectors.add(`.${cleaned}::before`);
+                        selectors.add(`.${cleaned}::after`);
                     }
                 });
             }
             
-            // Add IDs
+            // Add IDs with common pseudo-selectors
             if (el.id) {
                 selectors.add(`#${el.id}`);
+                selectors.add(`#${el.id}:hover`);
+                selectors.add(`#${el.id}:focus`);
+                selectors.add(`#${el.id}:active`);
+                selectors.add(`#${el.id}::before`);
+                selectors.add(`#${el.id}::after`);
             }
+        });
+        
+        // Add element selectors for common HTML elements
+        const commonElements = ['body', 'html', 'div', 'span', 'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 
+                               'button', 'input', 'textarea', 'select', 'a', 'img', 'canvas', 'svg'];
+        commonElements.forEach(el => {
+            selectors.add(el);
+            selectors.add(`${el}:hover`);
+            selectors.add(`${el}:focus`);
+            selectors.add(`${el}:active`);
         });
         
         return Array.from(selectors).sort();
@@ -204,37 +294,245 @@ class EnhancedCSSEditor {
         return css;
     }
 
+    // Helper function to validate CSS selector
+    isValidCSSSelector(selector) {
+        try {
+            // Try to use the selector with querySelector - this checks basic syntax
+            document.querySelector(selector);
+            
+            // Additional validation: check if it's a meaningful selector
+            return this.isMeaningfulSelector(selector);
+        } catch (e) {
+            // If it throws an error, it's not a valid selector
+            return false;
+        }
+    }
+    
+    // Check if the selector is meaningful (not just random text)
+    isMeaningfulSelector(selector) {
+        const trimmed = selector.trim();
+        
+        // Empty selector is invalid
+        if (!trimmed) return false;
+        
+        // List of known HTML elements
+        const knownElements = [
+            'html', 'head', 'body', 'div', 'span', 'p', 'a', 'img', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+            'ul', 'ol', 'li', 'table', 'tr', 'td', 'th', 'thead', 'tbody', 'tfoot', 'caption', 'colgroup', 'col',
+            'form', 'input', 'textarea', 'button', 'select', 'option', 'optgroup', 'label', 'fieldset', 'legend',
+            'nav', 'header', 'footer', 'main', 'section', 'article', 'aside', 'details', 'summary', 'dialog',
+            'canvas', 'svg', 'video', 'audio', 'source', 'track', 'embed', 'object', 'param', 'picture',
+            'iframe', 'script', 'noscript', 'style', 'link', 'meta', 'title', 'base',
+            'strong', 'b', 'em', 'i', 'mark', 's', 'del', 'ins', 'sub', 'sup', 'small', 'cite', 'q',
+            'abbr', 'dfn', 'time', 'code', 'var', 'samp', 'kbd', 'pre', 'blockquote', 'hr', 'br', 'wbr',
+            'area', 'map', 'figure', 'figcaption', 'meter', 'progress', 'output', 'ruby', 'rt', 'rp'
+        ];
+        
+        // Check different types of selectors
+        if (trimmed.startsWith('#')) {
+            // ID selectors: #id-name
+            const idName = trimmed.substring(1);
+            return /^[\w-]+$/.test(idName) && idName.length >= 1;
+            
+        } else if (trimmed.startsWith('.')) {
+            // Class selectors: .class-name
+            const className = trimmed.substring(1);
+            return /^[\w-]+$/.test(className) && className.length >= 1;
+            
+        } else if (/^\*/.test(trimmed)) {
+            // Universal selector: *
+            return true;
+            
+        } else if (/^[>+~]/.test(trimmed)) {
+            // Combinators: >, +, ~
+            return true;
+            
+        } else if (/::[\w-]+/.test(trimmed)) {
+            // Pseudo-elements: ::before, ::after
+            return true;
+            
+        } else if (/:[\w-]+/.test(trimmed)) {
+            // Pseudo-classes: :hover, :focus, :nth-child(), etc.
+            return true;
+            
+        } else if (/\[[\w-]+/.test(trimmed)) {
+            // Attribute selectors: [type="text"], [data-value]
+            return true;
+            
+        } else if (/^[\w-]+$/.test(trimmed)) {
+            // Simple element selectors - check against known HTML elements
+            return knownElements.includes(trimmed.toLowerCase());
+            
+        } else {
+            // Complex selectors (combinations, etc.)
+            // For complex selectors, check if they exist in DOM or known selectors
+            const existsInDOM = document.querySelectorAll(selector).length > 0;
+            const existsInKnownSelectors = this.getAllAvailableSelectors().includes(selector);
+            return existsInDOM || existsInKnownSelectors;
+        }
+    }
+
     insertCurrentStyles() {
         const selectorInput = document.getElementById('css-selector-input');
         const selector = selectorInput.value.trim();
         
         if (!selector) {
-            alert('Please enter a CSS selector');
+            if (window.showWarning) {
+                window.showWarning('Please enter a CSS selector');
+            } else {
+                console.warn('Please enter a CSS selector');
+            }
             return;
         }
         
-        const currentStyles = this.getCurrentStylesForSelector(selector);
-        if (!currentStyles || Object.keys(currentStyles).length === 0) {
-            alert(`No elements found or no relevant styles for selector: ${selector}`);
+        // Validate the CSS selector
+        if (!this.isValidCSSSelector(selector)) {
+            if (window.showError) {
+                window.showError(`Invalid CSS selector: "${selector}". Please enter a valid CSS selector like:\n• .class-name (for classes)\n• #element-id (for IDs)\n• element (for HTML tags)\n• .timeline-item:hover (for pseudo-classes)`);
+            } else {
+                console.error(`Invalid CSS selector: "${selector}"`);
+            }
             return;
         }
         
-        const cssRule = this.generateCSSRule(selector, currentStyles);
+        // Handle pseudo-selectors specially
+        let baseSelector = selector;
+        let pseudoSelector = '';
+        let isPseudoSelector = false;
         
-        // Insert the CSS rule at cursor position
-        const start = this.textarea.selectionStart;
-        const end = this.textarea.selectionEnd;
+        // Check for pseudo-classes and pseudo-elements
+        const pseudoMatch = selector.match(/^(.+?)(::|:)([^:]+)$/);
+        if (pseudoMatch) {
+            baseSelector = pseudoMatch[1];
+            pseudoSelector = pseudoMatch[2] + pseudoMatch[3];
+            isPseudoSelector = true;
+            
+            // Validate the base selector for pseudo-selectors
+            if (!this.isValidCSSSelector(baseSelector)) {
+                if (window.showError) {
+                    window.showError(`Invalid base selector in "${selector}". The base selector "${baseSelector}" is not valid.`);
+                } else {
+                    console.error(`Invalid base selector: "${baseSelector}"`);
+                }
+                return;
+            }
+        }
+        
+        let currentStyles = null;
+        let cssRule = '';
+        
+        if (isPseudoSelector) {
+            // For pseudo-selectors, try to get styles from the base element
+            try {
+                const baseElements = document.querySelectorAll(baseSelector);
+                if (baseElements.length > 0) {
+                    const computed = getComputedStyle(baseElements[0]);
+                    const relevantStyles = {};
+                    
+                    // Get base styles and suggest common pseudo-selector properties
+                    const baseProperties = ['color', 'background-color', 'font-size', 'font-family', 'font-weight'];
+                    baseProperties.forEach(prop => {
+                        const value = computed.getPropertyValue(prop);
+                        if (value && value !== 'initial' && value !== 'auto' && value !== 'normal') {
+                            if (!(prop === 'color' && value === 'rgb(0, 0, 0)') &&
+                                !(prop === 'background-color' && value === 'rgba(0, 0, 0, 0)')) {
+                                relevantStyles[prop] = value;
+                            }
+                        }
+                    });
+                    
+                    // Add common pseudo-selector properties based on type
+                    if (pseudoSelector === ':hover') {
+                        relevantStyles['cursor'] = 'pointer';
+                        if (!relevantStyles['background-color']) {
+                            relevantStyles['background-color'] = '#f0f0f0';
+                        }
+                    } else if (pseudoSelector === ':focus') {
+                        relevantStyles['outline'] = '2px solid #007cba';
+                        relevantStyles['outline-offset'] = '2px';
+                    } else if (pseudoSelector === ':active') {
+                        relevantStyles['transform'] = 'scale(0.98)';
+                    } else if (pseudoSelector === '::before' || pseudoSelector === '::after') {
+                        relevantStyles['content'] = '""';
+                        relevantStyles['display'] = 'block';
+                        relevantStyles['position'] = 'absolute';
+                    }
+                    
+                    if (Object.keys(relevantStyles).length > 0) {
+                        cssRule = this.generateCSSRule(selector, relevantStyles);
+                        currentStyles = relevantStyles;
+                    }
+                } else {
+                    // Base element not found, provide a basic template
+                    const templateStyles = {};
+                    if (pseudoSelector === ':hover') {
+                        templateStyles['cursor'] = 'pointer';
+                        templateStyles['background-color'] = '#f0f0f0';
+                    } else if (pseudoSelector === ':focus') {
+                        templateStyles['outline'] = '2px solid #007cba';
+                    } else if (pseudoSelector === '::before' || pseudoSelector === '::after') {
+                        templateStyles['content'] = '""';
+                        templateStyles['display'] = 'block';
+                    }
+                    
+                    cssRule = this.generateCSSRule(selector, templateStyles);
+                    currentStyles = templateStyles;
+                }
+            } catch (e) {
+                // Provide a basic template for the pseudo-selector
+                const templateStyles = { '/* Add your styles here */': '' };
+                cssRule = this.generateCSSRule(selector, templateStyles);
+            }
+        } else {
+            // Regular selector - try to get current styles
+            currentStyles = this.getCurrentStylesForSelector(selector);
+            if (currentStyles && Object.keys(currentStyles).length > 0) {
+                cssRule = this.generateCSSRule(selector, currentStyles);
+            } else {
+                // Element not found or no styles, provide a basic template
+                const templateStyles = {
+                    'color': '#333',
+                    'background-color': 'transparent',
+                    '/* Add more styles here */': ''
+                };
+                cssRule = this.generateCSSRule(selector, templateStyles);
+                currentStyles = templateStyles;
+            }
+        }
+        
+        // Always insert at the bottom of the textarea with proper spacing
         const currentValue = this.textarea.value;
+        let newValue = currentValue;
         
-        this.textarea.value = currentValue.substring(0, start) + cssRule + currentValue.substring(end);
+        // Add spacing if there's existing content
+        if (currentValue.trim()) {
+            // Check if the last line is empty, if not add two newlines for spacing
+            const lines = currentValue.split('\n');
+            const lastLine = lines[lines.length - 1];
+            if (lastLine.trim()) {
+                newValue += '\n\n';
+            } else if (lines.length > 1 && lines[lines.length - 2].trim()) {
+                newValue += '\n';
+            }
+        }
         
-        // Position cursor after inserted text
-        const newPosition = start + cssRule.length;
-        this.textarea.setSelectionRange(newPosition, newPosition);
+        // Add the CSS rule
+        newValue += cssRule;
+        
+        // Set the new value and position cursor at the end
+        this.textarea.value = newValue;
+        this.textarea.setSelectionRange(newValue.length, newValue.length);
         this.textarea.focus();
         
-        // Show preview of current styles
-        this.showCurrentStylesPreview(selector, currentStyles);
+        // Show preview of current styles if available
+        if (currentStyles && Object.keys(currentStyles).length > 0) {
+            this.showCurrentStylesPreview(selector, currentStyles);
+        }
+        
+        // Show success message
+        if (window.showSuccess) {
+            window.showSuccess(`Added CSS rule for "${selector}"`);
+        }
     }
 
     showCurrentStylesPreview(selector, styles) {

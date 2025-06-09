@@ -254,7 +254,7 @@ function selectNewImage() {
                 addImagePreview(tempImageInfo, true);
             } catch (error) {
                 console.error('Error saving temporary file:', error);
-                alert('Error preparing image for upload. Please try again.');
+                console.error('Error preparing image for upload. Please try again.');
             }
         }
     };
@@ -707,8 +707,8 @@ if (isEditMode && editItemId) {
                     processedImages.push(imageInfo);
                 }
             } catch (error) {
-                console.error('Error processing image:', error);
-                alert('Error processing image: ' + error.message);
+                console.error('Error processing image: ' + error.message);
+                console.error('Error preparing image for upload. Please try again.');
                 return; // Stop form submission if image processing fails
             }
         }
@@ -748,7 +748,7 @@ if (isEditMode && editItemId) {
             window.close();
         } catch (error) {
             console.error('Error submitting form:', error);
-            alert('An error occurred. Please try again.');
+            console.error('An error occurred. Please try again.');
         }
     });
 }

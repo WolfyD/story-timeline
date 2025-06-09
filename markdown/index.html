@@ -8,7 +8,22 @@
     <link rel="stylesheet" href="../css/modal.css" type="text/css" />
     <link rel="stylesheet" href="../css/menubar.css" type="text/css" />
     <link rel="stylesheet" href="../css/styles.css" type="text/css" />
+    <link rel="stylesheet" href="../css/cssEditor.css" type="text/css" />
     <link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css" type="text/css" />
+    <style>
+      .css-editor-container {
+        width: 100%;
+        margin-bottom: 10px;
+      }
+      .css-editor-row .settings-input-container {
+        flex-direction: column;
+        align-items: stretch;
+      }
+      .css-editor-row .reset-template-button {
+        align-self: flex-start;
+        margin-top: 10px;
+      }
+    </style>
   </head>
   <body>
     <div id="calligraphy_container" style="display: none;">
@@ -172,59 +187,24 @@
               </div>
 
               <div class="settings-row">
-                <label class="no-select" for="use-timeline-css">Use Timeline CSS</label>
+                <label class="no-select" for="use-custom-css">Use Custom CSS</label>
                 <div class="settings-input-container">
-                  <input type="checkbox" id="use-timeline-css" class="settings-input" onclick="toggleTimelineCSS(this.checked)">
+                  <input type="checkbox" id="use-custom-css" class="settings-input" onclick="toggleCustomCSS(this.checked)">
                   <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Use custom CSS for the timeline</div>
+                  <div class="info-bubble no-select">Enable custom CSS styling for the entire application</div>
                 </div>
               </div>
 
-              <div class="settings-row">
-                <label class="no-select" for="custom-css">Timeline CSS</label>
+              <div class="settings-row css-editor-row">
+                <label class="no-select" for="custom-css-editor">Custom CSS</label>
                 <div class="settings-input-container">
-                  <textarea readonly id="custom-css" class="settings-input custom-css" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
-                  <button class="settings-button reset-template-button" onclick="resetToTemplate('custom-css')">Reset to Template</button>
+                  <textarea id="custom-css-editor" 
+                            class="settings-input custom-css" 
+                            style="margin-left: .8%; width: 95%;"
+                            placeholder="Enter your custom CSS here, or use the selector helper above to get started..."></textarea>
+                  <button class="settings-button reset-template-button" onclick="resetCSSToTemplate()">Reset to Template</button>
                   <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Custom CSS for the timeline container and elements</div>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <label class="no-select" for="use-main-css">Use Main CSS</label>
-                <div class="settings-input-container">
-                  <input type="checkbox" id="use-main-css" class="settings-input" onclick="toggleMainCSS(this.checked)">
-                  <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Use custom CSS for the main application</div>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <label class="no-select" for="custom-main-css">Main CSS</label>
-                <div class="settings-input-container">
-                  <textarea readonly id="custom-main-css" class="settings-input custom-css" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
-                  <button class="settings-button reset-template-button" onclick="resetToTemplate('custom-main-css')">Reset to Template</button>
-                  <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Custom CSS for the main application body and elements</div>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <label class="no-select" for="use-items-css">Use Items CSS</label>
-                <div class="settings-input-container">
-                  <input type="checkbox" id="use-items-css" class="settings-input" onclick="toggleItemsCSS(this.checked)">
-                  <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Use custom CSS for timeline items</div>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <label class="no-select" for="custom-items-css">Items CSS</label>
-                <div class="settings-input-container">
-                  <textarea readonly id="custom-items-css" class="settings-input custom-css" spellcheck="false" onkeydown="handleCodeEditorKeydown(event)"></textarea>
-                  <button class="settings-button reset-template-button" onclick="resetToTemplate('custom-items-css')">Reset to Template</button>
-                  <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Custom CSS for timeline items and markers</div>
+                  <div class="info-bubble no-select">Write custom CSS to style the timeline, main application, and items. Use the selector helper above to discover available CSS selectors and current styles.</div>
                 </div>
               </div>
 
@@ -392,6 +372,10 @@
       <button id="closeDialog">Close</button><div id="secondaryButton"></div>
     </dialog>
 
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <script src="../cssEditor.js"></script>
     <script src="../timeline.js"></script>
     <script src="../renderer.js"></script>
     <script src="../displayRenderer.js"></script>
@@ -458,7 +442,7 @@ This program is free software: you can redistribute it and/or modify it under th
 
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for more details.`;
 
-          alert(aboutText);
+          console.log(aboutText);
         }}
       ]);
     </script>
