@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced CSS Editor Demo</title>
+    <link rel="stylesheet" href="css/cssEditor.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .demo-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .demo-section {
+            margin-bottom: 30px;
+        }
+        
+        .demo-section h2 {
+            color: #666;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+        
+        /* Sample elements for testing */
+        .timeline-item-box {
+            background: #f0f8ff;
+            border: 2px solid #4a90e2;
+            border-radius: 8px;
+            padding: 15px;
+            margin: 10px 0;
+            color: #333;
+        }
+        
+        .sample-button {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        
+        .sample-text {
+            font-size: 16px;
+            line-height: 1.5;
+            color: #555;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="demo-container">
+        <h1>Enhanced CSS Editor Demo</h1>
+        
+        <div class="demo-section">
+            <h2>Sample Elements to Style</h2>
+            <div class="timeline-item-box">
+                This is a timeline item box that you can style. Try selecting ".timeline-item-box" in the CSS editor below!
+            </div>
+            <button class="sample-button">Sample Button</button>
+            <p class="sample-text">This is some sample text with the class "sample-text".</p>
+        </div>
+        
+        <div class="demo-section">
+            <h2>Enhanced CSS Editor</h2>
+            <p>Features:</p>
+            <ul>
+                <li><strong>Selector Discovery:</strong> Type or select from available CSS selectors</li>
+                <li><strong>Current Style Insertion:</strong> Automatically fetch and insert current styles</li>
+                <li><strong>Autocomplete:</strong> CSS property and value suggestions</li>
+                <li><strong>Live Preview:</strong> See your changes as you type</li>
+            </ul>
+            
+            <textarea id="css-editor" placeholder="Enter your custom CSS here, or use the selector helper above to get started...">
+/* Try typing a CSS property like 'color' or 'background' to see autocomplete in action */
+
+</textarea>
+        </div>
+        
+        <div class="demo-section">
+            <h2>How to Use</h2>
+            <ol>
+                <li>Type a CSS selector in the input field above (e.g., ".timeline-item-box")</li>
+                <li>Click "Insert Current Styles" to see the current styles for that element</li>
+                <li>Modify the styles as needed</li>
+                <li>The styles will be applied automatically</li>
+                <li>Use autocomplete by typing CSS properties or values in the textarea</li>
+            </ol>
+        </div>
+        
+        <div class="demo-section">
+            <button onclick="applyCSS()">Apply CSS</button>
+            <button onclick="clearCSS()">Clear CSS</button>
+            <button onclick="resetDemo()">Reset Demo</button>
+        </div>
+    </div>
+
+    <script src="cssEditor.js"></script>
+    <script>
+        // Initialize the enhanced CSS editor
+        let cssEditor;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            cssEditor = new EnhancedCSSEditor('css-editor', {
+                enableAutoComplete: true,
+                enableSelectorHelper: true
+            });
+        });
+        
+        function applyCSS() {
+            const css = cssEditor.getValue();
+            
+            // Remove existing custom styles
+            const existingStyle = document.getElementById('custom-demo-styles');
+            if (existingStyle) {
+                existingStyle.remove();
+            }
+            
+            // Apply new styles
+            if (css.trim()) {
+                const styleElement = document.createElement('style');
+                styleElement.id = 'custom-demo-styles';
+                styleElement.textContent = css;
+                document.head.appendChild(styleElement);
+            }
+        }
+        
+        function clearCSS() {
+            cssEditor.setValue('');
+            const existingStyle = document.getElementById('custom-demo-styles');
+            if (existingStyle) {
+                existingStyle.remove();
+            }
+        }
+        
+        function resetDemo() {
+            clearCSS();
+            cssEditor.setValue(`/* Try typing a CSS property like 'color' or 'background' to see autocomplete in action */
+
+`);
+        }
+        
+        // Auto-apply CSS as user types (with debouncing)
+        let applyTimeout;
+        document.getElementById('css-editor').addEventListener('input', function() {
+            clearTimeout(applyTimeout);
+            applyTimeout = setTimeout(applyCSS, 500);
+        });
+    </script>
+</body>
+</html> 
