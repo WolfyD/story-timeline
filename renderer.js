@@ -1401,3 +1401,273 @@ window.showSuccess = (message, duration) => showToast(message, 'success', durati
 window.showError = (message, duration) => showToast(message, 'error', duration);
 window.showWarning = (message, duration) => showToast(message, 'warning', duration);
 window.showInfo = (message, duration) => showToast(message, 'info', duration);
+
+/**
+ * Consolidates duplicate images in the database
+ * This function can be called from the developer console: consolidateDuplicateImages()
+ * @returns {Promise} Promise that resolves with consolidation statistics
+ */
+window.consolidateDuplicateImages = async function() {
+    try {
+        showInfo('Starting duplicate image consolidation...', 0);
+        
+        const result = await window.api.invoke('consolidate-duplicate-images');
+        
+        if (result.success) {
+            const stats = result.stats;
+            
+            if (stats.duplicateGroupsFound === 0) {
+                showSuccess('No duplicate images found! Your image library is already optimized.', 5000);
+            } else {
+                const message = `
+                    Duplicate consolidation completed!
+                    📊 Images analyzed: ${stats.totalImagesAnalyzed}
+                    🔍 Duplicate groups found: ${stats.duplicateGroupsFound}
+                    🗑️ Duplicates consolidated: ${stats.duplicatesConsolidated}
+                    📁 Files deleted: ${stats.filesDeleted}
+                    🔗 References updated: ${stats.referencesUpdated}
+                `;
+                
+                showSuccess(message.trim().replace(/\s+/g, ' '), 15000);
+            }
+            
+            console.log('Duplicate consolidation stats:', stats);
+            
+            // Refresh the timeline to reflect any changes
+            if (stats.duplicatesConsolidated > 0) {
+                refreshAllItems();
+            }
+            
+            return stats;
+        } else {
+            const errorMsg = `Failed to consolidate duplicates: ${result.error}`;
+            showError(errorMsg, 10000);
+            console.error(errorMsg);
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        const errorMsg = `Error during duplicate consolidation: ${error.message}`;
+        showError(errorMsg, 10000);
+        console.error(errorMsg, error);
+        throw error;
+    }
+};
+
+/**
+ * Debug function to analyze current image state
+ * This function can be called from the developer console: analyzeImages()
+ * @returns {Promise} Promise that resolves with image analysis
+ */
+window.analyzeImages = async function() {
+    try {
+        const allMedia = await window.api.invoke('get-all-items'); // This should include media info
+        console.log('Current media state:', allMedia);
+        
+        // You can expand this to show more detailed analysis
+        showInfo(`Found ${allMedia.length || 0} items in database. Check console for details.`, 5000);
+        
+        return allMedia;
+    } catch (error) {
+        console.error('Error analyzing images:', error);
+        showError(`Error analyzing images: ${error.message}`, 5000);
+        throw error;
+    }
+};
+
+/**
+ * Analyzes image hashes to debug duplicate detection
+ * This function can be called from the developer console: debugImageHashes()
+ * @returns {Promise} Promise that resolves with hash analysis
+ */
+window.debugImageHashes = async function() {
+    try {
+        showInfo('Analyzing image hashes for debugging...', 0);
+        
+        // Get all pictures directly from database
+        const pictures = await window.api.invoke('get-all-pictures-debug');
+        
+        if (!pictures || pictures.length === 0) {
+            showWarning('No pictures found in database.', 5000);
+            return;
+        }
+        
+        console.log('=== IMAGE HASH ANALYSIS ===');
+        console.log(`Found ${pictures.length} pictures in database:`);
+        
+        // Group by file name patterns to help identify potential duplicates
+        const fileNameGroups = new Map();
+        const fileSizeGroups = new Map();
+        
+        pictures.forEach(pic => {
+            // Group by similar file names (ignoring timestamps)
+            const baseName = pic.file_name.replace(/img_\d+_/, 'img_TIMESTAMP_');
+            if (!fileNameGroups.has(baseName)) {
+                fileNameGroups.set(baseName, []);
+            }
+            fileNameGroups.get(baseName).push(pic);
+            
+            // Group by file size
+            if (!fileSizeGroups.has(pic.file_size)) {
+                fileSizeGroups.set(pic.file_size, []);
+            }
+            fileSizeGroups.get(pic.file_size).push(pic);
+        });
+        
+        console.log('\n=== POTENTIAL DUPLICATES BY FILE SIZE ===');
+        for (const [size, pics] of fileSizeGroups) {
+            if (pics.length > 1) {
+                console.log(`\nSize ${size} bytes (${pics.length} files):`);
+                pics.forEach(pic => {
+                    console.log(`  - ID ${pic.id}: ${pic.file_name} (${pic.file_path})`);
+                });
+            }
+        }
+        
+        console.log('\n=== POTENTIAL DUPLICATES BY FILE NAME PATTERN ===');
+        for (const [pattern, pics] of fileNameGroups) {
+            if (pics.length > 1) {
+                console.log(`\nPattern "${pattern}" (${pics.length} files):`);
+                pics.forEach(pic => {
+                    console.log(`  - ID ${pic.id}: ${pic.file_name} (size: ${pic.file_size}, path: ${pic.file_path})`);
+                });
+            }
+        }
+        
+        const message = `
+            🔍 Hash Analysis Complete:
+            📁 Total pictures: ${pictures.length}
+            📊 File size groups with duplicates: ${Array.from(fileSizeGroups.values()).filter(group => group.length > 1).length}
+            📝 File name pattern groups with duplicates: ${Array.from(fileNameGroups.values()).filter(group => group.length > 1).length}
+        `;
+        
+        showInfo(message.trim().replace(/\s+/g, ' '), 10000);
+        
+        return {
+            pictures,
+            fileSizeGroups: Array.from(fileSizeGroups.entries()).filter(([size, pics]) => pics.length > 1),
+            fileNameGroups: Array.from(fileNameGroups.entries()).filter(([pattern, pics]) => pics.length > 1)
+        };
+        
+    } catch (error) {
+        console.error('Error debugging image hashes:', error);
+        showError(`Error analyzing image hashes: ${error.message}`, 5000);
+        throw error;
+    }
+};
+
+/**
+ * Consolidates visually similar duplicate images (more permissive than byte-identical)
+ * This function can be called from the developer console: consolidateVisualDuplicates()
+ * @returns {Promise} Promise that resolves with consolidation stats
+ */
+window.consolidateVisualDuplicates = async function() {
+    try {
+        showInfo('🔍 Starting visual duplicate consolidation (this may take a moment)...', 0);
+        
+        const result = await window.api.invoke('consolidate-visual-duplicate-images');
+        
+        if (result.success) {
+            const stats = result.stats;
+            const message = `
+                ✅ Visual Duplicate Consolidation Complete!
+                📁 Images analyzed: ${stats.totalImagesAnalyzed}
+                📊 Duplicate groups found: ${stats.duplicateGroupsFound}
+                🗑️ Duplicates consolidated: ${stats.duplicatesConsolidated}
+                💾 Files deleted: ${stats.filesDeleted}
+                🔗 References updated: ${stats.referencesUpdated}
+                📏 Method: ${stats.criteria}
+            `;
+            showSuccess(message.trim().replace(/\s+/g, ' '), 15000);
+            
+            // Refresh the timeline to show updated state
+            refreshAllItems();
+            
+            console.log('Visual duplicate consolidation completed:', stats);
+            return stats;
+        } else {
+            console.error('Visual duplicate consolidation failed:', result.error);
+            showError(`❌ Consolidation failed: ${result.error}`, 8000);
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error consolidating visual duplicates:', error);
+        showError(`❌ Error consolidating duplicates: ${error.message}`, 8000);
+        throw error;
+    }
+};
+
+/**
+ * Analyzes actual files on disk vs database records
+ * This function can be called from the developer console: analyzeFileSystem()
+ * @returns {Promise} Promise that resolves with file system analysis
+ */
+window.analyzeFileSystem = async function() {
+    try {
+        showInfo('🔍 Analyzing file system vs database...', 0);
+        
+        const result = await window.api.invoke('analyze-filesystem-vs-database');
+        
+        if (result.success) {
+            const analysis = result.analysis;
+            
+            console.log('=== FILE SYSTEM ANALYSIS ===');
+            console.log(`Files on disk: ${analysis.filesOnDisk.length}`);
+            console.log(`Pictures in database: ${analysis.picturesInDatabase.length}`);
+            console.log(`Files only on disk: ${analysis.filesOnlyOnDisk.length}`);
+            console.log(`Database records without files: ${analysis.dbRecordsWithoutFiles.length}`);
+            
+            // Group files on disk by visual similarity
+            const diskFileGroups = new Map();
+            analysis.filesOnDisk.forEach(file => {
+                const key = `${file.size}_${file.name.replace(/img_\d+_/, 'PATTERN_')}`;
+                if (!diskFileGroups.has(key)) {
+                    diskFileGroups.set(key, []);
+                }
+                diskFileGroups.get(key).push(file);
+            });
+            
+            console.log('\n=== POTENTIAL DUPLICATES ON DISK ===');
+            for (const [pattern, files] of diskFileGroups) {
+                if (files.length > 1) {
+                    console.log(`\nPattern "${pattern}" (${files.length} files on disk):`);
+                    files.forEach(file => {
+                        console.log(`  - ${file.name} (${file.size} bytes)`);
+                    });
+                }
+            }
+            
+            console.log('\n=== FILES ONLY ON DISK (not in database) ===');
+            analysis.filesOnlyOnDisk.forEach(file => {
+                console.log(`- ${file.name} (${file.size} bytes)`);
+            });
+            
+            console.log('\n=== DATABASE RECORDS WITHOUT FILES ===');
+            analysis.dbRecordsWithoutFiles.forEach(record => {
+                console.log(`- DB ID ${record.id}: ${record.file_name} (expected: ${record.file_path})`);
+            });
+            
+            const duplicateGroups = Array.from(diskFileGroups.values()).filter(group => group.length > 1);
+            
+            const message = `
+                📁 File System Analysis:
+                💾 Files on disk: ${analysis.filesOnDisk.length}
+                🗄️ Database records: ${analysis.picturesInDatabase.length}
+                🆘 Files only on disk: ${analysis.filesOnlyOnDisk.length}
+                💔 DB records without files: ${analysis.dbRecordsWithoutFiles.length}
+                🔄 Potential duplicate groups on disk: ${duplicateGroups.length}
+            `;
+            
+            showInfo(message.trim().replace(/\s+/g, ' '), 15000);
+            
+            return analysis;
+        } else {
+            console.error('File system analysis failed:', result.error);
+            showError(`❌ Analysis failed: ${result.error}`, 8000);
+            throw new Error(result.error);
+        }
+    } catch (error) {
+        console.error('Error analyzing file system:', error);
+        showError(`❌ Error analyzing file system: ${error.message}`, 8000);
+        throw error;
+    }
+};

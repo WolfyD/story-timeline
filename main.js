@@ -2053,6 +2053,136 @@ function setupIpcHandlers() {
       };
     }
   });
+
+  // Handle duplicate image consolidation
+  ipcMain.handle('consolidate-duplicate-images', async (event) => {
+    try {
+      console.log('[main.js] Starting duplicate image consolidation...');
+      const stats = await dbManager.consolidateDuplicateImages();
+      
+      return {
+        success: true,
+        stats: stats
+      };
+    } catch (error) {
+      console.error('[main.js] Error consolidating duplicate images:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
+  // Handle visual duplicate image consolidation
+  ipcMain.handle('consolidate-visual-duplicate-images', async (event) => {
+    try {
+      console.log('[main.js] Starting visual duplicate image consolidation...');
+      const stats = await dbManager.consolidateVisuallyDuplicateImages();
+      
+      return {
+        success: true,
+        stats: stats
+      };
+    } catch (error) {
+      console.error('[main.js] Error consolidating visual duplicate images:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
+
+  // Handle getting all pictures for debug analysis
+  ipcMain.handle('get-all-pictures-debug', async (event) => {
+    try {
+      console.log('[main.js] Getting all pictures for debug analysis...');
+      const pictures = dbManager.getAllPictures();
+      
+      console.log(`[main.js] Found ${pictures.length} pictures for debug analysis`);
+      return pictures;
+    } catch (error) {
+      console.error('[main.js] Error getting pictures for debug:', error);
+      return [];
+    }
+  });
+
+  // Handle file system vs database analysis
+  ipcMain.handle('analyze-filesystem-vs-database', async (event) => {
+    try {
+      console.log('[main.js] Analyzing file system vs database...');
+      
+      const fs = require('fs');
+      const path = require('path');
+      
+      // Get all pictures from database
+      const picturesInDatabase = dbManager.getAllPictures();
+      
+      // Get the current timeline to determine the correct folder
+      const currentTimelineId = dbManager.currentTimelineId;
+      
+      // Get the pictures directory for this timeline
+      let baseDir;
+      if (app) {
+        baseDir = path.join(app.getPath('userData'), 'media', 'pictures');
+      } else {
+        baseDir = path.join(__dirname, 'test_data', 'media', 'pictures');
+      }
+      
+      const timelinePicturesDir = path.join(baseDir, currentTimelineId.toString());
+      
+      // Get all files actually on disk
+      let filesOnDisk = [];
+      if (fs.existsSync(timelinePicturesDir)) {
+        const files = fs.readdirSync(timelinePicturesDir);
+        filesOnDisk = files
+          .filter(file => file.match(/\.(png|jpg|jpeg|gif|webp)$/i))
+          .map(file => {
+            const filePath = path.join(timelinePicturesDir, file);
+            const stats = fs.statSync(filePath);
+            return {
+              name: file,
+              path: filePath,
+              size: stats.size
+            };
+          });
+      }
+      
+      console.log(`[main.js] Found ${filesOnDisk.length} files on disk in ${timelinePicturesDir}`);
+      console.log(`[main.js] Found ${picturesInDatabase.length} pictures in database`);
+      
+      // Analyze differences
+      const filesOnDiskNames = new Set(filesOnDisk.map(f => f.name));
+      const dbFileNames = new Set(picturesInDatabase.map(p => path.basename(p.file_path || '')));
+      
+      const filesOnlyOnDisk = filesOnDisk.filter(f => !dbFileNames.has(f.name));
+      const dbRecordsWithoutFiles = picturesInDatabase.filter(p => {
+        const fileName = path.basename(p.file_path || '');
+        return !filesOnDiskNames.has(fileName) || !fs.existsSync(p.file_path);
+      });
+      
+      const analysis = {
+        filesOnDisk,
+        picturesInDatabase,
+        filesOnlyOnDisk,
+        dbRecordsWithoutFiles,
+        timelinePicturesDir
+      };
+      
+      console.log(`[main.js] Files only on disk: ${filesOnlyOnDisk.length}`);
+      console.log(`[main.js] DB records without files: ${dbRecordsWithoutFiles.length}`);
+      
+      return {
+        success: true,
+        analysis: analysis
+      };
+    } catch (error) {
+      console.error('[main.js] Error analyzing file system vs database:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
 }
 
 // ===== Application Lifecycle =====

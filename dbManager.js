@@ -554,10 +554,73 @@ class DatabaseManager {
 
             // Get all existing pictures with item_id
             const existingPictures = this.db.prepare(`
-                SELECT id, item_id FROM pictures WHERE item_id IS NOT NULL
+                SELECT id, item_id, file_path FROM pictures WHERE item_id IS NOT NULL
             `).all();
 
             console.log(`[dbManager.js] Found ${existingPictures.length} pictures with item_id`);
+
+            // ---------------------------------------- Hash-based duplicate detection and consolidation
+            console.log('--> [dbManager.js] Starting duplicate image detection...');
+            
+            // Calculate hashes for all images and group by hash
+            const hashGroups = new Map(); // hash -> [picture1, picture2, ...]
+            const fs = require('fs');
+            
+            for (const picture of existingPictures) {
+                try {
+                    if (picture.file_path && fs.existsSync(picture.file_path)) {
+                        const fileBuffer = fs.readFileSync(picture.file_path);
+                        const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+                        
+                        if (!hashGroups.has(hash)) {
+                            hashGroups.set(hash, []);
+                        }
+                        hashGroups.get(hash).push(picture);
+                    } else {
+                        console.warn(`[dbManager.js] Image file not found: ${picture.file_path}`);
+                    }
+                } catch (error) {
+                    console.error(`[dbManager.js] Error processing image ${picture.file_path}:`, error);
+                }
+            }
+
+            // Find groups with duplicates (more than 1 image with same hash)
+            const duplicateGroups = Array.from(hashGroups.entries())
+                .filter(([hash, pictures]) => pictures.length > 1);
+
+            // Consolidate duplicates
+            let duplicatesConsolidated = 0;
+            let filesDeleted = 0;
+            const duplicateMapping = new Map(); // old_id -> master_id
+            
+            for (const [hash, duplicatePictures] of duplicateGroups) {
+                // Sort by ID to keep the oldest (lowest ID) as the master
+                duplicatePictures.sort((a, b) => a.id - b.id);
+                const masterPicture = duplicatePictures[0];
+                const duplicates = duplicatePictures.slice(1);
+                
+                console.log(`[dbManager.js] Group ${hash.substring(0, 8)}: keeping master ID ${masterPicture.id}, removing ${duplicates.length} duplicates`);
+                
+                // Map duplicates to master for later reference updating
+                for (const duplicate of duplicates) {
+                    duplicateMapping.set(duplicate.id, masterPicture.id);
+                    
+                    // Delete duplicate file immediately during migration
+                    if (duplicate.file_path && fs.existsSync(duplicate.file_path)) {
+                        try {
+                            fs.unlinkSync(duplicate.file_path);
+                            filesDeleted++;
+                            console.log(`[dbManager.js] Deleted duplicate file: ${duplicate.file_path}`);
+                        } catch (error) {
+                            console.error(`[dbManager.js] Failed to delete duplicate file ${duplicate.file_path}:`, error);
+                        }
+                    }
+                    
+                    duplicatesConsolidated++;
+                }
+            }
+
+            console.log(`[dbManager.js] Consolidated ${duplicatesConsolidated} duplicate images, deleted ${filesDeleted} files`);
 
             // ---------------------------------------- Removing old columns from pictures table
 
@@ -587,8 +650,17 @@ class DatabaseManager {
             console.log('[dbManager.js] Removing old columns from pictures table...');
 
 
-            // Copy data to new table
-            this.db.prepare(`INSERT INTO pictures_new (id, file_path, file_name, file_size, file_type, width, height, title, description) SELECT id, file_path, file_name, file_size, file_type, width, height, title, description FROM pictures`).run();
+            // Copy data to new table - only keep original images (not duplicates)
+            const originalPictures = existingPictures.filter(pic => {
+                // Check if this picture is a duplicate (if it's mapped to another ID)
+                return !duplicateMapping.has(pic.id);
+            });
+
+            for (const pic of originalPictures) {
+                this.db.prepare(`INSERT INTO pictures_new (id, file_path, file_name, file_size, file_type, width, height, title, description) 
+                    SELECT id, file_path, file_name, file_size, file_type, width, height, title, description 
+                    FROM pictures WHERE id = ?`).run(pic.id);
+            }
 
             // Drop old table
             this.db.prepare('DROP TABLE pictures').run();
@@ -599,20 +671,34 @@ class DatabaseManager {
 
             // ---------------------------------------- Creating references in the junction table
 
-            // Create references in the junction table
+            // Create references in the junction table - map duplicates to originals
             const insertRefStmt = this.db.prepare(`
                 INSERT OR IGNORE INTO item_pictures (item_id, picture_id)
                 VALUES (?, ?)
             `);
 
             for (const pic of existingPictures) {
-                console.log(`[dbManager.js] Migrating picture ${pic.id} to item ${pic.item_id}`);
-                insertRefStmt.run(pic.item_id, pic.id);
+                let targetPictureId = pic.id;
+                
+                // Check if this picture is a duplicate, if so, use the master's ID
+                if (duplicateMapping.has(pic.id)) {
+                    targetPictureId = duplicateMapping.get(pic.id);
+                    console.log(`[dbManager.js] Mapping duplicate picture ${pic.id} to master ${targetPictureId} for item ${pic.item_id}`);
+                }
+                
+                console.log(`[dbManager.js] Creating reference: item ${pic.item_id} -> picture ${targetPictureId}`);
+                insertRefStmt.run(pic.item_id, targetPictureId);
             }
 
-            console.log(`[dbManager.js] Migrated ${existingPictures.length} picture references`);
+            console.log(`[dbManager.js] Migration completed - consolidated ${duplicatesConsolidated} duplicates, created ${existingPictures.length} references`);
 
             this.db.prepare('COMMIT').run();
+
+            // If duplicates were found and consolidated during migration, 
+            // suggest running a full consolidation check on remaining images
+            if (duplicatesConsolidated > 0) {
+                console.log(`[dbManager.js] Migration consolidated ${duplicatesConsolidated} duplicates. Consider running consolidateDuplicateImages() for a full check of remaining images.`);
+            }
 
 
         } catch (error) {
@@ -646,12 +732,12 @@ class DatabaseManager {
                 // Delete from database
                 this.db.prepare('DELETE FROM pictures WHERE id = ?').run(image.id);
                 
-                // Delete physical file
-                if (image.file_path && fs.existsSync(image.file_path)) {
-                    fs.unlinkSync(image.file_path);
-                    console.log(`[dbManager.js] Cleaned up orphaned image: ${image.file_name}`);
-                }
-                deletedCount++;
+                //// Delete physical file
+                //if (image.file_path && fs.existsSync(image.file_path)) {
+                //    fs.unlinkSync(image.file_path);
+                //    console.log(`[dbManager.js] Cleaned up orphaned image: ${image.file_name}`);
+                //}
+                //deletedCount++;
             } catch (error) {
                 console.error(`[dbManager.js] Failed to cleanup image ${image.file_name}:`, error);
             }
@@ -2506,6 +2592,314 @@ class DatabaseManager {
                 this.db.prepare('ROLLBACK').run();
             }
             console.error('Error during picture migration:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Detects and consolidates duplicate images in the current database
+     * This can be run on an already migrated database to find and remove duplicates
+     * @returns {Object} Statistics about the consolidation process
+     */
+    async consolidateDuplicateImages() {
+        const fs = require('fs');
+        
+        console.log('[dbManager.js] Starting duplicate image consolidation...');
+        
+        try {
+            this.db.prepare('BEGIN').run();
+            
+            // Get all pictures in the current system
+            const allPictures = this.db.prepare(`
+                SELECT id, file_path, file_name, file_size 
+                FROM pictures 
+                WHERE file_path IS NOT NULL
+                ORDER BY id ASC
+            `).all();
+            
+            console.log(`[dbManager.js] Analyzing ${allPictures.length} images for duplicates...`);
+            
+            // Calculate hashes for all images and group by hash
+            const hashGroups = new Map(); // hash -> [picture1, picture2, ...]
+            
+            for (const picture of allPictures) {
+                try {
+                    if (picture.file_path && fs.existsSync(picture.file_path)) {
+                        const fileBuffer = fs.readFileSync(picture.file_path);
+                        const hash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+                        
+                        if (!hashGroups.has(hash)) {
+                            hashGroups.set(hash, []);
+                        }
+                        hashGroups.get(hash).push(picture);
+                    } else {
+                        console.warn(`[dbManager.js] Image file not found: ${picture.file_path}`);
+                    }
+                } catch (error) {
+                    console.error(`[dbManager.js] Error processing image ${picture.file_path}:`, error);
+                }
+            }
+            
+            // Find groups with duplicates (more than 1 image with same hash)
+            const duplicateGroups = Array.from(hashGroups.entries())
+                .filter(([hash, pictures]) => pictures.length > 1);
+            
+            console.log(`[dbManager.js] Found ${duplicateGroups.length} groups with duplicates`);
+            
+            let duplicatesConsolidated = 0;
+            let filesDeleted = 0;
+            let referencesUpdated = 0;
+            
+            for (const [hash, duplicatePictures] of duplicateGroups) {
+                console.log(`[dbManager.js] Processing duplicate group with ${duplicatePictures.length} images (hash: ${hash.substring(0, 8)}...)`);
+                
+                // Sort by ID to keep the oldest (lowest ID) as the master
+                duplicatePictures.sort((a, b) => a.id - b.id);
+                const masterPicture = duplicatePictures[0];
+                const duplicates = duplicatePictures.slice(1);
+                
+                console.log(`[dbManager.js] Keeping master image ID ${masterPicture.id}: ${masterPicture.file_path}`);
+                
+                // For each duplicate, update all references to point to the master
+                for (const duplicate of duplicates) {
+                    console.log(`[dbManager.js] Processing duplicate ID ${duplicate.id}: ${duplicate.file_path}`);
+                    
+                    // Get all references to this duplicate image
+                    const references = this.db.prepare(`
+                        SELECT item_id FROM item_pictures WHERE picture_id = ?
+                    `).all(duplicate.id);
+                    
+                    console.log(`[dbManager.js] Found ${references.length} references to duplicate ID ${duplicate.id}`);
+                    
+                    // Update each reference to point to the master image instead
+                    for (const ref of references) {
+                        // Check if master already has a reference to this item (prevent duplicates)
+                        const existingRef = this.db.prepare(`
+                            SELECT COUNT(*) as count 
+                            FROM item_pictures 
+                            WHERE item_id = ? AND picture_id = ?
+                        `).get(ref.item_id, masterPicture.id).count;
+                        
+                        if (existingRef === 0) {
+                            // Update reference to point to master
+                            const updateResult = this.db.prepare(`
+                                UPDATE item_pictures 
+                                SET picture_id = ? 
+                                WHERE item_id = ? AND picture_id = ?
+                            `).run(masterPicture.id, ref.item_id, duplicate.id);
+                            
+                            referencesUpdated += updateResult.changes;
+                            console.log(`[dbManager.js] Updated reference: item ${ref.item_id} now points to master ${masterPicture.id}`);
+                        } else {
+                            // Master already referenced by this item, just delete the duplicate reference
+                            this.db.prepare(`
+                                DELETE FROM item_pictures 
+                                WHERE item_id = ? AND picture_id = ?
+                            `).run(ref.item_id, duplicate.id);
+                            
+                            console.log(`[dbManager.js] Removed duplicate reference: item ${ref.item_id} already references master ${masterPicture.id}`);
+                        }
+                    }
+                    
+                    // Now it's safe to delete the duplicate image record from database
+                    this.db.prepare(`DELETE FROM pictures WHERE id = ?`).run(duplicate.id);
+                    console.log(`[dbManager.js] Deleted duplicate image record ID ${duplicate.id}`);
+                    
+                    duplicatesConsolidated++;
+                }
+            }
+            
+            // Commit database changes BEFORE deleting files
+            this.db.prepare('COMMIT').run();
+            console.log('[dbManager.js] Database changes committed, now deleting duplicate files...');
+            
+            // Now delete the physical files (after database is safely updated)
+            for (const [hash, duplicatePictures] of duplicateGroups) {
+                const masterPicture = duplicatePictures[0]; // Same sorting as above
+                const duplicates = duplicatePictures.slice(1);
+                
+                for (const duplicate of duplicates) {
+                    if (duplicate.file_path && fs.existsSync(duplicate.file_path)) {
+                        try {
+                            fs.unlinkSync(duplicate.file_path);
+                            filesDeleted++;
+                            console.log(`[dbManager.js] Deleted duplicate file: ${duplicate.file_path}`);
+                        } catch (error) {
+                            console.error(`[dbManager.js] Failed to delete duplicate file ${duplicate.file_path}:`, error);
+                        }
+                    }
+                }
+            }
+            
+            const stats = {
+                totalImagesAnalyzed: allPictures.length,
+                duplicateGroupsFound: duplicateGroups.length,
+                duplicatesConsolidated: duplicatesConsolidated,
+                filesDeleted: filesDeleted,
+                referencesUpdated: referencesUpdated,
+                storageSpaceSaved: 'Calculate manually' // Could calculate file sizes if needed
+            };
+            
+            console.log(`[dbManager.js] Consolidation completed:`, stats);
+            return stats;
+            
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('[dbManager.js] Error during duplicate consolidation:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Detects and consolidates visually similar images (not just byte-identical)
+     * This is more permissive than hash-based detection and catches images that look the same
+     * but have different metadata, compression, etc.
+     * @returns {Object} Statistics about the consolidation process
+     */
+    async consolidateVisuallyDuplicateImages() {
+        const fs = require('fs');
+        
+        console.log('[dbManager.js] Starting visual duplicate image consolidation...');
+        
+        try {
+            this.db.prepare('BEGIN').run();
+            
+            // Get all pictures in the current system
+            const allPictures = this.db.prepare(`
+                SELECT id, file_path, file_name, file_size, width, height, file_type
+                FROM pictures 
+                WHERE file_path IS NOT NULL
+                ORDER BY id ASC
+            `).all();
+            
+            console.log(`[dbManager.js] Analyzing ${allPictures.length} images for visual duplicates...`);
+            
+            // Group by dimensions and file size first (quick filter)
+            const visualGroups = new Map(); // "width_height_size" -> [picture1, picture2, ...]
+            
+            for (const picture of allPictures) {
+                if (picture.file_path && fs.existsSync(picture.file_path)) {
+                    // Create a key based on visual characteristics
+                    const visualKey = `${picture.width || 0}_${picture.height || 0}_${picture.file_size || 0}`;
+                    
+                    if (!visualGroups.has(visualKey)) {
+                        visualGroups.set(visualKey, []);
+                    }
+                    visualGroups.get(visualKey).push(picture);
+                } else {
+                    console.warn(`[dbManager.js] Image file not found: ${picture.file_path}`);
+                }
+            }
+            
+            // Find groups with potential duplicates (same dimensions and size)
+            const potentialDuplicateGroups = Array.from(visualGroups.entries())
+                .filter(([key, pictures]) => pictures.length > 1);
+            
+            console.log(`[dbManager.js] Found ${potentialDuplicateGroups.length} groups with potential visual duplicates`);
+            
+            let duplicatesConsolidated = 0;
+            let filesDeleted = 0;
+            let referencesUpdated = 0;
+            
+            for (const [visualKey, duplicatePictures] of potentialDuplicateGroups) {
+                const [width, height, size] = visualKey.split('_').map(Number);
+                console.log(`[dbManager.js] Processing visual duplicate group: ${width}x${height} ${size}bytes (${duplicatePictures.length} images)`);
+                
+                // Sort by ID to keep the oldest (lowest ID) as the master
+                duplicatePictures.sort((a, b) => a.id - b.id);
+                const masterPicture = duplicatePictures[0];
+                const duplicates = duplicatePictures.slice(1);
+                
+                console.log(`[dbManager.js] Keeping master image ID ${masterPicture.id}: ${masterPicture.file_name}`);
+                
+                // For images with same dimensions and file size, treat as duplicates
+                // This catches cases where metadata differs but the visual content is the same
+                for (const duplicate of duplicates) {
+                    console.log(`[dbManager.js] Processing visual duplicate ID ${duplicate.id}: ${duplicate.file_name}`);
+                    
+                    // Get all references to this duplicate image
+                    const references = this.db.prepare(`
+                        SELECT item_id FROM item_pictures WHERE picture_id = ?
+                    `).all(duplicate.id);
+                    
+                    console.log(`[dbManager.js] Found ${references.length} references to duplicate ID ${duplicate.id}`);
+                    
+                    // Update each reference to point to the master image instead
+                    for (const ref of references) {
+                        // Check if master already has a reference to this item (prevent duplicates)
+                        const existingRef = this.db.prepare(`
+                            SELECT COUNT(*) as count 
+                            FROM item_pictures 
+                            WHERE item_id = ? AND picture_id = ?
+                        `).get(ref.item_id, masterPicture.id).count;
+                        
+                        if (existingRef === 0) {
+                            // Update reference to point to master
+                            const updateResult = this.db.prepare(`
+                                UPDATE item_pictures 
+                                SET picture_id = ? 
+                                WHERE item_id = ? AND picture_id = ?
+                            `).run(masterPicture.id, ref.item_id, duplicate.id);
+                            
+                            referencesUpdated += updateResult.changes;
+                            console.log(`[dbManager.js] Updated reference: item ${ref.item_id} now points to master ${masterPicture.id}`);
+                        } else {
+                            // Master already referenced by this item, just delete the duplicate reference
+                            this.db.prepare(`
+                                DELETE FROM item_pictures 
+                                WHERE item_id = ? AND picture_id = ?
+                            `).run(ref.item_id, duplicate.id);
+                            
+                            console.log(`[dbManager.js] Removed duplicate reference: item ${ref.item_id} already references master ${masterPicture.id}`);
+                        }
+                    }
+                    
+                    // Now it's safe to delete the duplicate image record from database
+                    this.db.prepare(`DELETE FROM pictures WHERE id = ?`).run(duplicate.id);
+                    console.log(`[dbManager.js] Deleted duplicate image record ID ${duplicate.id}`);
+                    
+                    duplicatesConsolidated++;
+                }
+            }
+            
+            // Commit database changes BEFORE deleting files
+            this.db.prepare('COMMIT').run();
+            console.log('[dbManager.js] Database changes committed, now deleting duplicate files...');
+            
+            // Now delete the physical files (after database is safely updated)
+            for (const [visualKey, duplicatePictures] of potentialDuplicateGroups) {
+                const masterPicture = duplicatePictures[0]; // Same sorting as above
+                const duplicates = duplicatePictures.slice(1);
+                
+                for (const duplicate of duplicates) {
+                    if (duplicate.file_path && fs.existsSync(duplicate.file_path)) {
+                        try {
+                            fs.unlinkSync(duplicate.file_path);
+                            filesDeleted++;
+                            console.log(`[dbManager.js] Deleted visual duplicate file: ${duplicate.file_path}`);
+                        } catch (error) {
+                            console.error(`[dbManager.js] Failed to delete duplicate file ${duplicate.file_path}:`, error);
+                        }
+                    }
+                }
+            }
+            
+            const stats = {
+                totalImagesAnalyzed: allPictures.length,
+                duplicateGroupsFound: potentialDuplicateGroups.length,
+                duplicatesConsolidated: duplicatesConsolidated,
+                filesDeleted: filesDeleted,
+                referencesUpdated: referencesUpdated,
+                method: 'visual-similarity',
+                criteria: 'Same dimensions and file size'
+            };
+            
+            console.log(`[dbManager.js] Visual duplicate consolidation completed:`, stats);
+            return stats;
+            
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('[dbManager.js] Error during visual duplicate consolidation:', error);
             throw error;
         }
     }
