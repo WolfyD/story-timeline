@@ -715,49 +715,76 @@ class EnhancedCSSEditor {
     }
 
     getCursorPixelPosition() {
+        const textareaRect = this.textarea.getBoundingClientRect();
+        const textareaStyles = window.getComputedStyle(this.textarea);
+        
         // Create a temporary div to measure text position
         const div = document.createElement('div');
-        const textareaStyles = window.getComputedStyle(this.textarea);
         
         // Copy textarea styles to div
         div.style.position = 'absolute';
         div.style.visibility = 'hidden';
+        div.style.top = '-9999px';
+        div.style.left = '-9999px';
         div.style.whiteSpace = 'pre-wrap';
         div.style.wordWrap = 'break-word';
         div.style.fontFamily = textareaStyles.fontFamily;
         div.style.fontSize = textareaStyles.fontSize;
         div.style.lineHeight = textareaStyles.lineHeight;
         div.style.letterSpacing = textareaStyles.letterSpacing;
-        div.style.padding = textareaStyles.padding;
-        div.style.border = textareaStyles.border;
+        div.style.wordSpacing = textareaStyles.wordSpacing;
+        div.style.textIndent = textareaStyles.textIndent;
+        div.style.paddingLeft = textareaStyles.paddingLeft;
+        div.style.paddingTop = textareaStyles.paddingTop;
+        div.style.paddingRight = textareaStyles.paddingRight;
+        div.style.paddingBottom = textareaStyles.paddingBottom;
+        div.style.borderLeft = textareaStyles.borderLeft;
+        div.style.borderTop = textareaStyles.borderTop;
+        div.style.borderRight = textareaStyles.borderRight;
+        div.style.borderBottom = textareaStyles.borderBottom;
         div.style.width = textareaStyles.width;
         div.style.boxSizing = textareaStyles.boxSizing;
-        
-        // Position the div at the same location as the textarea
-        const textareaRect = this.textarea.getBoundingClientRect();
-        div.style.left = textareaRect.left + 'px';
-        div.style.top = textareaRect.top + 'px';
+        div.style.overflowWrap = textareaStyles.overflowWrap;
+        div.style.tabSize = textareaStyles.tabSize;
         
         document.body.appendChild(div);
         
-        // Get text up to cursor
+        // Get text up to cursor position
         const textBeforeCursor = this.textarea.value.substring(0, this.textarea.selectionStart);
-        div.textContent = textBeforeCursor;
         
-        // Add a span for the cursor position
-        const span = document.createElement('span');
-        span.textContent = '|';
-        div.appendChild(span);
+        // Replace the last character with a span to measure its position
+        if (textBeforeCursor.length > 0) {
+            div.textContent = textBeforeCursor.slice(0, -1);
+            const span = document.createElement('span');
+            span.textContent = textBeforeCursor.slice(-1) || ' ';
+            div.appendChild(span);
+        } else {
+            // If there's no text before cursor, create a span with a space
+            const span = document.createElement('span');
+            span.textContent = ' ';
+            div.appendChild(span);
+        }
         
-        // Get the span's position relative to the viewport
+        // Measure the position of the span (which represents cursor position)
+        const span = div.querySelector('span');
         const spanRect = span.getBoundingClientRect();
+        const divRect = div.getBoundingClientRect();
+        
+        // Calculate relative position within the div
+        const relativeX = spanRect.left - divRect.left + span.offsetWidth;
+        const relativeY = spanRect.top - divRect.top;
         
         document.body.removeChild(div);
         
-        // Calculate final position accounting for scroll
+        // Convert to absolute position accounting for textarea position and scroll
+        const paddingLeft = parseFloat(textareaStyles.paddingLeft) || 0;
+        const paddingTop = parseFloat(textareaStyles.paddingTop) || 0;
+        const borderLeft = parseFloat(textareaStyles.borderLeftWidth) || 0;
+        const borderTop = parseFloat(textareaStyles.borderTopWidth) || 0;
+        
         return {
-            x: spanRect.left - this.textarea.scrollLeft,
-            y: spanRect.top - this.textarea.scrollTop
+            x: textareaRect.left + paddingLeft + borderLeft + relativeX - this.textarea.scrollLeft,
+            y: textareaRect.top + paddingTop + borderTop + relativeY - this.textarea.scrollTop
         };
     }
 
