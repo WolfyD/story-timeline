@@ -1352,7 +1352,7 @@ class DatabaseManager {
     getAllTagsWithCounts() {
         // The following query counts the number of items associated with each tag using the item_tags table
         const stmt = this.db.prepare(`
-            SELECT t.name, t.id, COUNT(it.item_id) as item_count
+            SELECT t.name, t.id, COUNT(it.item_id) as item_count, GROUP_CONCAT(DISTINCT it.item_id) as item_ids
             FROM tags t
             LEFT JOIN item_tags it ON t.id = it.tag_id
             GROUP BY t.name

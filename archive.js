@@ -534,10 +534,64 @@ function displayTags() {
     const content = document.getElementById('tags-content');
     content.innerHTML = '';
 
+    console.log(filteredTags);
+
     filteredTags.forEach(tag => {
         const tagElement = document.createElement('div');
         tagElement.className = 'archive-item archive-tag';
-        tagElement.innerHTML = `<div class="archive-item-title">${tag.name} (${tag.item_count}) <div class="archive-tag-buttons"><button class="archive-tag-button" id="delete-tag-${tag.id}" onclick='deleteTag("${tag.id}")'><i class="ri-delete-bin-line"></i></button></div></div>`;
+
+        let item_ids = tag.item_ids.split(',');
+        let dropdown_elements = [];
+        item_ids.forEach(id => {
+            let item = items.find(i => i.id == id);
+            if (item) {
+                dropdown_elements.push(`
+                    <div class="tag-item-usage-item">
+                        <a class="tag-item-usage-item-title" onclick='jumptoitem("${item.id}")' href='#${item.id}'>${item.title}</a> <span style='font-size: 12px; margin-left: 10px; color: #888;'>("${item.id}")</span>
+                        <div class="tag-item-usage-item-date">${item.year}.${item.subtick} ${( (item.end_year != item.year || item.end_subtick != item.subtick) ? `- ${item.end_year}.${item.end_subtick}` : '' )}</div>
+                    </div>
+                `);
+            }
+        });
+        let item_ids_list = dropdown_elements.join('');
+
+        tagElement.innerHTML = `<div class="archive-item-title">${tag.name} (${tag.item_count})
+        <button class="tag-toggle-button" title="Show items using this tag">
+            <i class="ri-arrow-right-s-line"></i>
+        </button>
+        
+        <div class="archive-tag-buttons"><button class="archive-tag-button" id="delete-tag-${tag.id}" onclick='deleteTag("${tag.id}")'><i class="ri-delete-bin-line"></i></button></div></div> 
+        <div class="tag-item-usage-dropdown-container">
+            ${item_ids_list.length > 0 ? `
+                <div class="tag-item-usage-dropdown" style="display: none;">
+                    <div class="tag-item-usage-header">Used in:</div>
+                    <div class="media-usage-list">
+                        ${dropdown_elements.join('')}
+                    </div>
+                </div>
+            ` : ''}
+        </div>`;
+
+        // Add click handler for the toggle button
+        const toggleButton = tagElement.querySelector('.tag-toggle-button');
+        if (toggleButton) {
+            toggleButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const itemsContainer = tagElement.querySelector('.tag-item-usage-dropdown');
+                const icon = toggleButton.querySelector('i');
+
+                if (itemsContainer.style.display === 'none') {
+                    itemsContainer.style.display = 'block';
+                    icon.className = 'ri-arrow-down-s-line';
+                    toggleButton.title = 'Hide items using this tag';
+                } else {
+                    itemsContainer.style.display = 'none';
+                    icon.className = 'ri-arrow-right-s-line';
+                    toggleButton.title = 'Show items using this tag';
+                }
+            });
+        }
+
         content.appendChild(tagElement);
     });
 }

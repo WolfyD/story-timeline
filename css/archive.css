@@ -467,7 +467,7 @@ button:disabled {
 }
 
 /* Media usage dropdown styling - matching story referenced items */
-.media-header {
+.media-header, .tag-item-usage-header {
     width: 100%;
 }
 
@@ -477,7 +477,7 @@ button:disabled {
     gap: 10px;
 }
 
-.media-toggle-button {
+.media-toggle-button, .tag-toggle-button {
     background: none;
     border: none;
     padding: 4px;
@@ -489,7 +489,7 @@ button:disabled {
     transition: transform 0.2s ease;
 }
 
-.media-toggle-button:hover {
+.media-toggle-button:hover, .tag-toggle-button:hover {
     color: #f5e6d4;
 }
 
@@ -497,7 +497,7 @@ button:disabled {
     font-size: 1.2em;
 }
 
-.media-item-usage-dropdown {
+.media-item-usage-dropdown, .tag-item-usage-dropdown {
     display: flex;
     margin-top: 10px;
     padding: 10px;
@@ -506,37 +506,37 @@ button:disabled {
     width: 100% !important;
 }
 
-.media-usage-header {
+.media-usage-header, .tag-item-usage-header {
     font-size: 0.9em;
     color: #666;
     margin-bottom: 8px;
     font-style: italic;
 }
 
-.media-usage-list {
+.media-usage-list, .tag-item-usage-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
 }
 
-.media-item-usage-item {
+.media-item-usage-item, .tag-item-usage-item {
     padding: 8px;
     background: rgba(255, 255, 255, 0.5);
     border-radius: 4px;
     border-left: 3px solid #4b2e2e;
 }
 
-.media-item-usage-item a {
+.media-item-usage-item a, .tag-item-usage-item a {
     font-weight: bold;
     color: #4b2e2e;
     text-decoration: none;
 }
 
-.media-item-usage-item a:hover {
+.media-item-usage-item a:hover, .tag-item-usage-item a:hover {
     text-decoration: underline;
 }
 
-.media-item-container {
+.media-item-container, .tag-item-usage-dropdown-container {
     display: flex !important;
     flex-direction: row !important;
     width: 100% !important;
@@ -550,7 +550,7 @@ button:disabled {
     gap: 10px;
 }
 
-.media-item-usage-item-title {
+.media-item-usage-item-title, .tag-item-usage-item-title {
     font-weight: bold !important;
     color: blue !important;
     text-decoration: underline !important;
