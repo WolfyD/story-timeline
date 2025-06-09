@@ -81,7 +81,19 @@ class Exporter {
                     // Ask user if they want to open the file
                     const shouldOpen = confirm('Timeline exported successfully! Would you like to open the file now?');
                     if (shouldOpen) {
-                        await window.api.invoke('open-exported-file', result.filePath);
+                        try {
+                            console.log('[exporter.js] Attempting to open file:', result.filePath);
+                            const openResult = await window.api.invoke('open-exported-file', result.filePath);
+                            console.log('[exporter.js] Open file result:', openResult);
+                            
+                            if (openResult && !openResult.success) {
+                                console.error('[exporter.js] Failed to open file:', openResult.error);
+                                alert(`Failed to open the exported file: ${openResult.error}\n\nFile saved at: ${result.filePath}`);
+                            }
+                        } catch (openError) {
+                            console.error('[exporter.js] Error opening file:', openError);
+                            alert(`Error opening the exported file: ${openError.message}\n\nFile saved at: ${result.filePath}`);
+                        }
                     }
                 } else {
                     const errorMsg = result ? result.error : 'Unknown error occurred';
@@ -539,20 +551,20 @@ class Exporter {
                 ${item.description ? `<div class="item-description">${item.description}</div>` : ''}
         `;
 
-        // Add images if available
-        if (item.pictures && item.pictures.length > 0) {
-            for (const picture of item.pictures) {
-                if (picture.file_path) {
-                    const dataUri = await this.imageToDataUri(picture.file_path);
-                    if (dataUri) {
-                        html += `<img src="${dataUri}" alt="${picture.description || item.title}" class="item-image">`;
-                    } else {
-                        // Fallback if image conversion fails
-                        html += `<div class="item-image-placeholder">[Image: ${picture.description || item.title}]</div>`;
-                    }
-                }
-            }
-        }
+        // // Add images if available
+        // if (item.pictures && item.pictures.length > 0) {
+        //     for (const picture of item.pictures) {
+        //         if (picture.file_path) {
+        //             const dataUri = await this.imageToDataUri(picture.file_path);
+        //             if (dataUri) {
+        //                 html += `<img src="${dataUri}" alt="${picture.description || item.title}" class="item-image">`;
+        //             } else {
+        //                 // Fallback if image conversion fails
+        //                 html += `<div class="item-image-placeholder">[Image: ${picture.description || item.title}]</div>`;
+        //             }
+        //         }
+        //     }
+        // }
 
         html += `${item.content ? `<div class="item-content">${item.content}</div>` : ''}
             </div>

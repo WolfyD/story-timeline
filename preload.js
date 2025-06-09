@@ -80,7 +80,8 @@ contextBridge.exposeInMainWorld('api', {
             'remove-image-reference',
             'removeMedia',
             'save-timeline-export',
-            'convert-image-to-base64'
+            'convert-image-to-base64',
+            'open-exported-file'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);

@@ -1933,13 +1933,57 @@ function setupIpcHandlers() {
   ipcMain.handle('open-exported-file', async (event, filePath) => {
     try {
       const { shell } = require('electron');
+      const fs = require('fs');
+      const path = require('path');
       
-      // Open with system default application (browser)
-      await shell.openPath(filePath);
+      console.log(`[main.js] Attempting to open file: ${filePath}`);
       
-      return { success: true };
+      // Check if file exists first
+      if (!fs.existsSync(filePath)) {
+        console.error(`[main.js] File does not exist: ${filePath}`);
+        return { 
+          success: false, 
+          error: 'File does not exist' 
+        };
+      }
+      
+      // Try to open with system default application
+      try {
+        console.log(`[main.js] Using shell.openPath to open: ${filePath}`);
+        const result = await shell.openPath(filePath);
+        
+        if (result) {
+          // shell.openPath returns an error string if it fails
+          console.error(`[main.js] shell.openPath failed: ${result}`);
+          
+          // Try fallback method using shell.openExternal with file:// protocol
+          console.log(`[main.js] Trying fallback method with file:// protocol`);
+          const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+          await shell.openExternal(fileUrl);
+          
+          return { success: true, method: 'openExternal' };
+        } else {
+          console.log(`[main.js] File opened successfully with shell.openPath`);
+          return { success: true, method: 'openPath' };
+        }
+      } catch (openError) {
+        console.error(`[main.js] Error with shell.openPath:`, openError);
+        
+        // Try fallback method
+        try {
+          console.log(`[main.js] Trying fallback method with shell.openExternal`);
+          const fileUrl = `file:///${filePath.replace(/\\/g, '/')}`;
+          await shell.openExternal(fileUrl);
+          
+          return { success: true, method: 'openExternal' };
+        } catch (fallbackError) {
+          console.error(`[main.js] Fallback method also failed:`, fallbackError);
+          throw fallbackError;
+        }
+      }
+      
     } catch (error) {
-      console.error('Error opening exported file:', error);
+      console.error(`[main.js] Error opening exported file: ${filePath}`, error);
       return { 
         success: false, 
         error: error.message 
