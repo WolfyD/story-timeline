@@ -829,6 +829,30 @@ function renderTimeline() {
 
     // Track rendered items count
     let renderedItemCount = 0;
+    
+    // Calculate uniform box width once for performance optimization
+    let uniformBoxWidth = null;
+    function getUniformBoxWidth() {
+        if (uniformBoxWidth === null) {
+            // Create a temporary box to measure width
+            const testBox = document.createElement('div');
+            testBox.className = 'timeline-item-box';
+            testBox.style.position = 'absolute';
+            testBox.style.left = '0px';
+            testBox.style.top = '0px';
+            testBox.style.visibility = 'hidden';
+            
+            // Add minimal content to get realistic width
+            const testSpan = document.createElement('span');
+            testSpan.textContent = 'Test';
+            testBox.appendChild(testSpan);
+            
+            timeline.appendChild(testBox);
+            uniformBoxWidth = testBox.offsetWidth;
+            timeline.removeChild(testBox);
+        }
+        return uniformBoxWidth;
+    }
 
     // Find all items that overlap with the current center position
     const overlappingItems = visibleItems.filter(item => {
@@ -1237,17 +1261,16 @@ function renderTimeline() {
                     boxTop = y - verticalOffset;
                 }
 
-                const boxWidth = 150;
                 const isRightOfCenter = itemX >= centerX;
-                const leftMargin = 10; // px, for left side
-                const rightMargin = 10; // px, for right side
+                const connectionMargin = 10; // px, consistent distance from timeline line
                 let boxLeft;
                 if (isRightOfCenter) {
-                    // Box's right edge is at itemX - rightMargin
-                    boxLeft = itemX - rightMargin;
+                    // Box's left edge starts at a fixed distance from the timeline line
+                    boxLeft = itemX + connectionMargin;
                 } else {
-                    // Box's left edge is at itemX + leftMargin
-                    boxLeft = itemX + leftMargin - boxWidth;
+                    // Box's right edge ends at a fixed distance from the timeline line
+                    // We'll calculate this dynamically based on actual box width after creation
+                    boxLeft = itemX - connectionMargin;
                 }
 
                 // Create the box
@@ -1314,6 +1337,21 @@ function renderTimeline() {
                     }
                     
                     box.style.position = 'absolute';
+                    
+                    // Use cached uniform box width for performance
+                    const actualBoxWidth = getUniformBoxWidth();
+                    
+                    // Calculate final position with 10% width adjustment towards timeline line
+                    const widthAdjustment = actualBoxWidth * 0.1;
+                    
+                    if (isRightOfCenter) {
+                        // Box's left edge starts at fixed distance, then move back 10% towards line
+                        boxLeft = itemX + connectionMargin - widthAdjustment;
+                    } else {
+                        // Box's right edge ends at fixed distance, then move back 10% towards line
+                        boxLeft = itemX - connectionMargin - actualBoxWidth + widthAdjustment;
+                    }
+                    
                     box.style.left = `${boxLeft}px`;
                     box.style.top = `${boxTop}px`;
                 }
