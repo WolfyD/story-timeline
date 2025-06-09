@@ -391,6 +391,13 @@
             imageLibrary.show(
                 // Single image selection callback
                 (selectedImage) => {
+                    // Check if this image is already added to prevent duplicates
+                    const existingImageIndex = images.findIndex(img => img.id === selectedImage.id);
+                    if (existingImageIndex !== -1) {
+                        alert('This image is already added to this item.');
+                        return;
+                    }
+
                     // Create a reference to the existing image
                     const existingImageRef = {
                         id: selectedImage.id,
@@ -412,7 +419,15 @@
                 // Multi-image selection callback
                 (selectedImages) => {
                     // Handle multiple image selection
+                    let addedCount = 0;
                     selectedImages.forEach(selectedImage => {
+                        // Check if this image is already added to prevent duplicates
+                        const existingImageIndex = images.findIndex(img => img.id === selectedImage.id);
+                        if (existingImageIndex !== -1) {
+                            console.log(`Image ${selectedImage.file_name} is already added, skipping.`);
+                            return;
+                        }
+
                         const existingImageRef = {
                             id: selectedImage.id,
                             file_path: selectedImage.file_path,
@@ -428,8 +443,17 @@
 
                         images.push(existingImageRef);
                         addImagePreview(existingImageRef, false);
+                        addedCount++;
                     });
-                    checkModified();
+                    
+                    if (addedCount > 0) {
+                        checkModified();
+                    }
+                    
+                    const skippedCount = selectedImages.length - addedCount;
+                    if (skippedCount > 0) {
+                        alert(`${skippedCount} image(s) were already added and were skipped.`);
+                    }
                 }
             );
         }
@@ -724,7 +748,7 @@
                             height: result.height || 0,
                             title: result.title || imageInfo.file_name,
                             description: result.description || '',
-                            isNew: true
+                            isReference: true // Mark as reference since it's now saved and has an ID
                         });
                     } else {
                         // For existing images from the item (backward compatibility)

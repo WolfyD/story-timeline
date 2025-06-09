@@ -435,16 +435,96 @@ function displayMedia() {
         const fileElement = document.createElement('div');
         fileElement.className = 'archive-item media-item';
         let item_name = items.find(item => item.id === file.item_id)?.title || " - ";
+        let linked_item_ids = file.linked_items.split(',');
+        let dropdown_elements = [];
+
+        // Add a dropdown list of items that use this media file. Not a count, but a list of items.
+        linked_item_ids.forEach(item_id => {
+            let item = items.find(i => i.id == item_id);
+            console.log(item);
+            if (item) {
+                dropdown_elements.push(`
+                    <div class="media-item-usage-item">
+                        <a class="media-item-usage-item-title" onclick='jumptoitem("${item.id}")' href='#${item.id}'>${item.title}</a> <span style='font-size: 12px; margin-left: 10px; color: #888;'>("${item.id}")</span>
+                        <div class="media-item-usage-item-date">${item.year}.${item.subtick} ${( (item.end_year != item.year || item.end_subtick != item.subtick) ? `- ${item.end_year}.${item.end_subtick}` : '' )}</div>
+                    </div>
+                `);
+            }
+        });
+        
+
         fileElement.innerHTML = `
-            <div class="media-item-info">
-                <div class="archive-item-title">${file.title}</div>
-                <div class="archive-item-date">Item ID: ${file.item_id ? "<a onclick='jumptoitem(\"" + file.item_id + "\")' href='#" + file.item_id + "'>" + item_name + "</a>"  + "<span style='font-size: 12px; margin-left: 10px; color: #888;'>(" + file.item_id + ")</span>" : " - "}</div>
+            <div class="media-item-container">
+                <div class="media-header">
+                    <div class="media-title-container">
+                        <div class="archive-item-title">${file.title}</div>
+                        ${dropdown_elements.length > 0 ? `
+                            <button class="media-toggle-button" title="Show items using this media">
+                                <i class="ri-arrow-right-s-line"></i>
+                            </button>
+                        ` : ''}
+                    </div>
+                    <div class="archive-item-date">Item ID: ${file.item_id ? "<a onclick='jumptoitem(\"" + file.item_id + "\")' href='#" + file.item_id + "'>" + item_name + "</a>"  + "<span style='font-size: 12px; margin-left: 10px; color: #888;'>(" + file.item_id + ")</span>" : " - "}</div>
+                </div>
+                <div class="media-item-description">Used in ${file.usage_count} items</div>
+                <div class="media-item-buttons" style="z-index: 1000;">
+                    <button class="media-item-button delete" title="Delete item">
+                        <i class="ri-delete-bin-line"></i>
+                    </button>
+                </div>
+                <div class="preview-image">
+                    <img width="100" height="100" src="${file.file_path}" alt="${file.file_name}">
+                </div>
             </div>
-            <div class="media-item-description">${file.description || 'No description'}</div>
-            <div class="preview-image">
-                <img width="100" height="100" src="${file.file_path}" alt="${file.file_name}">
+            <div class="media-item-usage-dropdown-container">
+                ${dropdown_elements.length > 0 ? `
+                    <div class="media-item-usage-dropdown" style="display: none;">
+                        <div class="media-usage-header">Used in:</div>
+                        <div class="media-usage-list">
+                            ${dropdown_elements.join('')}
+                        </div>
+                    </div>
+                ` : ''}
             </div>
         `;
+
+        // Add click handler for the toggle button
+        const toggleButton = fileElement.querySelector('.media-toggle-button');
+        if (toggleButton) {
+            toggleButton.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const itemsContainer = fileElement.querySelector('.media-item-usage-dropdown');
+                const icon = toggleButton.querySelector('i');
+                
+                if (itemsContainer.style.display === 'none') {
+                    itemsContainer.style.display = 'block';
+                    icon.className = 'ri-arrow-down-s-line';
+                    toggleButton.title = 'Hide items using this media';
+                } else {
+                    itemsContainer.style.display = 'none';
+                    icon.className = 'ri-arrow-right-s-line';
+                    toggleButton.title = 'Show items using this media';
+                }
+            });
+        }
+
+        // Add click handler for the delete button
+        const deleteButton = fileElement.querySelector('.delete');
+        deleteButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (confirm('Are you sure you want to delete this media file?')) {
+                deleteMedia(file.id);
+                // Listen for the deletion confirmation
+                window.api.receive('mediaRemoved', (response) => {
+                    initializeArchive();
+                });
+                
+                // make call to re-render the timeline not the items
+                window.api.send('refresh-timeline');
+
+                initializeArchive();
+            }
+        });
 
         content.appendChild(fileElement);
     });
@@ -489,6 +569,19 @@ function deleteTag(tag_id) {
         filterTags();
     }
 
+}
+
+function deleteMedia(media_id) {
+    if (confirm('Are you sure you want to delete this media file?')) {
+        window.api.invoke('removeMedia', media_id);
+        // Listen for the deletion confirmation
+        window.api.receive('mediaRemoved', (response) => {
+            initializeArchive();
+        });
+        
+        // make call to re-render the timeline not the items
+        window.api.send('refresh-timeline');
+    }
 }
 
 function highlightItem(item_id) {

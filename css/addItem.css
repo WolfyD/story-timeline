@@ -62,8 +62,15 @@ textarea {
 
 .image-preview img {
     width: 100%;
-    height: 120px;
+    height: 200px;
     object-fit: cover;
+    transition: transform 1s ease;
+}
+
+.image-preview img:hover {
+    transform: scale(1.05);
+    object-fit: contain;
+    transition: transform 1s ease;
 }
 
 /* Description icon overlay */

@@ -1296,6 +1296,35 @@ class DatabaseManager {
         }
     }
 
+    getMedia(id) {
+        const stmt = this.db.prepare('SELECT * FROM pictures WHERE id = ?');
+        return stmt.get(id);
+    }
+
+    deleteMedia(id, file_path) {
+        try{
+            // Delete related records first
+            this.db.prepare('DELETE FROM item_pictures WHERE picture_id = ?').run(id);
+            this.db.prepare('DELETE FROM pictures WHERE id = ?').run(id);
+
+            // Delete the physical file
+            const fs = require('fs');
+            if (file_path && fs.existsSync(file_path)) {
+                try {
+                    fs.unlinkSync(file_path);
+                    console.log(`[dbManager.js] Deleted orphaned image file: ${file_path}`);
+                } catch (error) {
+                    console.error(`[dbManager.js] Failed to delete image file: ${file_path}`, error);
+                }
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error deleting media:', error);
+            throw error;
+        }
+    }
+
     deleteStory(id) {
         // Delete related records first
         this.db.prepare('DELETE FROM item_story_refs WHERE story_id = ?').run(id);
@@ -1412,11 +1441,22 @@ class DatabaseManager {
 
     async addPicturesToItemEnhanced(itemId, pictures) {
         for (const pic of pictures) {
-            if (pic.isReference) {
+            console.log(`[dbManager.js] Processing picture for item ${itemId}:`, {
+                isReference: pic.isReference,
+                isNew: pic.isNew,
+                hasTempPath: !!pic.temp_path,
+                hasId: !!pic.id,
+                title: pic.title,
+                file_name: pic.file_name
+            });
+
+            if (pic.isReference && pic.id) {
                 // Add reference to existing image
+                console.log(`[dbManager.js] Adding reference to existing image ${pic.id}`);
                 this.addImageReference(itemId, pic.id);
             } else if (pic.isNew || pic.temp_path) {
                 // Process and save new image, then create reference
+                console.log(`[dbManager.js] Saving new image via saveNewImage`);
                 const result = await this.saveNewImage({
                     file_path: pic.temp_path || pic.file_path,
                     file_name: pic.file_name,
@@ -1426,10 +1466,14 @@ class DatabaseManager {
                 });
 
                 if (result && result.id) {
+                    console.log(`[dbManager.js] Created new image with ID ${result.id}, adding reference`);
                     this.addImageReference(itemId, result.id);
+                } else {
+                    console.error(`[dbManager.js] Failed to save new image, no result returned`);
                 }
-            } else {
-                // Fallback: save image to pictures table (without item_id) and create reference
+            } else if (pic.file_path && !pic.id && !pic.isReference && !pic.isNew) {
+                // Fallback: save image to pictures table directly (for backward compatibility)
+                console.log(`[dbManager.js] Using fallback method to save image directly`);
                 const stmt = this.db.prepare(`
                     INSERT INTO pictures (file_path, file_name, file_size, file_type, width, height, title, description)
                     VALUES (@file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
@@ -1448,8 +1492,13 @@ class DatabaseManager {
 
                 // Create a reference for the new image
                 if (result.lastInsertRowid) {
+                    console.log(`[dbManager.js] Created fallback image with ID ${result.lastInsertRowid}, adding reference`);
                     this.addImageReference(itemId, result.lastInsertRowid);
+                } else {
+                    console.error(`[dbManager.js] Failed to save fallback image`);
                 }
+            } else {
+                console.warn(`[dbManager.js] Skipping picture - no valid processing path found`, pic);
             }
         }
     }
@@ -1489,23 +1538,58 @@ class DatabaseManager {
             // Process pictures: update descriptions for existing ones, add new ones
             if (pictures && pictures.length > 0) {
                 for (const pic of pictures) {
-                    if (pic.isReference && existingPictureMap.has(pic.id)) {
-                        // Update description for existing referenced image
-                        const updateStmt = this.db.prepare(`
-                            UPDATE pictures 
-                            SET description = @description 
-                            WHERE id = @id
-                        `);
-                        updateStmt.run({
-                            id: pic.id,
-                            description: pic.description || ''
-                        });
+                    console.log(`[dbManager.js] Updating picture for item ${itemId}:`, {
+                        isReference: pic.isReference,
+                        isNew: pic.isNew,
+                        hasTempPath: !!pic.temp_path,
+                        hasId: !!pic.id,
+                        wasLinked: existingPictureMap.has(pic.id),
+                        title: pic.title,
+                        file_name: pic.file_name
+                    });
+
+                    if (pic.isReference && pic.id) {
+                        // Handle reference to existing image (could be new reference or existing)
+                        if (existingPictureMap.has(pic.id)) {
+                            console.log(`[dbManager.js] Updating description for existing referenced image ${pic.id}`);
+                            // Update description for existing referenced image
+                            const updateStmt = this.db.prepare(`
+                                UPDATE pictures 
+                                SET description = @description 
+                                WHERE id = @id
+                            `);
+                            updateStmt.run({
+                                id: pic.id,
+                                description: pic.description || ''
+                            });
+                        } else {
+                            console.log(`[dbManager.js] Adding new reference to existing image ${pic.id}`);
+                            // Update description for the referenced image
+                            if (pic.description) {
+                                const updateStmt = this.db.prepare(`
+                                    UPDATE pictures 
+                                    SET description = @description 
+                                    WHERE id = @id
+                                `);
+                                updateStmt.run({
+                                    id: pic.id,
+                                    description: pic.description
+                                });
+                            }
+                        }
                         
-                        // Re-add the reference
+                        // Re-add the reference (for both existing and new references)
                         this.addImageReference(itemId, pic.id);
-                    } else {
-                        // For new images, use the enhanced method which handles descriptions
+                    } else if (pic.isNew || pic.temp_path) {
+                        // For completely new images, use the enhanced method
+                        console.log(`[dbManager.js] Processing new image via addPicturesToItemEnhanced`);
                         await this.addPicturesToItemEnhanced(itemId, [pic]);
+                    } else if (pic.file_path && !pic.id && !pic.isReference) {
+                        // Fallback for legacy images without proper flags
+                        console.log(`[dbManager.js] Processing legacy image via addPicturesToItemEnhanced`);
+                        await this.addPicturesToItemEnhanced(itemId, [pic]);
+                    } else {
+                        console.warn(`[dbManager.js] Skipping picture in update - no valid processing path found`, pic);
                     }
                 }
             }
@@ -2087,6 +2171,15 @@ class DatabaseManager {
         const fs = require('fs');
 
         try {
+            // Add stack trace to see what's calling this method
+            console.log(`[dbManager.js] saveNewImage called with:`, {
+                file_path: fileInfo.file_path,
+                file_name: fileInfo.file_name,
+                file_size: fileInfo.file_size,
+                description: fileInfo.description
+            });
+            console.log(`[dbManager.js] saveNewImage call stack:`, new Error().stack);
+
             // Get the current timeline ID
             const timeline = this.getUniverseData();
             if (!timeline || !timeline.id) {

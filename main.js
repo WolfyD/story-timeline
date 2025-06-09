@@ -1786,6 +1786,19 @@ function setupIpcHandlers() {
     }
   });
 
+  ipcMain.handle('removeMedia', async (event, mediaId) => {
+    try {
+      const mediaFile = dbManager.getMedia(mediaId);
+      const success = dbManager.deleteMedia(mediaId, mediaFile.file_path);
+      // Listen for the deletion confirmation
+      mainWindow.webContents.send('mediaRemoved', { success: true });
+      return success;
+    } catch (error) {
+      console.error('Error removing media:', error);
+      throw error;
+    }
+  });
+
   // Add handlers for image library functionality
   ipcMain.handle('get-picture-usage', async (event, pictureId) => {
     try {
