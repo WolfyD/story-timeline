@@ -728,6 +728,11 @@ if (isEditMode && editItemId) {
             show_in_notes: document.getElementById('showInNotes').checked
         };
 
+        // Get importance value
+        const importanceInput = document.getElementById('importance');
+        if (importanceInput) {
+            formData.importance = parseInt(importanceInput.value) || 5;
+        }
 
         try {
             if (formData.story_refs.length > 0) {

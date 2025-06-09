@@ -634,6 +634,28 @@ function updateMainContent(centerX, centerYear) {
 
     // Add all visible notes
     if (newNoteItems.length > 0) {
+        // Sort notes by importance (higher first), then start date, then alphabetical by title
+        newNoteItems.sort((a, b) => {
+            // First sort by importance (higher importance first)
+            const aImportance = a.importance || 5;
+            const bImportance = b.importance || 5;
+            if (aImportance !== bImportance) {
+                return bImportance - aImportance; // Higher importance first
+            }
+            
+            // Then sort by start date (earlier first)
+            const aDate = a.year + (a.subtick || 0) / timelineState.granularity;
+            const bDate = b.year + (b.subtick || 0) / timelineState.granularity;
+            if (aDate !== bDate) {
+                return aDate - bDate; // Earlier date first
+            }
+            
+            // Finally sort alphabetically by title
+            const aTitle = (a.title || '').toLowerCase();
+            const bTitle = (b.title || '').toLowerCase();
+            return aTitle.localeCompare(bTitle);
+        });
+
         const notesDiv = document.createElement('div');
         notesDiv.className = 'center-notes';
 

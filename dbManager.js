@@ -386,6 +386,15 @@ class DatabaseManager {
             }
         ]);
 
+        // Check and add importance column to items table if it doesn't exist
+        this.ensureTableColumns('items', [
+            {
+                name: 'importance',
+                type: 'INTEGER',
+                default: 5
+            }
+        ]);
+
         // Check and add display_radius column to settings table if it doesn't exist
         this.ensureTableColumns('settings', [
             {
@@ -1013,8 +1022,8 @@ class DatabaseManager {
                 INSERT INTO items (
                     id, title, description, content, year, subtick, original_subtick,
                     end_year, end_subtick, original_end_subtick, creation_granularity,
-                    book_title, chapter, page, type_id, color, timeline_id, item_index, show_in_notes
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    book_title, chapter, page, type_id, color, timeline_id, item_index, show_in_notes, importance
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
 
             stmt.run(
@@ -1036,7 +1045,8 @@ class DatabaseManager {
                 item.color,
                 item.timeline_id || this.currentTimelineId,
                 nextIndex,
-                item.show_in_notes !== undefined ? (item.show_in_notes ? 1 : 0) : 1
+                item.show_in_notes !== undefined ? (item.show_in_notes ? 1 : 0) : 1,
+                item.importance !== undefined ? parseInt(item.importance) : 5
             );
 
             // Add tags if any
@@ -1126,6 +1136,7 @@ class DatabaseManager {
             chapter: item.chapter,
             page: item.page,
             show_in_notes: item.show_in_notes === 1,
+            importance: item.importance || 5,
             tags: item.tags ? item.tags.split(',') : [],
             story_refs: item.story_refs ? item.story_refs.split(',').map(ref => {
                 const [id, title] = ref.split(':');
@@ -1199,7 +1210,8 @@ class DatabaseManager {
                 chapter = @chapter,
                 page = @page,
                 color = @color,
-                show_in_notes = @show_in_notes
+                show_in_notes = @show_in_notes,
+                importance = @importance
             WHERE id = @id
         `);
 
@@ -1220,7 +1232,8 @@ class DatabaseManager {
             chapter: item.chapter,
             page: item.page,
             color: item.color,
-            show_in_notes: item.show_in_notes !== undefined ? (item.show_in_notes ? 1 : 0) : 1
+            show_in_notes: item.show_in_notes !== undefined ? (item.show_in_notes ? 1 : 0) : 1,
+            importance: item.importance !== undefined ? parseInt(item.importance) : 5
         });
 
         // Update tags if present

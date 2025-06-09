@@ -77,6 +77,12 @@ function initializeForm() {
             document.getElementById('pageInput').value = itemData.page || '';
             document.getElementById('showInNotesInput').checked = itemData.show_in_notes !== false;
             
+            // Set importance value
+            const importanceInput = document.getElementById('importanceInput');
+            if (importanceInput) {
+                importanceInput.value = itemData.importance || 5;
+            }
+
             // Set the form's item ID
             document.getElementById('addItemForm').dataset.itemId = itemData.id;
 
@@ -725,7 +731,8 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         timeline_id: timeline_id,
         creation_granularity: parseInt(window.granularity || '4'),
         item_index: 0, // This will be set by the database manager
-        show_in_notes: document.getElementById('showInNotesInput').checked
+        show_in_notes: document.getElementById('showInNotesInput').checked,
+        importance: parseInt(document.getElementById('importanceInput')?.value) || 5
     };
 
     // If this is a period, ensure end year/subtick are set
@@ -869,7 +876,8 @@ window.api.receive('itemData', (item) => {
                 story_refs: collectStoryRefs(),
                 story: '',
                 'story-id': '',
-                show_in_notes: document.getElementById('showInNotesInput').checked
+                show_in_notes: document.getElementById('showInNotesInput').checked,
+                importance: parseInt(document.getElementById('importanceInput')?.value) || 5
             };
 
             if (formData.story_refs.length > 0) {
