@@ -1835,6 +1835,180 @@ function setupIpcHandlers() {
       throw error;
     }
   });
+
+
+
+  // return timeline data
+  ipcMain.handle('get-timeline-data', async (event) => {
+    try {
+      console.log('[main.js] get-timeline-data called');
+      const timelineData = dbManager.getAllTimelineData();
+      console.log('[main.js] Timeline data retrieved:', timelineData);
+      return timelineData;
+    } catch (error) {
+      console.error('[main.js] Error getting timeline data:', error);
+      throw error;
+    }
+  });
+
+  // return all items
+  ipcMain.handle('get-all-items', async (event) => {
+    try {
+      console.log('[main.js] get-all-items called');
+      const items = dbManager.getAllItems();
+      console.log('[main.js] Items retrieved:', items ? items.length : 'undefined', 'items');
+      return items;
+    } catch (error) {
+      console.error('[main.js] Error getting all items:', error);
+      throw error;
+    }
+  });
+
+  // Handle timeline export save dialog
+  ipcMain.handle('save-timeline-export', async (event, data) => {
+    try {
+      console.log('[main.js] save-timeline-export called with data:', data);
+      
+      const { dialog } = require('electron');
+      const fs = require('fs');
+      const path = require('path');
+
+      // Validate input data
+      if (!data || typeof data !== 'object') {
+        console.error('[main.js] Invalid data received:', data);
+        return { success: false, error: 'Invalid export data received' };
+      }
+
+      if (!data.htmlContent || typeof data.htmlContent !== 'string') {
+        console.error('[main.js] Invalid HTML content:', typeof data.htmlContent);
+        return { success: false, error: 'Invalid HTML content provided' };
+      }
+
+      // Safely generate filename
+      const safeTitle = (data.title && typeof data.title === 'string') 
+        ? data.title.replace(/[^a-zA-Z0-9\-_]/g, '_') 
+        : 'Timeline_Export';
+      
+      const defaultFileName = `${safeTitle}_timeline_export.html`;
+      console.log('[main.js] Using default filename:', defaultFileName);
+
+      // Show save dialog
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export Timeline',
+        defaultPath: defaultFileName,
+        filters: [
+          { name: 'HTML Files', extensions: ['html'] },
+          { name: 'All Files', extensions: ['*'] }
+        ]
+      });
+
+      console.log('[main.js] Save dialog result:', result);
+
+      if (result.canceled || !result.filePath) {
+        console.log('[main.js] Export canceled by user');
+        return { success: false, error: 'Export canceled by user' };
+      }
+
+      // Write the HTML content to the file
+      console.log('[main.js] Writing file to:', result.filePath);
+      await fs.promises.writeFile(result.filePath, data.htmlContent, 'utf8');
+      console.log('[main.js] File written successfully');
+
+      return { 
+        success: true, 
+        filePath: result.filePath 
+      };
+
+    } catch (error) {
+      console.error('[main.js] Error saving timeline export:', error);
+      console.error('[main.js] Error stack:', error.stack);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  });
+
+  // Handle opening exported file
+  ipcMain.handle('open-exported-file', async (event, filePath) => {
+    try {
+      const { shell } = require('electron');
+      
+      // Open with system default application (browser)
+      await shell.openPath(filePath);
+      
+      return { success: true };
+    } catch (error) {
+      console.error('Error opening exported file:', error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  });
+
+  // Handle image to base64 conversion for export
+  ipcMain.handle('convert-image-to-base64', async (event, filePath) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      
+      console.log(`[main.js] Converting image to base64: ${filePath}`);
+      
+      // Check if file exists
+      if (!fs.existsSync(filePath)) {
+        console.warn(`[main.js] Image file not found: ${filePath}`);
+        return { success: false, error: 'File not found' };
+      }
+
+      // Read the file
+      const imageBuffer = fs.readFileSync(filePath);
+      
+      // Determine MIME type from file extension
+      const ext = path.extname(filePath).toLowerCase();
+      let mimeType;
+      switch (ext) {
+        case '.jpg':
+        case '.jpeg':
+          mimeType = 'image/jpeg';
+          break;
+        case '.png':
+          mimeType = 'image/png';
+          break;
+        case '.gif':
+          mimeType = 'image/gif';
+          break;
+        case '.webp':
+          mimeType = 'image/webp';
+          break;
+        case '.svg':
+          mimeType = 'image/svg+xml';
+          break;
+        default:
+          // Default to jpeg for unknown extensions
+          mimeType = 'image/jpeg';
+      }
+
+      // Convert to base64
+      const base64Data = imageBuffer.toString('base64');
+      const dataUri = `data:${mimeType};base64,${base64Data}`;
+      
+      console.log(`[main.js] Converted image to data URI: ${filePath} (${(base64Data.length / 1024).toFixed(1)}KB)`);
+      
+      return { 
+        success: true, 
+        dataUri: dataUri,
+        size: base64Data.length
+      };
+      
+    } catch (error) {
+      console.error(`[main.js] Error converting image to data URI: ${filePath}`, error);
+      return { 
+        success: false, 
+        error: error.message 
+      };
+    }
+  });
 }
 
 // ===== Application Lifecycle =====
@@ -1856,15 +2030,7 @@ function logToRenderer(level, message) {
     }
 }
 
-// return timeline data
-ipcMain.handle('get-timeline-data', async (event) => {
-  return dbManager.getAllTimelineData();
-});
 
-// return all items
-ipcMain.handle('get-all-items', async (event) => {
-  return dbManager.getAllItems();
-});
 
 /**
  * Creates the archive window

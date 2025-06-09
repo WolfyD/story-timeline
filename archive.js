@@ -78,8 +78,6 @@ let item_type_icons = {
 // Get the current timeline ID when window loads
 window.addEventListener('DOMContentLoaded', async function() {
     timeline_id = await window.api.getCurrentTimelineId();
-    console.log('[archive.js] Got timeline ID on load:', timeline_id);
-    
     initializeArchive();
     setupEventListeners();
     setupTabs();
@@ -409,7 +407,6 @@ function displayStories() {
         deleteButton.addEventListener('click', (e) => {
             e.stopPropagation();
             if (confirm('Are you sure you want to delete this story?')) {
-                console.log('deleting story', story.id);
                 window.api.invoke('removeStory', story.id);
                 initializeArchive();
             }
@@ -441,7 +438,6 @@ function displayMedia() {
         // Add a dropdown list of items that use this media file. Not a count, but a list of items.
         linked_item_ids.forEach(item_id => {
             let item = items.find(i => i.id == item_id);
-            console.log(item);
             if (item) {
                 dropdown_elements.push(`
                     <div class="media-item-usage-item">
@@ -533,8 +529,6 @@ function displayMedia() {
 function displayTags() {
     const content = document.getElementById('tags-content');
     content.innerHTML = '';
-
-    console.log(filteredTags);
 
     filteredTags.forEach(tag => {
         const tagElement = document.createElement('div');

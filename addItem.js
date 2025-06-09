@@ -37,7 +37,6 @@ let timeline_id; // Add timeline_id to global scope
 // Get the current timeline ID when window loads
 window.addEventListener('DOMContentLoaded', async function() {
     timeline_id = await window.api.getCurrentTimelineId();
-    console.log('[addItem.js] Got timeline ID on load:', timeline_id);
 });
 
 // Get story suggestions from main window
@@ -351,17 +350,12 @@ function closeImageOptions() {
 }
 
 function removeImage(button, imageId) {
-    console.log('[addItem.js] Removing image with ID:', imageId);
-    console.log('[addItem.js] Images before removal:', [...images]);
     
     const index = images.findIndex(img => img.id === parseInt(imageId));
-    console.log('[addItem.js] Found index to remove:', index);
     
     if (index > -1) {
         images.splice(index, 1);
-        console.log('[addItem.js] Images after removal:', [...images]);
     } else {
-        console.log('[addItem.js] No matching image found to remove');
     }
     
     button.parentElement.remove();
@@ -649,7 +643,6 @@ if (isEditMode && editItemId) {
         e.preventDefault();
         
         // Use the stored timeline ID
-        console.log('[addItem.js] Using stored timeline ID:', timeline_id);
         
         // Process all images before submitting
         const processedImages = [];
@@ -735,7 +728,6 @@ if (isEditMode && editItemId) {
             show_in_notes: document.getElementById('showInNotes').checked
         };
 
-        console.log('[addItem.js] Form data being submitted:', formData);
 
         try {
             if (formData.story_refs.length > 0) {
@@ -755,8 +747,6 @@ if (isEditMode && editItemId) {
 
 // Debug function to fill all fields with random data
 document.getElementById('testFillBtn').addEventListener('click', function() {
-
-    console.log("TEST FILLING");
 
     // Helper function to generate random text
     function randomText(length = 10) {
@@ -811,13 +801,6 @@ window.addEventListener('DOMContentLoaded', function() {
     const subtick = urlParams.get('subtick');
     let granularity = urlParams.get('granularity');
     type = urlParams.get('type'); // Get type from URL parameters
-    
-    console.log('[addItem.js] Initializing form with URL parameters:', {
-        year,
-        subtick,
-        granularity,
-        type
-    });
 
     // Validate type parameter
     if (!type || !['event', 'bookmark', 'picture', 'note'].includes(type.toLowerCase())) {
@@ -852,14 +835,6 @@ function initializeForm() {
     type = urlParams.get('type'); // Get type from URL parameters
     const timeline_id = urlParams.get('timeline_id');
 
-    console.log('[addItem.js] Initializing form with URL parameters:', {
-        year,
-        subtick,
-        granularity,
-        type,
-        timeline_id
-    });
-
     // Validate type parameter
     if (!type || !['event', 'bookmark', 'picture', 'note'].includes(type.toLowerCase())) {
         console.error('Invalid or missing type parameter. Must be one of: event, bookmark, picture, note');
@@ -873,7 +848,6 @@ function initializeForm() {
     // Set year and subtick values
     if (year !== null) document.getElementById('yearInput').value = year;
     if (subtick !== null) document.getElementById('subtickInput').value = subtick;
-    console.log('[addItem.js] subtick:', subtick);
 
     // Set subtick max based on granularity
     if (granularity) {

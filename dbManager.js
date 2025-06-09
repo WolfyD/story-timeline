@@ -82,7 +82,6 @@ class DatabaseManager {
         // Initialize currentTimelineId with the first timeline
         const firstTimeline = this.db.prepare('SELECT id FROM timelines ORDER BY id ASC LIMIT 1').get();
         this.currentTimelineId = firstTimeline ? firstTimeline.id : null;
-        console.log('[dbManager.js] Initialized current timeline ID to:', this.currentTimelineId);
     }
 
     initializeTables() {
@@ -106,7 +105,6 @@ class DatabaseManager {
 
         // If no universe_data and timelines exists, DB is already initialized
         if (!universeDataExists && timelinesExists && !itemPicturesExists) {
-            console.log('Database already initialized, skipping initialization');
             // But still ensure new tables exist
             this.ensureNewTables();
             return;

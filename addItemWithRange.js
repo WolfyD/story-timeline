@@ -8,7 +8,6 @@ let timeline_id; // Add timeline_id to global scope
 // Get the current timeline ID when window loads
 window.addEventListener('DOMContentLoaded', async function() {
     timeline_id = await window.api.getCurrentTimelineId();
-    console.log('[addItemWithRange.js] Got timeline ID on load:', timeline_id);
 });
 
 // Get story suggestions from main window
@@ -38,14 +37,6 @@ function initializeForm() {
     // Store granularity globally
     window.granularity = granularity;
 
-    console.log('[addItemWithRange.js] Initializing form with URL parameters:', {
-        year,
-        subtick,
-        granularity,
-        color,
-        type
-    });
-
     // Validate type parameter
     if (!type || !['age', 'period'].includes(type.toLowerCase())) {
         console.error('Invalid or missing type parameter. Must be either "age" or "period".');
@@ -69,25 +60,8 @@ function initializeForm() {
 
     // Get itemData from the main process
     window.api.receive('item-data', (itemData) => {
-        console.log('[addItemWithRange.js] Received itemData:', itemData);
         
         if (itemData) {
-            console.log('[addItemWithRange.js] Filling form with itemData:', {
-                year: itemData.year || year,
-                subtick: itemData.subtick || subtick,
-                end_year: itemData.end_year || year,
-                end_subtick: itemData.end_subtick || subtick,
-                title: itemData.title,
-                description: itemData.description,
-                content: itemData.content,
-                color: itemData.color || color,
-                book_title: itemData.book_title,
-                chapter: itemData.chapter,
-                page: itemData.page,
-                tags: itemData.tags,
-                story_refs: itemData.story_refs,
-                pictures: itemData.pictures
-            });
 
             // Fill in all form fields with the item data
             document.getElementById('yearInput').value = itemData.year || year;
@@ -137,7 +111,6 @@ function initializeForm() {
                 });
             }
         } else {
-            console.log('[addItemWithRange.js] No itemData received, using URL parameters');
             // If no itemData, use URL parameters
             if (year !== null && subtick !== null) {
                 document.getElementById('yearInput').value = year;
@@ -152,7 +125,6 @@ function initializeForm() {
     });
 
     // Request the item data from the main process
-    console.log('[addItemWithRange.js] Requesting item data from main process');
     window.api.send('get-item-data');
 }
 
@@ -292,17 +264,11 @@ function createImagePreview(file, imageId) {
 }
 
 function removeImage(button, imageId) {
-    console.log('[addItemWithRange.js] Removing image with ID:', imageId);
-    console.log('[addItemWithRange.js] Images before removal:', [...images]);
     
     const index = images.findIndex(img => img.id === parseInt(imageId));
-    console.log('[addItemWithRange.js] Found index to remove:', index);
-    
     if (index > -1) {
         images.splice(index, 1);
-        console.log('[addItemWithRange.js] Images after removal:', [...images]);
     } else {
-        console.log('[addItemWithRange.js] No matching image found to remove');
     }
     
     button.parentElement.remove();
@@ -777,7 +743,6 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
     const endValue = formData.end_year + (formData.end_subtick / formData.creation_granularity);
     
     if (endValue < startValue) {
-        console.log('[addItemWithRange.js] End date is before start date, swapping values');
         // Swap years and subticks
         [formData.year, formData.end_year] = [formData.end_year, formData.year];
         [formData.subtick, formData.end_subtick] = [formData.end_subtick, formData.subtick];
@@ -789,10 +754,8 @@ document.getElementById('addItemForm').addEventListener('submit', async (e) => {
         formData.year === formData.end_year && 
         formData.subtick === formData.end_subtick) {
         formData.type = 'Event';
-        console.log('[addItemWithRange.js] Converting to Event due to same start/end dates');
     }
 
-    console.log('[addItemWithRange.js] Submitting form data:', formData);
 
     // Send the form data
     window.api.send('addTimelineItem', formData);

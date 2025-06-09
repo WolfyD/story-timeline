@@ -78,7 +78,9 @@ contextBridge.exposeInMainWorld('api', {
             'cleanup-orphaned-images',
             'add-image-reference',
             'remove-image-reference',
-            'removeMedia'
+            'removeMedia',
+            'save-timeline-export',
+            'convert-image-to-base64'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
