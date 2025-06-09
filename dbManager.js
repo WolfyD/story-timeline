@@ -955,6 +955,29 @@ class DatabaseManager {
             return;
         }
 
+        // Convert camelCase field names to snake_case for database
+        const dbSettings = {
+            timeline_id: timelineId,
+            font: settings.font,
+            font_size_scale: settings.font_size_scale || settings.fontSizeScale,
+            pixels_per_subtick: settings.pixels_per_subtick || settings.pixelsPerSubtick,
+            custom_css: settings.custom_css || settings.customCSS,
+            use_custom_css: settings.use_custom_css !== undefined ? settings.use_custom_css : 
+                           (settings.useCustomCSS !== undefined ? (settings.useCustomCSS ? 1 : 0) : 0),
+            is_fullscreen: settings.is_fullscreen !== undefined ? settings.is_fullscreen :
+                          (settings.isFullscreen !== undefined ? (settings.isFullscreen ? 1 : 0) : 0),
+            show_guides: settings.show_guides !== undefined ? settings.show_guides :
+                        (settings.showGuides !== undefined ? (settings.showGuides ? 1 : 0) : 1),
+            window_size_x: settings.window_size_x || settings.windowSizeX || (settings.size && settings.size.x),
+            window_size_y: settings.window_size_y || settings.windowSizeY || (settings.size && settings.size.y),
+            window_position_x: settings.window_position_x || settings.windowPositionX || (settings.position && settings.position.x),
+            window_position_y: settings.window_position_y || settings.windowPositionY || (settings.position && settings.position.y),
+            use_custom_scaling: settings.use_custom_scaling !== undefined ? settings.use_custom_scaling :
+                               (settings.useCustomScaling !== undefined ? (settings.useCustomScaling ? 1 : 0) : 0),
+            custom_scale: settings.custom_scale || settings.customScale,
+            display_radius: settings.display_radius || settings.displayRadius
+        };
+
         // First check if settings exist for this timeline
         const checkStmt = this.db.prepare('SELECT id FROM settings WHERE timeline_id = ?');
         const existingSettings = checkStmt.get(timelineId);
@@ -969,17 +992,17 @@ class DatabaseManager {
                     is_fullscreen, show_guides,
                     window_size_x, window_size_y,
                     window_position_x, window_position_y,
-                    use_custom_scaling, custom_scale
+                    use_custom_scaling, custom_scale, display_radius
                 ) VALUES (
                     @timeline_id, @font, @font_size_scale, @pixels_per_subtick,
                     @custom_css, @use_custom_css,
                     @is_fullscreen, @show_guides,
                     @window_size_x, @window_size_y,
                     @window_position_x, @window_position_y,
-                    @use_custom_scaling, @custom_scale
+                    @use_custom_scaling, @custom_scale, @display_radius
                 )
             `);
-            return insertStmt.run(settings);
+            return insertStmt.run(dbSettings);
         }
 
         // Update existing settings
@@ -1004,7 +1027,7 @@ class DatabaseManager {
             WHERE timeline_id = @timeline_id
         `);
 
-        const result = updateStmt.run(settings);
+        const result = updateStmt.run(dbSettings);
         console.log('Settings update result:', result);
         return result;
     }

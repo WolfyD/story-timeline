@@ -34,7 +34,7 @@
  */
 
 // ===== Imports =====
-const { app, BrowserWindow, ipcMain, screen, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
@@ -121,11 +121,12 @@ function generateEpicTitle() {
  * @type {Object} settings - Current application settings
  * @type {Object} data - Current timeline data
  */
-let mainWindow = null;
+let mainWindow;
 let addItemWindow;
 let editItemWindow;
 let editItemWithRangeWindow;
 let archiveWindow;
+let loadingWindow;
 let settings = DEFAULT_SETTINGS;
 let data = {
     title: '',
@@ -191,83 +192,160 @@ function createSplashWindow() {
     });
 }
 
-function createWindow() {
-    mainWindow = new BrowserWindow({
-        width: 1000,
-        height: 750,
-        x: 300,
-        webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-            preload: path.join(__dirname, 'preload.js'),
-        },
-        show: false,  // Keep window hidden initially
-        autoHideMenuBar: true,
-        menuBarVisible: false
-    });
+/**
+ * Creates the main window
+ * 
+ * This function creates the main BrowserWindow and sets up event handlers.
+ * The window shows the timeline interface with all items and controls.
+ * 
+ * @param {number} width - Window width (optional)
+ * @param {number} height - Window height (optional)
+ * @param {number} x - Window x position (optional)
+ * @param {number} y - Window y position (optional)
+ */
+function createWindow(width = null, height = null, x = null, y = null) {
+  // Prevent creating multiple main windows
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    console.log('[main.js] Main window already exists, not creating new one');
+    return mainWindow;
+  }
+  
+  // Start loading process
+  updateLoadingProgress('Creating main window...', 10);
+  
+  const { width: screenWidth, height: screenHeight } = screen.getPrimaryDisplay().workAreaSize;
 
-    mainWindow.loadFile('./markdown/index.html');
+  const windowWidth = width || 1000;
+  const windowHeight = height || 700;
+  const windowX = x !== null ? x : Math.floor((screenWidth - windowWidth) / 2);
+  const windowY = y !== null ? y : Math.floor((screenHeight - windowHeight) / 2);
 
-    // Wait for the page to load
-    mainWindow.webContents.on('did-finish-load', () => {
-        // Load settings and data
-        loadSettings();
-        loadData().then(() => {
-            // Send a message to the renderer that data is ready
-            mainWindow.webContents.send('data-ready');
-        });
-    });
+  updateLoadingProgress('Configuring window settings...', 20);
 
-    // Listen for the renderer's confirmation that it's ready to display
-    ipcMain.once('renderer-ready', () => {
-        // Apply window position and size from settings
+  // Create the browser window.
+  mainWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x: windowX,
+    y: windowY,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+    show: false, // Don't show until everything is loaded
+    autoHideMenuBar: true
+  });
 
-        if (settings) {
-            // Set window size
-            mainWindow.setSize(
-                settings.size?.x || 1000,
-                settings.size?.y || 750
-            );
+  updateLoadingProgress('Loading interface...', 30);
 
-            // Set window position
-            mainWindow.setPosition(
-                settings.position?.x || 300,
-                settings.position?.y || 100
-            );
+  // Load the index.html of the app.
+  mainWindow.loadFile('./markdown/index.html');
 
-            // Apply maximized state if needed
-            if (settings.isFullscreen) {
-                mainWindow.maximize();
-            }
+  updateLoadingProgress('Setting up window events...', 40);
 
-            // Apply custom scaling if enabled
-            if (settings.useCustomScaling) {
-                mainWindow.webContents.setZoomFactor(parseFloat(settings.customScale || 1.0));
-            } else {
-                mainWindow.webContents.setZoomFactor(1.0);
-            }
-        }
+  // Open the DevTools when F12 is pressed.
+  mainWindow.webContents.on("before-input-event", (event, input) => {
+    if (input.key === "F12") {
+      mainWindow.webContents.openDevTools();
+    }
+  });
 
-        // Now we can safely show the window
+  // Window event handlers
+  mainWindow.on('resize', () => {
+    const bounds = mainWindow.getBounds();
+    settings.size = { x: bounds.width, y: bounds.height };
+    mainWindow.webContents.send('window-resized', bounds);
+  });
+
+  mainWindow.on('move', () => {
+    const bounds = mainWindow.getBounds();
+    settings.position = { x: bounds.x, y: bounds.y };
+    mainWindow.webContents.send('window-moved', bounds);
+  });
+
+  mainWindow.on('maximize', () => {
+    settings.isFullscreen = true;
+    mainWindow.webContents.send('window-maximized');
+  });
+
+  mainWindow.on('unmaximize', () => {
+    settings.isFullscreen = false;
+    mainWindow.webContents.send('window-unmaximized');
+  });
+
+  // Emitted when the window is closed.
+  mainWindow.on('closed', () => {
+    mainWindow = null;
+  });
+
+  updateLoadingProgress('Initializing database...', 50);
+
+  // Database is already initialized at module level
+  try {
+    // Just verify database is working
+    if (dbManager) {
+      updateLoadingProgress('Database initialized successfully', 70);
+    } else {
+      throw new Error('Database manager not available');
+    }
+  } catch (error) {
+    console.error('Failed to initialize database:', error);
+    updateLoadingProgress('Database initialization failed', 70);
+  }
+
+  updateLoadingProgress('Loading timeline data...', 80);
+
+  // Increase max listeners to prevent warnings
+  mainWindow.webContents.setMaxListeners(20);
+  
+  // Add error handling for the main window
+  mainWindow.webContents.on('crashed', (event) => {
+    console.error('[main.js] Main window crashed:', event);
+  });
+  
+  mainWindow.webContents.on('unresponsive', () => {
+    console.error('[main.js] Main window became unresponsive');
+  });
+  
+  mainWindow.webContents.on('render-process-gone', (event, details) => {
+    console.error('[main.js] Render process gone:', details);
+  });
+  
+  // Wait for the window to be ready, then load data and show
+  mainWindow.webContents.once('did-finish-load', async () => {
+    try {
+      updateLoadingProgress('Loading settings...', 85);
+      await loadSettings();
+      
+      updateLoadingProgress('Loading timeline data...', 90);
+      await loadData();
+      
+      updateLoadingProgress('Finalizing...', 95);
+      
+      // Small delay to show the final progress
+      setTimeout(() => {
+        updateLoadingProgress('Ready!', 100);
+        
+        // Another small delay before showing the main window
+        setTimeout(() => {
+          closeLoadingWindow();
+          mainWindow.show();
+          mainWindow.focus();
+        }, 300);
+      }, 200);
+      
+    } catch (error) {
+      console.error('Error during initialization:', error);
+      updateLoadingProgress('Initialization failed', 100);
+      
+      setTimeout(() => {
+        closeLoadingWindow();
         mainWindow.show();
-
-        // Close the splash window if it exists
-        if (splashWindow && CLOSE_SPLASH_WINDOW) {
-            splashWindow.close();
-        }
-    });
-
-    mainWindow.on('closed', () => {
-        mainWindow = null;
-        // Reopen splash screen when main window is closed
-        createSplashWindow();
-    });
-
-    mainWindow.webContents.on("before-input-event", (event, input) => {
-        if (input.key === "F12") {
-            mainWindow.webContents.openDevTools();
-        }
-    });
+        mainWindow.focus();
+      }, 1000);
+    }
+  });
 }
 
 /**
@@ -602,14 +680,73 @@ function loadSettings() {
       customScale: savedSettings.customScale,
       displayRadius: parseInt(savedSettings.displayRadius || 10),
       size: {
-        x: parseInt(savedSettings.size?.x || 800),
-        y: parseInt(savedSettings.size?.y || 600)
+        x: parseInt(savedSettings.size?.x || 1000),
+        y: parseInt(savedSettings.size?.y || 700)
       },
       position: {
-        x: parseInt(savedSettings.position?.x || 100),
+        x: parseInt(savedSettings.position?.x || 300),
         y: parseInt(savedSettings.position?.y || 100)
       }
     };
+
+    // Apply saved window size and position
+    console.log('[main.js] Applying saved window settings:', {
+      size: settings.size,
+      position: settings.position
+    });
+
+    try {
+      // Set window size
+      if (settings.size.x > 100 && settings.size.y > 100) {
+        mainWindow.setSize(settings.size.x, settings.size.y);
+      }
+
+      // Set window position (check all displays for multi-monitor support)
+      let x = settings.position.x;
+      let y = settings.position.y;
+
+      // Get all available displays
+      const displays = screen.getAllDisplays();
+      let positionValid = false;
+
+      // Check if the saved position is within any display
+      for (const display of displays) {
+        const { x: displayX, y: displayY, width: displayWidth, height: displayHeight } = display.workArea;
+        
+        // Check if the window would be at least partially visible on this display
+        if (x + settings.size.x > displayX && 
+            x < displayX + displayWidth &&
+            y + settings.size.y > displayY && 
+            y < displayY + displayHeight) {
+          positionValid = true;
+          break;
+        }
+      }
+
+      // If position is not valid on any display, center on primary display
+      if (!positionValid) {
+        console.log('[main.js] Saved position not valid on any display, centering on primary');
+        const primaryDisplay = screen.getPrimaryDisplay().workArea;
+        x = primaryDisplay.x + Math.floor((primaryDisplay.width - settings.size.x) / 2);
+        y = primaryDisplay.y + Math.floor((primaryDisplay.height - settings.size.y) / 2);
+      }
+
+      console.log('[main.js] Setting window position to:', { x, y });
+      mainWindow.setPosition(x, y);
+
+      // Apply maximized state if saved (not fullscreen)
+      if (settings.isFullscreen) {
+        mainWindow.maximize();
+      }
+
+      // Apply custom scaling if enabled
+      if (settings.useCustomScaling && settings.customScale) {
+        mainWindow.webContents.setZoomFactor(parseFloat(settings.customScale));
+      }
+
+    } catch (error) {
+      console.error('[main.js] Error applying window settings:', error);
+    }
 
     // Load templates if CSS fields are empty
     if (!settings.customCSS || settings.customCSS === "") {
@@ -1272,11 +1409,21 @@ function setupIpcHandlers() {
 
   // Handle opening a timeline
   ipcMain.on('open-timeline', (event, timelineId) => {
+    // Show loading window when opening a timeline
+    createLoadingWindow();
+    updateLoadingProgress('Loading timeline...', 10);
+    
     const timeline = dbManager.getTimelineWithSettings(timelineId);
     if (!timeline) {
+        updateLoadingProgress('Timeline not found', 100);
+        setTimeout(() => {
+          closeLoadingWindow();
+        }, 1000);
         event.reply('error', 'Timeline not found');
         return;
     }
+
+    updateLoadingProgress('Setting up timeline...', 20);
 
     // Set the current timeline in dbManager
     dbManager.setCurrentTimeline(timelineId);
@@ -1293,62 +1440,16 @@ function setupIpcHandlers() {
         settings: timeline.settings
     };
 
-    // If main window doesn't exist, create it
+    updateLoadingProgress('Creating main window...', 30);
+
+    // If main window doesn't exist, create it (this will handle its own loading progress)
     if (!mainWindow) {
         createWindow();
-        mainWindow.webContents.on('did-finish-load', () => {
-            // Send the timeline data to the main window
-            mainWindow.webContents.send('timeline-data', {
-                id: timeline.id,
-                title: timeline.title,
-                author: timeline.author,
-                description: timeline.description,
-                start_year: timeline.start_year,
-                granularity: timeline.granularity,
-                settings: timeline.settings
-            });
-
-            // Send the data to load
-            mainWindow.webContents.send('call-load-data', {
-                title: timeline.title,
-                author: timeline.author,
-                description: timeline.description,
-                start: timeline.start_year,
-                granularity: timeline.granularity,
-                items: dbManager.getItemsByTimeline(timelineId)
-            });
-
-            // Load all items for this timeline
-            const items = dbManager.getItemsByTimeline(timelineId);
-            mainWindow.webContents.send('items', items);
-
-            // Apply window settings
-            if (timeline.settings) {
-                // Set window size
-                mainWindow.setSize(
-                    timeline.settings.size.x || 1000,
-                    timeline.settings.size.y || 750
-                );
-
-                // Set window position
-                mainWindow.setPosition(
-                    timeline.settings.position.x || 300,
-                    timeline.settings.position.y || 100
-                );
-
-                // Apply custom scaling if enabled
-                if (timeline.settings.useCustomScaling) {
-                    mainWindow.webContents.setZoomFactor(timeline.settings.customScale || 1.0);
-                } else {
-                    mainWindow.webContents.setZoomFactor(1.0);
-                }
-
-                // Send settings to renderer
-                mainWindow.webContents.send('call-load-settings', timeline.settings);
-            }
-        });
     } else {
-        // Main window exists, send data directly
+        // Main window already exists, load timeline data directly
+        updateLoadingProgress('Loading timeline data...', 60);
+        
+        // Send the timeline data to the main window
         mainWindow.webContents.send('timeline-data', {
             id: timeline.id,
             title: timeline.title,
@@ -1358,6 +1459,8 @@ function setupIpcHandlers() {
             granularity: timeline.granularity,
             settings: timeline.settings
         });
+
+        updateLoadingProgress('Loading items...', 80);
 
         // Send the data to load
         mainWindow.webContents.send('call-load-data', {
@@ -1372,6 +1475,8 @@ function setupIpcHandlers() {
         // Load all items for this timeline
         const items = dbManager.getItemsByTimeline(timelineId);
         mainWindow.webContents.send('items', items);
+
+        updateLoadingProgress('Applying settings...', 90);
 
         // Apply window settings
         if (timeline.settings) {
@@ -1397,10 +1502,15 @@ function setupIpcHandlers() {
             // Send settings to renderer
             mainWindow.webContents.send('call-load-settings', timeline.settings);
         }
+        
+        updateLoadingProgress('Ready!', 100);
+        setTimeout(() => {
+          closeLoadingWindow();
+        }, 300);
     }
 
     // Close splash window if it exists
-    if (splashWindow && CLOSE_SPLASH_WINDOW) {
+    if (splashWindow && !splashWindow.isDestroyed()) {
         splashWindow.close();
     }
   });
@@ -1529,7 +1639,7 @@ function setupIpcHandlers() {
         });
     } else {
         createWindow();
-        mainWindow.webContents.on('did-finish-load', () => {
+        mainWindow.webContents.once('did-finish-load', () => {
             // Send the timeline data to the main window
             mainWindow.webContents.send('timeline-data', {
                 id: newTimelineId,
@@ -1687,44 +1797,6 @@ function setupIpcHandlers() {
     if (mainWindow) {
       mainWindow.webContents.send('timeline-updated', state);
     }
-  });
-
-  ipcMain.on('open-archive', () => {
-    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
-    const windowWidth = 1000;
-    const windowHeight = 900;
-
-    const archiveWindow = new BrowserWindow({
-      width: windowWidth,
-      height: windowHeight,
-      x: Math.floor((width - windowWidth) / 2),
-      y: Math.floor((height - windowHeight) / 2),
-      webPreferences: {
-        nodeIntegration: false,
-        contextIsolation: true,
-        preload: path.join(__dirname, 'preload.js'),
-      },
-      show: false,
-      autoHideMenuBar: true,
-      parent: mainWindow,
-      modal: true
-    });
-
-    archiveWindow.webContents.on("before-input-event", (event, input) => {
-      if (input.key === "F12") {
-        archiveWindow.webContents.openDevTools();
-      }
-    });
-
-    archiveWindow.loadFile('./markdown/archive.html');
-
-    archiveWindow.once('ready-to-show', () => {
-      archiveWindow.show();
-    });
-
-    archiveWindow.on('closed', () => {
-      archiveWindow = null;
-    });
   });
 
   // Handle opening archive window
@@ -2187,8 +2259,11 @@ function setupIpcHandlers() {
 
 // ===== Application Lifecycle =====
 app.whenReady().then(() => {
-  createSplashWindow();
+  // Set up IPC handlers first
   setupIpcHandlers();
+  
+  // Create splash window directly
+  createSplashWindow();
 });
 
 app.on('window-all-closed', () => {
@@ -2266,3 +2341,165 @@ function createArchiveWindow() {
         initializeArchive();
     });
 }
+
+/**
+ * Creates the loading window that shows during initialization
+ */
+function createLoadingWindow() {
+  // Prevent creating multiple loading windows
+  if (loadingWindow && !loadingWindow.isDestroyed()) {
+    console.log('[main.js] Loading window already exists, not creating new one');
+    return loadingWindow;
+  }
+  
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  const windowWidth = 400;
+  const windowHeight = 300;
+
+  loadingWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x: Math.floor((width - windowWidth) / 2),
+    y: Math.floor((height - windowHeight) / 2),
+    frame: false,
+    alwaysOnTop: true,
+    resizable: false,
+    movable: false,
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+    show: false,
+    backgroundColor: '#1a1a1a'
+  });
+
+  // Create loading HTML content directly
+  const loadingHTML = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <style>
+        * {
+          margin: 0;
+          padding: 0;
+          box-sizing: border-box;
+        }
+        body {
+          background: linear-gradient(135deg, #1a1a1a 0%, #2d2d2d 100%);
+          color: #ffffff;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          align-items: center;
+          height: 100vh;
+          overflow: hidden;
+        }
+        .loading-container {
+          text-align: center;
+          padding: 2rem;
+        }
+        .app-title {
+          font-size: 2rem;
+          font-weight: 600;
+          margin-bottom: 0.5rem;
+          background: linear-gradient(45deg, #4f9cf9, #7dd3fc);
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+        }
+        .app-subtitle {
+          font-size: 0.9rem;
+          color: #888;
+          margin-bottom: 2rem;
+        }
+        .loading-spinner {
+          width: 40px;
+          height: 40px;
+          border: 3px solid #333;
+          border-top: 3px solid #4f9cf9;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+          margin: 0 auto 1rem;
+        }
+        .loading-text {
+          font-size: 0.9rem;
+          color: #ccc;
+          margin-bottom: 0.5rem;
+        }
+        .loading-progress {
+          width: 200px;
+          height: 4px;
+          background: #333;
+          border-radius: 2px;
+          overflow: hidden;
+          margin: 1rem auto;
+        }
+        .loading-progress-bar {
+          height: 100%;
+          background: linear-gradient(90deg, #4f9cf9, #7dd3fc);
+          border-radius: 2px;
+          transition: width 0.3s ease;
+          width: 0%;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="loading-container">
+        <div class="app-title">Story Timeline</div>
+        <div class="app-subtitle">Organize your stories in time</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text" id="loading-text">Initializing...</div>
+        <div class="loading-progress">
+          <div class="loading-progress-bar" id="progress-bar"></div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  loadingWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(loadingHTML)}`);
+
+  loadingWindow.once('ready-to-show', () => {
+    loadingWindow.show();
+  });
+
+  loadingWindow.on('closed', () => {
+    loadingWindow = null;
+  });
+
+  return loadingWindow;
+}
+
+/**
+ * Updates the loading window with progress information
+ */
+function updateLoadingProgress(text, progress = 0) {
+  if (loadingWindow && !loadingWindow.isDestroyed()) {
+    loadingWindow.webContents.executeJavaScript(`
+      const textEl = document.getElementById('loading-text');
+      const progressEl = document.getElementById('progress-bar');
+      if (textEl) textEl.textContent = '${text}';
+      if (progressEl) progressEl.style.width = '${Math.min(100, Math.max(0, progress))}%';
+    `);
+  }
+}
+
+/**
+ * Closes the loading window
+ */
+function closeLoadingWindow() {
+  if (loadingWindow && !loadingWindow.isDestroyed()) {
+    loadingWindow.close();
+    loadingWindow = null;
+  }
+}
+
+/**
+ * Creates the splash window for timeline selection
+ */

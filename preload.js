@@ -58,6 +58,7 @@ contextBridge.exposeInMainWorld('api', {
             'jumpToDate',
             'duplicate-timeline',
             'reset-timeline-css',
+            'set-window-scale',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -85,7 +86,9 @@ contextBridge.exposeInMainWorld('api', {
             'consolidate-duplicate-images',
             'consolidate-visual-duplicate-images',
             'get-all-pictures-debug',
-            'analyze-filesystem-vs-database'
+            'analyze-filesystem-vs-database',
+            'get-current-timeline-id',
+            'read-file'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
@@ -140,7 +143,8 @@ contextBridge.exposeInMainWorld('api', {
             'refresh-timeline',
             'jumpToYear',
             'jumpToDate',
-            'timeline-duplicated'
+            'timeline-duplicated',
+            'window-scale-changed'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
