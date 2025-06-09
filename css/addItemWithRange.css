@@ -1,5 +1,8 @@
+/* Import the unified design system */
+@import url('design-system.css');
+
 body {
-    background-color: #f5e6d4;
+    background: var(--color-bg-primary);
     color: #4b2e2e;
     font-family: var(--default-font), "Times New Roman", serif;
     padding: 20px;

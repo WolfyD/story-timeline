@@ -1,3 +1,6 @@
+/* Import the unified design system */
+@import url('design-system.css');
+
 /* Edit Item Window Styles */
 :root {
     --primary-color: #4a90e2;
@@ -147,6 +150,34 @@ textarea {
 .button-group button[type="button"] {
     background-color: #f44336;
     color: white;
+}
+
+/* Design system button styling */
+.button-debug {
+    background: var(--color-secondary) !important;
+    color: var(--color-text-inverse) !important;
+    border: none !important;
+    border-radius: var(--radius-base) !important;
+    padding: var(--space-sm) var(--space-lg) !important;
+    cursor: pointer !important;
+    transition: all var(--transition-base) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: var(--font-weight-medium) !important;
+    appearance: none !important;
+    font-family: inherit !important;
+    font-size: var(--font-size-base) !important;
+    text-decoration: none !important;
+    box-sizing: border-box !important;
+    min-height: 32px !important;
+    line-height: 1.2 !important;
+}
+
+.button-debug:hover {
+    background: var(--color-secondary-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-sm) !important;
 }
 
 .modified {

@@ -1,5 +1,8 @@
 /* Archive Window Styles - Updated to match main window parchment/book style */
 
+/* Import the unified design system */
+@import url('design-system.css');
+
 body * {
     user-select: none;
 }

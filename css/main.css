@@ -1,3 +1,133 @@
+/* Import the unified design system */
+@import url('design-system.css');
+
+/* Legacy component mappings */
+input[type="text"],
+input[type="number"], 
+textarea,
+select {
+    padding: var(--space-sm) var(--space-md);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-base);
+    font-size: var(--font-size-base);
+    background: var(--color-bg-white);
+    color: var(--color-text-primary);
+    transition: all var(--transition-base);
+}
+
+input[type="text"]:focus,
+input[type="number"]:focus,
+textarea:focus,
+select:focus {
+    outline: none;
+    border-color: var(--color-focus);
+    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+}
+
+/* Apply design system styling only to buttons that should have it */
+/* Target form buttons, dialog buttons, and buttons without conflicting classes */
+/* Primary buttons (submit buttons and main actions) */
+button[type="submit"]:not([class*="timeline"]):not([class*="archive"]):not([class*="splash"]),
+button:not([class]):not([id*="menu"]):not([id*="context"]),
+button.btn-primary {
+    background: var(--color-primary) !important;
+    color: var(--color-text-inverse) !important;
+    border: none !important;
+    border-radius: var(--radius-base) !important;
+    padding: var(--space-sm) var(--space-lg) !important;
+    cursor: pointer !important;
+    transition: all var(--transition-base) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: var(--font-weight-medium) !important;
+    appearance: none !important;
+    font-family: inherit !important;
+    font-size: var(--font-size-base) !important;
+    text-decoration: none !important;
+    box-sizing: border-box !important;
+    min-height: 32px !important;
+    line-height: 1.2 !important;
+}
+
+/* Secondary buttons (debug buttons and secondary actions) */
+button.button-debug,
+button.btn-secondary {
+    background: var(--color-secondary) !important;
+    color: var(--color-text-inverse) !important;
+    border: none !important;
+    border-radius: var(--radius-base) !important;
+    padding: var(--space-sm) var(--space-lg) !important;
+    cursor: pointer !important;
+    transition: all var(--transition-base) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: var(--font-weight-medium) !important;
+    appearance: none !important;
+    font-family: inherit !important;
+    font-size: var(--font-size-base) !important;
+    text-decoration: none !important;
+    box-sizing: border-box !important;
+    min-height: 32px !important;
+    line-height: 1.2 !important;
+}
+
+/* Hover states */
+button[type="submit"]:not([class*="timeline"]):not([class*="archive"]):not([class*="splash"]):hover,
+button:not([class]):not([id*="menu"]):not([id*="context"]):hover,
+button.btn-primary:hover {
+    background: var(--color-primary-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+button.button-debug:hover,
+button.btn-secondary:hover {
+    background: var(--color-secondary-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+button[type="submit"],
+.submit-button {
+    background: var(--color-primary) !important;
+    color: var(--color-text-inverse) !important;
+    border: none !important;
+    border-radius: var(--radius-base) !important;
+    padding: var(--space-sm) var(--space-lg) !important;
+    cursor: pointer !important;
+    transition: all var(--transition-base) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-weight: var(--font-weight-medium) !important;
+    appearance: none !important;
+    font-family: inherit !important;
+    font-size: var(--font-size-base) !important;
+    text-decoration: none !important;
+    box-sizing: border-box !important;
+    min-height: 32px !important;
+    line-height: 1.2 !important;
+}
+
+button[type="submit"]:hover,
+.submit-button:hover {
+    background: var(--color-primary-light) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: var(--shadow-sm) !important;
+}
+
+
+
+.form-group {
+    margin-bottom: var(--space-lg);
+}
+
+.form-line {
+    margin-bottom: var(--space-md);
+}
+
 body * {
     user-select: none;
     -webkit-user-drag: none;
@@ -97,9 +227,9 @@ img {
 }
 
 body {
-    background-color: #f5e6d4; /* Slightly darker parchment color */
-    color: #4b2e2e; /* Dark brown ink color */
-    font-family: var(--default-font), "Times New Roman", serif; /* Classic book-like font */
+    background: var(--color-bg-primary);
+    color: var(--color-text-primary);
+    font-family: var(--default-font), "Times New Roman", serif;
     font-size: calc(16px * var(--default-font-scale));
     overflow-x: hidden;
     margin: 0;
@@ -107,8 +237,8 @@ body {
     height: 100vh;
     width: 100vw;
     display: grid;
-    grid-template-rows: 80px 1fr 400px 100px; /* Header, main content, timeline, jump-to-date */
-    grid-template-columns: 2fr 1fr 2fr; /* Three columns for main content */
+    grid-template-rows: 80px 1fr 400px 100px;
+    grid-template-columns: 2fr 1fr 2fr;
     grid-template-areas: 
         "header header header"
         "left middle right"
@@ -125,17 +255,17 @@ body {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 10px;
-    background-color: rgba(75, 46, 46, 0.1);
-    border-bottom: 1px solid rgba(75, 46, 46, 0.2);
+    padding: var(--space-sm);
+    background: var(--color-bg-overlay);
+    border-bottom: 1px solid var(--color-border);
     min-height: 0;
 }
 
 /* Main content areas */
 .main-content-left {
     grid-area: left;
-    padding: 20px;
-    border-right: 1px solid rgba(75, 46, 46, 0.2);
+    padding: var(--space-xl);
+    border-right: 1px solid var(--color-border);
     overflow-y: auto;
     min-height: 0;
     display: flex;
@@ -146,8 +276,8 @@ body {
 
 .main-content-middle {
     grid-area: middle;
-    padding: 20px;
-    border-right: 1px solid rgba(75, 46, 46, 0.2);
+    padding: var(--space-xl);
+    border-right: 1px solid var(--color-border);
     overflow-y: auto;
     min-height: 0;
     font-family: var(--default-font), "Times New Roman", serif;

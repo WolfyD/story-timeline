@@ -1,3 +1,6 @@
+/* Import the unified design system */
+@import url('design-system.css');
+
 body * {
     user-select: none;
 }
@@ -17,25 +20,26 @@ body * {
 }
 
 .splash_title {
-    font-size: 2.5em;
-    color: #4a3c2c;
-    margin-bottom: 10px;
+    font-size: var(--font-size-3xl);
+    color: var(--color-text-primary);
+    margin-bottom: var(--space-sm);
     font-family: 'Georgia', serif;
+    font-weight: var(--font-weight-bold);
 }
 
 .splash_subtitle {
-    font-size: 1.2em;
-    color: #6b5b4b;
+    font-size: var(--font-size-xl);
+    color: var(--color-text-secondary);
     margin: 0;
 }
 
 .splash_timelines_container {
-    background-color: #fff;
+    background: var(--color-bg-white);
     height: 70vh;
     display: block;
     max-height: 600px;
-    border-radius: 6px;
-    padding: 20px;
+    border-radius: var(--radius-md);
+    padding: var(--space-xl);
     width: 80vw;
     top: 20vh;
     transform: translateY(-50%);
@@ -43,8 +47,9 @@ body * {
     position: absolute;
     left: 50%;
     transform: translateX(-50%);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-lg);
     overflow-y: scroll;
+    border: 1px solid var(--color-border-light);
 }
 
 .splash_timelines_header {
@@ -65,19 +70,22 @@ body * {
 .splash_create_timeline_button {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    background-color: #8b7355;
-    color: white;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-xl);
+    background: var(--color-secondary);
+    color: var(--color-text-inverse);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-base);
     cursor: pointer;
-    font-size: 1em;
-    transition: background-color 0.2s;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+    transition: all var(--transition-base);
 }
 
 .splash_create_timeline_button:hover {
-    background-color: #7a6345;
+    background: var(--color-secondary-light);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
 .splash_plus_icon {
@@ -94,17 +102,19 @@ body * {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 15px;
-    background-color: #f9f5ed;
-    border-radius: 4px;
-    border: 1px solid #e8e0d0;
+    padding: var(--space-lg);
+    background: var(--color-bg-secondary);
+    border-radius: var(--radius-base);
+    border: 1px solid var(--color-border);
     cursor: pointer;
-    transition: transform 0.2s, box-shadow 0.2s;
+    transition: all var(--transition-base);
+    box-shadow: var(--shadow-sm);
 }
 
 .splash_timeline_item:hover {
     transform: translateY(-2px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    box-shadow: var(--shadow-md);
+    border-color: var(--color-border-dark);
 }
 
 .splash_timeline_info {
@@ -324,30 +334,38 @@ body * {
 }
 
 .splash_modal_button {
-    padding: 10px 20px;
+    padding: var(--space-sm) var(--space-xl);
     border: none;
-    border-radius: 4px;
+    border-radius: var(--radius-base);
     cursor: pointer;
-    font-size: 1em;
-    transition: background-color 0.2s;
+    font-size: var(--font-size-base);
+    font-weight: var(--font-weight-medium);
+    transition: all var(--transition-base);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .splash_modal_button_primary {
-    background-color: #8b7355;
-    color: white;
+    background: var(--color-secondary);
+    color: var(--color-text-inverse);
 }
 
 .splash_modal_button_primary:hover {
-    background-color: #7a6345;
+    background: var(--color-secondary-light);
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-sm);
 }
 
 .splash_modal_button_secondary {
-    background-color: #f0f0f0;
-    color: #4a3c2c;
+    background: var(--color-bg-secondary);
+    color: var(--color-text-primary);
+    border: 1px solid var(--color-border);
 }
 
 .splash_modal_button_secondary:hover {
-    background-color: #e0e0e0;
+    background: var(--color-bg-overlay);
+    border-color: var(--color-border-dark);
 }
 
 /* Toast Notification Styles */
