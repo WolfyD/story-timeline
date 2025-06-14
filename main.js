@@ -127,6 +127,9 @@ let editItemWindow;
 let editItemWithRangeWindow;
 let archiveWindow;
 let loadingWindow;
+let addCharacterWindow;
+let editCharacterWindow;
+let characterManagerWindow;
 let settings = DEFAULT_SETTINGS;
 let data = {
     title: '',
@@ -2255,6 +2258,243 @@ function setupIpcHandlers() {
       };
     }
   });
+
+  // ==================== CHARACTER SYSTEM IPC HANDLERS ====================
+
+  // Character CRUD operations
+  ipcMain.handle('add-character', async (event, character) => {
+    try {
+      const newCharacter = await dbManager.addCharacter(character);
+      return { success: true, character: newCharacter };
+    } catch (error) {
+      console.error('[main.js] Error adding character:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-character', async (event, characterId) => {
+    try {
+      const character = dbManager.getCharacter(characterId);
+      return { success: true, character };
+    } catch (error) {
+      console.error('[main.js] Error getting character:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-all-characters', async (event, timelineId = null) => {
+    try {
+      const characters = dbManager.getAllCharacters(timelineId);
+      return { success: true, characters };
+    } catch (error) {
+      console.error('[main.js] Error getting all characters:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('update-character', async (event, characterId, character) => {
+    try {
+      const success = dbManager.updateCharacter(characterId, character);
+      if (success) {
+        return { success: true };
+      } else {
+        return { success: false, error: 'Character not found or update failed' };
+      }
+    } catch (error) {
+      console.error('[main.js] Error updating character:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('delete-character', async (event, characterId) => {
+    try {
+      const success = dbManager.deleteCharacter(characterId);
+      if (success) {
+        return { success: true };
+      } else {
+        return { success: false, error: 'Character not found or deletion failed' };
+      }
+    } catch (error) {
+      console.error('[main.js] Error deleting character:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('search-characters', async (event, criteria) => {
+    try {
+      const characters = dbManager.searchCharacters(criteria);
+      return { success: true, characters };
+    } catch (error) {
+      console.error('[main.js] Error searching characters:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Character relationship operations
+  ipcMain.handle('add-character-relationship', async (event, relationship) => {
+    try {
+      const relationshipId = dbManager.addCharacterRelationship(relationship);
+      return { success: true, relationshipId };
+    } catch (error) {
+      console.error('[main.js] Error adding character relationship:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-character-relationships', async (event, characterId) => {
+    try {
+      const relationships = dbManager.getCharacterRelationships(characterId);
+      return { success: true, relationships };
+    } catch (error) {
+      console.error('[main.js] Error getting character relationships:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-all-character-relationships', async (event, timelineId = null) => {
+    try {
+      const relationships = dbManager.getAllCharacterRelationships(timelineId);
+      return { success: true, relationships };
+    } catch (error) {
+      console.error('[main.js] Error getting all character relationships:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('update-character-relationship', async (event, relationshipId, relationship) => {
+    try {
+      const success = dbManager.updateCharacterRelationship(relationshipId, relationship);
+      if (success) {
+        return { success: true };
+      } else {
+        return { success: false, error: 'Relationship not found or update failed' };
+      }
+    } catch (error) {
+      console.error('[main.js] Error updating character relationship:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('delete-character-relationship', async (event, relationshipId) => {
+    try {
+      const success = dbManager.deleteCharacterRelationship(relationshipId);
+      if (success) {
+        return { success: true };
+      } else {
+        return { success: false, error: 'Relationship not found or deletion failed' };
+      }
+    } catch (error) {
+      console.error('[main.js] Error deleting character relationship:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Character-item reference operations
+  ipcMain.handle('add-character-references-to-item', async (event, itemId, characterRefs) => {
+    try {
+      dbManager.addCharacterReferencesToItem(itemId, characterRefs);
+      return { success: true };
+    } catch (error) {
+      console.error('[main.js] Error adding character references to item:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-item-character-references', async (event, itemId) => {
+    try {
+      const references = dbManager.getItemCharacterReferences(itemId);
+      return { success: true, references };
+    } catch (error) {
+      console.error('[main.js] Error getting item character references:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-all-character-references', async (event, timelineId = null) => {
+    try {
+      const references = dbManager.getAllCharacterReferences(timelineId);
+      return { success: true, references };
+    } catch (error) {
+      console.error('[main.js] Error getting all character references:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-items-referencing-character', async (event, characterId) => {
+    try {
+      const items = dbManager.getItemsReferencingCharacter(characterId);
+      return { success: true, items };
+    } catch (error) {
+      console.error('[main.js] Error getting items referencing character:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Character statistics and utility operations
+  ipcMain.handle('get-character-stats', async (event, timelineId = null) => {
+    try {
+      const stats = dbManager.getCharacterStats(timelineId);
+      return { success: true, stats };
+    } catch (error) {
+      console.error('[main.js] Error getting character stats:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Archive window character data handlers (for compatibility with existing archive system)
+  ipcMain.on('getAllCharacters', (event) => {
+    try {
+      const characters = dbManager.getAllCharacters();
+      event.sender.send('characters', characters);
+    } catch (error) {
+      console.error('[main.js] Error getting all characters for archive:', error);
+      event.sender.send('characters', []);
+    }
+  });
+
+  ipcMain.on('getAllCharacterRelationships', (event) => {
+    try {
+      const relationships = dbManager.getAllCharacterRelationships();
+      event.sender.send('characterRelationships', relationships);
+    } catch (error) {
+      console.error('[main.js] Error getting all character relationships for archive:', error);
+      event.sender.send('characterRelationships', []);
+    }
+  });
+
+  ipcMain.on('getAllCharacterReferences', (event) => {
+    try {
+      const references = dbManager.getAllCharacterReferences();
+      event.sender.send('characterReferences', references);
+    } catch (error) {
+      console.error('[main.js] Error getting all character references for archive:', error);
+      event.sender.send('characterReferences', []);
+    }
+  });
+
+  // Character window creation handlers
+  ipcMain.on('open-add-character-window', (event, timelineId) => {
+    createAddCharacterWindow(timelineId);
+  });
+
+  ipcMain.on('open-edit-character-window', (event, character) => {
+    createEditCharacterWindow(character);
+  });
+
+  ipcMain.on('open-character-manager-window', (event, timelineId) => {
+    createCharacterManagerWindow(timelineId);
+  });
+
+  // Character validation handlers
+  ipcMain.handle('validate-relationship-type', async (event, relationshipType) => {
+    try {
+      const isValid = dbManager.validateRelationshipType(relationshipType);
+      return { success: true, isValid };
+    } catch (error) {
+      console.error('[main.js] Error validating relationship type:', error);
+      return { success: false, error: error.message };
+    }
+  });
 }
 
 // ===== Application Lifecycle =====
@@ -2280,6 +2520,155 @@ function logToRenderer(level, message) {
 }
 
 
+
+// ==================== CHARACTER WINDOW CREATION FUNCTIONS ====================
+
+/**
+ * Creates the add character window
+ * @param {string} timelineId - Timeline ID to add character to
+ */
+function createAddCharacterWindow(timelineId) {
+    if (addCharacterWindow) {
+        addCharacterWindow.focus();
+        return;
+    }
+
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const windowWidth = 800;
+    const windowHeight = 900;
+
+    addCharacterWindow = new BrowserWindow({
+        width: windowWidth,
+        height: windowHeight,
+        x: Math.floor((width - windowWidth) / 2),
+        y: Math.floor((height - windowHeight) / 2),
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js'),
+        },
+        show: false,
+        autoHideMenuBar: true,
+        parent: mainWindow,
+        modal: true
+    });
+
+    addCharacterWindow.webContents.on("before-input-event", (event, input) => {
+        if (input.key === "F12") {
+            addCharacterWindow.webContents.openDevTools();
+        }
+    });
+
+    addCharacterWindow.loadFile('./markdown/addCharacter.html');
+
+    addCharacterWindow.once('ready-to-show', () => {
+        addCharacterWindow.show();
+        // Send timeline ID to the window
+        addCharacterWindow.webContents.send('timeline-id', timelineId);
+    });
+
+    addCharacterWindow.on('closed', () => {
+        addCharacterWindow = null;
+    });
+}
+
+/**
+ * Creates the edit character window
+ * @param {Object} character - Character data to edit
+ */
+function createEditCharacterWindow(character) {
+    if (editCharacterWindow) {
+        editCharacterWindow.focus();
+        return;
+    }
+
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const windowWidth = 800;
+    const windowHeight = 900;
+
+    editCharacterWindow = new BrowserWindow({
+        width: windowWidth,
+        height: windowHeight,
+        x: Math.floor((width - windowWidth) / 2),
+        y: Math.floor((height - windowHeight) / 2),
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js'),
+        },
+        show: false,
+        autoHideMenuBar: true,
+        parent: mainWindow,
+        modal: true
+    });
+
+    editCharacterWindow.webContents.on("before-input-event", (event, input) => {
+        if (input.key === "F12") {
+            editCharacterWindow.webContents.openDevTools();
+        }
+    });
+
+    editCharacterWindow.loadFile('./markdown/editCharacter.html');
+
+    editCharacterWindow.once('ready-to-show', () => {
+        editCharacterWindow.show();
+        // Send character data to the window
+        editCharacterWindow.webContents.send('character-data', character);
+    });
+
+    editCharacterWindow.on('closed', () => {
+        editCharacterWindow = null;
+    });
+}
+
+/**
+ * Creates the character manager window
+ * @param {string} timelineId - Timeline ID to manage characters for
+ */
+function createCharacterManagerWindow(timelineId) {
+    if (characterManagerWindow) {
+        characterManagerWindow.focus();
+        return;
+    }
+
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const windowWidth = 1200;
+    const windowHeight = 800;
+
+    characterManagerWindow = new BrowserWindow({
+        width: windowWidth,
+        height: windowHeight,
+        x: Math.floor((width - windowWidth) / 2),
+        y: Math.floor((height - windowHeight) / 2),
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js'),
+        },
+        show: false,
+        autoHideMenuBar: true,
+        parent: mainWindow,
+        modal: true
+    });
+
+    characterManagerWindow.webContents.on("before-input-event", (event, input) => {
+        if (input.key === "F12") {
+            characterManagerWindow.webContents.openDevTools();
+        }
+    });
+
+    characterManagerWindow.loadFile('./markdown/characterManager.html');
+
+    characterManagerWindow.once('ready-to-show', () => {
+        characterManagerWindow.show();
+        // Send timeline ID to the window
+        characterManagerWindow.webContents.send('timeline-id', timelineId);
+    });
+
+    characterManagerWindow.on('closed', () => {
+        characterManagerWindow = null;
+    });
+}
 
 /**
  * Creates the archive window

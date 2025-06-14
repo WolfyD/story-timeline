@@ -59,6 +59,13 @@ contextBridge.exposeInMainWorld('api', {
             'duplicate-timeline',
             'reset-timeline-css',
             'set-window-scale',
+            // Character system channels
+            'open-add-character-window',
+            'open-edit-character-window',
+            'open-character-manager-window',
+            'getAllCharacters',
+            'getAllCharacterRelationships',
+            'getAllCharacterReferences',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -88,7 +95,25 @@ contextBridge.exposeInMainWorld('api', {
             'get-all-pictures-debug',
             'analyze-filesystem-vs-database',
             'get-current-timeline-id',
-            'read-file'
+            'read-file',
+            // Character system invoke channels
+            'add-character',
+            'get-character',
+            'get-all-characters',
+            'update-character',
+            'delete-character',
+            'search-characters',
+            'add-character-relationship',
+            'get-character-relationships',
+            'get-all-character-relationships',
+            'update-character-relationship',
+            'delete-character-relationship',
+            'add-character-references-to-item',
+            'get-item-character-references',
+            'get-all-character-references',
+            'get-items-referencing-character',
+            'get-character-stats',
+            'validate-relationship-type'
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
@@ -144,7 +169,13 @@ contextBridge.exposeInMainWorld('api', {
             'jumpToYear',
             'jumpToDate',
             'timeline-duplicated',
-            'window-scale-changed'
+            'window-scale-changed',
+            // Character system receive channels
+            'characters',
+            'characterRelationships',
+            'characterReferences',
+            'character-data',
+            'timeline-id'
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Character Manager</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/character-manager.css">
+    <link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css" type="text/css" />
+</head>
+<body>
+    <div class="character-manager-container">
+        <div class="manager-header">
+            <h1 class="manager-title">Character Manager</h1>
+            <div class="manager-actions">
+                <button class="btn btn-primary" onclick="openAddCharacterWindow()">
+                    <i class="ri-add-line"></i> Add Character
+                </button>
+                <button class="btn btn-secondary" onclick="window.close()">
+                    <i class="ri-close-line"></i> Close
+                </button>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">
+            <div>Loading characters...</div>
+        </div>
+
+        <div id="character-content" style="display: none;">
+            <div id="character-stats" class="character-stats">
+                <div class="stat-item">
+                    <div class="stat-number" id="total-characters">0</div>
+                    <div class="stat-label">Total Characters</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="living-characters">0</div>
+                    <div class="stat-label">Living</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number" id="deceased-characters">0</div>
+                    <div class="stat-label">Deceased</div>
+                </div>
+            </div>
+
+            <div class="search-container">
+                <input type="text" id="search-input" class="search-input" placeholder="Search characters by name, race, or description...">
+            </div>
+
+            <div id="characters-grid" class="characters-grid">
+                <!-- Characters will be populated here -->
+            </div>
+
+            <div id="no-characters" class="no-characters" style="display: none;">
+                <div>No characters found.</div>
+                <button class="btn btn-primary" onclick="openAddCharacterWindow()" style="margin-top: 15px;">
+                    <i class="ri-add-line"></i> Create Your First Character
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../characterManager.js"></script>
+</body>
+</html> 

@@ -25,17 +25,20 @@ let items = [];
 let stories = [];
 let media = [];
 let tags = [];
+let characters = [];
 let filteredItems = [];
 let filteredStories = [];
 let filteredMedia = [];
 let filteredTags = [];
+let filteredCharacters = [];
 let currentFilter = 'all';
 let currentTab = 'items';
 let searchQueries = {
     items: '',
     stories: '',
     media: '',
-    tags: ''
+    tags: '',
+    characters: ''
 };
 let storyReferences = [];
 
@@ -97,6 +100,8 @@ function initializeArchive() {
     window.api.send('getAllMedia');
     // Get all tags
     window.api.send('getAllTags');
+    // Get all characters
+    window.api.send('getAllCharacters');
 }
 
 /**
@@ -140,6 +145,11 @@ function setupEventListeners() {
     document.getElementById('tags-search').addEventListener('input', (e) => {
         searchQueries.tags = e.target.value.toLowerCase();
         filterTags();
+    });
+
+    document.getElementById('characters-search').addEventListener('input', (e) => {
+        searchQueries.characters = e.target.value.toLowerCase();
+        filterCharacters();
     });
 }
 
@@ -234,6 +244,29 @@ function filterTags() {
     });
 
     displayTags();
+}
+
+/**
+ * Filters characters based on search query
+ */
+function filterCharacters() {
+    filteredCharacters = characters.filter(character => {
+        if (searchQueries.characters) {
+            const searchableText = [
+                character.name,
+                character.nicknames,
+                character.aliases,
+                character.race,
+                character.description,
+                character.notes
+            ].filter(text => text).join(' ').toLowerCase();
+            
+            return searchableText.includes(searchQueries.characters);
+        }
+        return true;
+    });
+
+    displayCharacters();
 }
 
 /**
@@ -590,6 +623,143 @@ function displayTags() {
     });
 }
 
+/**
+ * Displays filtered characters in the characters tab
+ */
+function displayCharacters() {
+    const content = document.getElementById('characters-content');
+    content.innerHTML = '';
+
+    if (filteredCharacters.length === 0) {
+        content.innerHTML = '<div class="no-items">No characters found</div>';
+        return;
+    }
+
+    filteredCharacters.forEach(character => {
+        const characterElement = document.createElement('div');
+        characterElement.className = 'archive-item archive-character';
+
+        // Parse aliases
+        const aliases = character.aliases ? character.aliases.split(',').filter(a => a.trim()) : [];
+        
+        // Format dates
+        const birthDate = formatCharacterDate(character.birth_year, character.birth_subtick, character.birth_date);
+        const deathDate = formatCharacterDate(character.death_year, character.death_subtick, character.death_date);
+
+        characterElement.innerHTML = `
+            <div class="archive-character-buttons">
+                <button class="archive-character-button edit" title="Edit character">
+                    <i class="ri-edit-line"></i>
+                </button>
+                <button class="archive-character-button delete" title="Delete character">
+                    <i class="ri-delete-bin-line"></i>
+                </button>
+            </div>
+            
+            <div class="character-header">
+                <div class="archive-item-title">${character.name || 'Unnamed Character'}</div>
+                <div class="character-color-indicator" style="background-color: ${character.color || '#a67c52'}; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #cbb89d;"></div>
+            </div>
+            
+            ${character.race ? `<div class="character-race" style="font-style: italic; color: #666; margin-bottom: 5px;">${character.race}</div>` : ''}
+            ${character.description ? `<div class="archive-item-description">${character.description}</div>` : ''}
+            
+            <div class="character-dates" style="font-size: 12px; color: #666; margin: 10px 0;">
+                ${birthDate ? `Born: ${birthDate}` : ''}
+                ${birthDate && deathDate ? ' • ' : ''}
+                ${deathDate ? `Died: ${deathDate}` : ''}
+            </div>
+            
+            ${aliases.length > 0 ? `
+                <div class="character-aliases" style="margin-top: 10px;">
+                    ${aliases.map(alias => `<span class="archive-item-tag">${alias.trim()}</span>`).join('')}
+                </div>
+            ` : ''}
+            
+            <div class="character-importance" style="position: absolute; top: 15px; right: 60px; background: #a67c52; color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+                ${character.importance || 5}
+            </div>
+        `;
+
+        // Add click handlers for edit and delete buttons
+        const editButton = characterElement.querySelector('.edit');
+        const deleteButton = characterElement.querySelector('.delete');
+
+        editButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            editCharacterFromArchive(character);
+        });
+
+        deleteButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteCharacterFromArchive(character);
+        });
+
+        content.appendChild(characterElement);
+    });
+}
+
+/**
+ * Format character date for display
+ */
+function formatCharacterDate(year, subtick, dateText) {
+    if (!year && !dateText) return null;
+    
+    let formatted = '';
+    if (year) {
+        formatted += year;
+        if (subtick) {
+            formatted += `.${subtick}`;
+        }
+    }
+    
+    if (dateText) {
+        if (formatted) {
+            formatted += ` (${dateText})`;
+        } else {
+            formatted = dateText;
+        }
+    }
+    
+    return formatted;
+}
+
+/**
+ * Edit character from archive
+ */
+function editCharacterFromArchive(character) {
+    window.api.send('open-edit-character-window', character);
+}
+
+/**
+ * Delete character from archive
+ */
+async function deleteCharacterFromArchive(character) {
+    const confirmDelete = confirm(
+        `Are you sure you want to delete the character "${character.name}"?\n\n` +
+        'This action cannot be undone and will also remove any references to this character in timeline items.'
+    );
+    
+    if (!confirmDelete) {
+        return;
+    }
+    
+    try {
+        const result = await window.api.invoke('delete-character', character.id);
+        
+        if (result.success) {
+            // Refresh the character list
+            window.api.send('getAllCharacters');
+        } else {
+            alert('Error deleting character: ' + result.error);
+        }
+        
+    } catch (error) {
+        console.error('[archive.js] Error deleting character:', error);
+        alert('Error deleting character: ' + error.message);
+    }
+}
+
 function jumptoitem(item_id) {
     // switch to items tab
     currentTab = 'items';
@@ -680,6 +850,12 @@ window.api.receive('media', (receivedMedia) => {
 window.api.receive('tags', (receivedTags) => {
     tags = receivedTags;
     filterTags();
+});
+
+// Listen for characters from main process
+window.api.receive('characters', (receivedCharacters) => {
+    characters = receivedCharacters;
+    filterCharacters();
 });
 
 function openArchiveModal(type, data) {

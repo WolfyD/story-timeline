@@ -35,7 +35,7 @@
       </svg>      
     </div>
     <button class="settings-button open-settings-button no-select" onclick="openSettings()">Settings</button>
-    <div id="version-display" class="version-display no-select">v0.3.3</div>
+    <div id="version-display" class="version-display no-select">v0.3.5</div>
     <div id="fps_display" class="fps-display no-select">FPS: 0</div>
     <div id="visible_item_counter" class="visible-item-display no-select">Items visible: 0</div>
 
@@ -410,6 +410,10 @@
           const subtick = calculateSubtickFromPosition(centerX);
           openAddItemWindow(year, subtick, timelineState.granularity);
         }},
+        { separator: true },
+        { label: 'Add Character', action: () => openAddCharacterWindow() },
+        { label: 'Manage Characters', action: () => openCharacterManagerWindow() },
+        { separator: true },
         { label: 'Settings', action: () => openSettings() }
       ]);
 

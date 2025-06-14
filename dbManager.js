@@ -355,6 +355,100 @@ class DatabaseManager {
             )
         `);
 
+        // Characters table
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS characters (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                nicknames TEXT,
+                aliases TEXT,
+                race TEXT,
+                description TEXT,
+                notes TEXT,
+                birth_year INTEGER,
+                birth_subtick INTEGER,
+                birth_date TEXT,
+                birth_alternative_year TEXT,
+                death_year INTEGER,
+                death_subtick INTEGER,
+                death_date TEXT,
+                death_alternative_year TEXT,
+                importance INTEGER DEFAULT 5,
+                color TEXT,
+                image_id_1 INTEGER,
+                image_id_2 INTEGER,
+                image_id_3 INTEGER,
+                image_title_1 TEXT,
+                image_title_2 TEXT,
+                image_title_3 TEXT,
+                image_description_1 TEXT,
+                image_description_2 TEXT,
+                image_description_3 TEXT,
+                timeline_id INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE,
+                FOREIGN KEY (image_id_1) REFERENCES pictures(id) ON DELETE SET NULL,
+                FOREIGN KEY (image_id_2) REFERENCES pictures(id) ON DELETE SET NULL,
+                FOREIGN KEY (image_id_3) REFERENCES pictures(id) ON DELETE SET NULL
+            )
+        `);
+
+        // Character Relationships table
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS character_relationships (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                character_1_id TEXT NOT NULL,
+                character_2_id TEXT NOT NULL,
+                relationship_type TEXT NOT NULL CHECK (relationship_type IN (
+                    'parent', 'child', 'sibling', 'spouse', 'partner', 'ex-spouse', 'ex-partner',
+                    'grandparent', 'grandchild', 'great-grandparent', 'great-grandchild',
+                    'great-great-grandparent', 'great-great-grandchild',
+                    'aunt', 'uncle', 'niece', 'nephew', 'cousin', 'great-aunt', 'great-uncle',
+                    'great-niece', 'great-nephew',
+                    'step-parent', 'step-child', 'step-sibling', 'half-sibling',
+                    'step-grandparent', 'step-grandchild',
+                    'parent-in-law', 'child-in-law', 'sibling-in-law', 'grandparent-in-law', 'grandchild-in-law',
+                    'adoptive-parent', 'adoptive-child', 'adoptive-sibling',
+                    'foster-parent', 'foster-child', 'foster-sibling',
+                    'biological-parent', 'biological-child',
+                    'godparent', 'godchild', 'mentor', 'apprentice', 'guardian', 'ward',
+                    'best-friend', 'friend', 'ally', 'enemy', 'rival', 'acquaintance', 'colleague', 'neighbor',
+                    'familiar', 'bonded', 'master', 'servant', 'liege', 'vassal', 'clan-member', 'pack-member',
+                    'custom', 'other'
+                )),
+                custom_relationship_type TEXT,
+                relationship_degree TEXT,
+                relationship_modifier TEXT,
+                relationship_strength INTEGER DEFAULT 50,
+                is_bidirectional INTEGER DEFAULT 0,
+                notes TEXT,
+                timeline_id INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (character_1_id) REFERENCES characters(id) ON DELETE CASCADE,
+                FOREIGN KEY (character_2_id) REFERENCES characters(id) ON DELETE CASCADE,
+                FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
+            )
+        `);
+
+        // Item-Characters junction table (for character references in timeline items)
+        this.db.exec(`
+            CREATE TABLE IF NOT EXISTS item_characters (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                item_id TEXT NOT NULL,
+                character_id TEXT NOT NULL,
+                relationship_type TEXT DEFAULT 'appears',
+                timeline_id INTEGER NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+                FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE,
+                FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE,
+                UNIQUE(item_id, character_id)
+            )
+        `);
+
         console.log('[dbManager.js] New tables ensured');
     }
 
@@ -406,6 +500,9 @@ class DatabaseManager {
 
         // Migrate CSS columns to consolidate them
         await this.migrateCSSColumns();
+        
+        // Migrate character tables and ensure they exist
+        await this.migrateCharacterTables();
         
         // Check if the pictures has item_id column by querying the sqlite_master table
         const hasItemIdColumn = this.db.prepare(`
@@ -531,6 +628,211 @@ class DatabaseManager {
         } catch (error) {
             this.db.prepare('ROLLBACK').run();
             console.error('[dbManager.js] Error migrating CSS columns:', error);
+            throw error;
+        }
+    }
+
+    async migrateCharacterTables() {
+        console.log('--> [dbManager.js] Migrating character tables...');
+
+        try {
+            // Check if character tables exist
+            const charactersTableExists = this.db.prepare(`
+                SELECT COUNT(*) as count FROM sqlite_master 
+                WHERE type='table' AND name='characters'
+            `).get().count > 0;
+
+            const characterRelationshipsTableExists = this.db.prepare(`
+                SELECT COUNT(*) as count FROM sqlite_master 
+                WHERE type='table' AND name='character_relationships'
+            `).get().count > 0;
+
+            const itemCharactersTableExists = this.db.prepare(`
+                SELECT COUNT(*) as count FROM sqlite_master 
+                WHERE type='table' AND name='item_characters'
+            `).get().count > 0;
+
+            // Create characters table if it doesn't exist
+            if (!charactersTableExists) {
+                console.log('[dbManager.js] Creating characters table...');
+                this.db.exec(`
+                    CREATE TABLE characters (
+                        id TEXT PRIMARY KEY,
+                        name TEXT NOT NULL,
+                        nicknames TEXT,
+                        aliases TEXT,
+                        race TEXT,
+                        description TEXT,
+                        notes TEXT,
+                        birth_year INTEGER,
+                        birth_subtick INTEGER,
+                        birth_date TEXT,
+                        birth_alternative_year TEXT,
+                        death_year INTEGER,
+                        death_subtick INTEGER,
+                        death_date TEXT,
+                        death_alternative_year TEXT,
+                        importance INTEGER DEFAULT 5,
+                        color TEXT,
+                        image_id_1 INTEGER,
+                        image_id_2 INTEGER,
+                        image_id_3 INTEGER,
+                        image_title_1 TEXT,
+                        image_title_2 TEXT,
+                        image_title_3 TEXT,
+                        image_description_1 TEXT,
+                        image_description_2 TEXT,
+                        image_description_3 TEXT,
+                        timeline_id INTEGER NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE,
+                        FOREIGN KEY (image_id_1) REFERENCES pictures(id) ON DELETE SET NULL,
+                        FOREIGN KEY (image_id_2) REFERENCES pictures(id) ON DELETE SET NULL,
+                        FOREIGN KEY (image_id_3) REFERENCES pictures(id) ON DELETE SET NULL
+                    )
+                `);
+                console.log('[dbManager.js] Characters table created successfully');
+            } else {
+                console.log('[dbManager.js] Characters table already exists, checking columns...');
+                
+                // Ensure all required columns exist in characters table
+                this.ensureTableColumns('characters', [
+                    { name: 'nicknames', type: 'TEXT' },
+                    { name: 'aliases', type: 'TEXT' },
+                    { name: 'race', type: 'TEXT' },
+                    { name: 'description', type: 'TEXT' },
+                    { name: 'notes', type: 'TEXT' },
+                    { name: 'birth_year', type: 'INTEGER' },
+                    { name: 'birth_subtick', type: 'INTEGER' },
+                    { name: 'birth_date', type: 'TEXT' },
+                    { name: 'birth_alternative_year', type: 'TEXT' },
+                    { name: 'death_year', type: 'INTEGER' },
+                    { name: 'death_subtick', type: 'INTEGER' },
+                    { name: 'death_date', type: 'TEXT' },
+                    { name: 'death_alternative_year', type: 'TEXT' },
+                    { name: 'importance', type: 'INTEGER', default: 5 },
+                    { name: 'color', type: 'TEXT' },
+                    { name: 'image_id_1', type: 'INTEGER' },
+                    { name: 'image_id_2', type: 'INTEGER' },
+                    { name: 'image_id_3', type: 'INTEGER' },
+                    { name: 'image_title_1', type: 'TEXT' },
+                    { name: 'image_title_2', type: 'TEXT' },
+                    { name: 'image_title_3', type: 'TEXT' },
+                    { name: 'image_description_1', type: 'TEXT' },
+                    { name: 'image_description_2', type: 'TEXT' },
+                    { name: 'image_description_3', type: 'TEXT' },
+                    { name: 'timeline_id', type: 'INTEGER' },
+                    { name: 'created_at', type: 'DATETIME', default: 'CURRENT_TIMESTAMP' },
+                    { name: 'updated_at', type: 'DATETIME', default: 'CURRENT_TIMESTAMP' }
+                ]);
+            }
+
+            // Create character_relationships table if it doesn't exist
+            if (!characterRelationshipsTableExists) {
+                console.log('[dbManager.js] Creating character_relationships table...');
+                this.db.exec(`
+                    CREATE TABLE character_relationships (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        character_1_id TEXT NOT NULL,
+                        character_2_id TEXT NOT NULL,
+                        relationship_type TEXT NOT NULL CHECK (relationship_type IN (
+                            'parent', 'child', 'sibling', 'spouse', 'partner', 'ex-spouse', 'ex-partner',
+                            'grandparent', 'grandchild', 'great-grandparent', 'great-grandchild',
+                            'great-great-grandparent', 'great-great-grandchild',
+                            'aunt', 'uncle', 'niece', 'nephew', 'cousin', 'great-aunt', 'great-uncle',
+                            'great-niece', 'great-nephew',
+                            'step-parent', 'step-child', 'step-sibling', 'half-sibling',
+                            'step-grandparent', 'step-grandchild',
+                            'parent-in-law', 'child-in-law', 'sibling-in-law', 'grandparent-in-law', 'grandchild-in-law',
+                            'adoptive-parent', 'adoptive-child', 'adoptive-sibling',
+                            'foster-parent', 'foster-child', 'foster-sibling',
+                            'biological-parent', 'biological-child',
+                            'godparent', 'godchild', 'mentor', 'apprentice', 'guardian', 'ward',
+                            'best-friend', 'friend', 'ally', 'enemy', 'rival', 'acquaintance', 'colleague', 'neighbor',
+                            'familiar', 'bonded', 'master', 'servant', 'liege', 'vassal', 'clan-member', 'pack-member',
+                            'custom', 'other'
+                        )),
+                        custom_relationship_type TEXT,
+                        relationship_degree TEXT,
+                        relationship_modifier TEXT,
+                        relationship_strength INTEGER DEFAULT 50,
+                        is_bidirectional INTEGER DEFAULT 0,
+                        notes TEXT,
+                        timeline_id INTEGER NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (character_1_id) REFERENCES characters(id) ON DELETE CASCADE,
+                        FOREIGN KEY (character_2_id) REFERENCES characters(id) ON DELETE CASCADE,
+                        FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
+                    )
+                `);
+                console.log('[dbManager.js] Character_relationships table created successfully');
+            } else {
+                console.log('[dbManager.js] Character_relationships table already exists, checking columns...');
+                
+                // For existing tables, we can't easily add CHECK constraints via ALTER TABLE
+                // So we'll just ensure the basic columns exist
+                this.ensureTableColumns('character_relationships', [
+                    { name: 'character_1_id', type: 'TEXT' },
+                    { name: 'character_2_id', type: 'TEXT' },
+                    { name: 'relationship_type', type: 'TEXT' },
+                    { name: 'custom_relationship_type', type: 'TEXT' },
+                    { name: 'relationship_degree', type: 'TEXT' },
+                    { name: 'relationship_modifier', type: 'TEXT' },
+                    { name: 'relationship_strength', type: 'INTEGER', default: 50 },
+                    { name: 'is_bidirectional', type: 'INTEGER', default: 0 },
+                    { name: 'notes', type: 'TEXT' },
+                    { name: 'timeline_id', type: 'INTEGER' },
+                    { name: 'created_at', type: 'DATETIME', default: 'CURRENT_TIMESTAMP' },
+                    { name: 'updated_at', type: 'DATETIME', default: 'CURRENT_TIMESTAMP' }
+                ]);
+                
+                // Note: CHECK constraint validation will be handled at the application level
+                // for existing tables that don't have the constraint
+                console.log('[dbManager.js] Note: CHECK constraint for relationship_type will be enforced at application level for existing tables');
+            }
+
+            // Create item_characters table if it doesn't exist
+            if (!itemCharactersTableExists) {
+                console.log('[dbManager.js] Creating item_characters table...');
+                this.db.exec(`
+                    CREATE TABLE item_characters (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        item_id TEXT NOT NULL,
+                        character_id TEXT NOT NULL,
+                        relationship_type TEXT DEFAULT 'appears',
+                        timeline_id INTEGER NOT NULL,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY (item_id) REFERENCES items(id) ON DELETE CASCADE,
+                        FOREIGN KEY (character_id) REFERENCES characters(id) ON DELETE CASCADE,
+                        FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE,
+                        UNIQUE(item_id, character_id)
+                    )
+                `);
+                console.log('[dbManager.js] Item_characters table created successfully');
+            } else {
+                console.log('[dbManager.js] Item_characters table already exists, checking columns...');
+                
+                // Ensure all required columns exist in item_characters table
+                this.ensureTableColumns('item_characters', [
+                    { name: 'item_id', type: 'TEXT' },
+                    { name: 'character_id', type: 'TEXT' },
+                    { name: 'relationship_type', type: 'TEXT', default: "'appears'" },
+                    { name: 'timeline_id', type: 'INTEGER' },
+                    { name: 'created_at', type: 'DATETIME', default: 'CURRENT_TIMESTAMP' },
+                    { name: 'updated_at', type: 'DATETIME', default: 'CURRENT_TIMESTAMP' }
+                ]);
+            }
+
+            // Ensure all new tables are created (including character tables)
+            this.ensureNewTables();
+
+            console.log('[dbManager.js] Character tables migration completed successfully');
+
+        } catch (error) {
+            console.error('[dbManager.js] Error migrating character tables:', error);
             throw error;
         }
     }
@@ -2925,6 +3227,561 @@ class DatabaseManager {
             console.error('[dbManager.js] Error during visual duplicate consolidation:', error);
             throw error;
         }
+    }
+
+    // ==================== CHARACTER MANAGEMENT METHODS ====================
+
+    /**
+     * Generates a unique character ID
+     * @param {string} name - Character name
+     * @returns {string} Unique character ID
+     */
+    generateCharacterId(name) {
+        const baseName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
+        let id = `char_${baseName}`;
+        let counter = 1;
+        
+        while (this.db.prepare('SELECT id FROM characters WHERE id = ?').get(id)) {
+            id = `char_${baseName}_${counter}`;
+            counter++;
+        }
+        
+        return id;
+    }
+
+    /**
+     * Adds a new character
+     * @param {Object} character - Character data
+     * @returns {string} Character ID
+     */
+    async addCharacter(character) {
+        const characterId = character.id || this.generateCharacterId(character.name);
+        
+        try {
+            this.db.prepare('BEGIN').run();
+            
+            // Insert character
+            const stmt = this.db.prepare(`
+                INSERT INTO characters (
+                    id, name, nicknames, aliases, race, description, notes,
+                    birth_year, birth_subtick, birth_date, birth_alternative_year,
+                    death_year, death_subtick, death_date, death_alternative_year,
+                    importance, color,
+                    image_id_1, image_id_2, image_id_3,
+                    image_title_1, image_title_2, image_title_3,
+                    image_description_1, image_description_2, image_description_3,
+                    timeline_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `);
+            
+            stmt.run(
+                characterId,
+                character.name,
+                character.nicknames || null,
+                character.aliases || null,
+                character.race || null,
+                character.description || null,
+                character.notes || null,
+                character.birth_year || null,
+                character.birth_subtick || null,
+                character.birth_date || null,
+                character.birth_alternative_year || null,
+                character.death_year || null,
+                character.death_subtick || null,
+                character.death_date || null,
+                character.death_alternative_year || null,
+                character.importance || 5,
+                character.color || null,
+                character.image_id_1 || null,
+                character.image_id_2 || null,
+                character.image_id_3 || null,
+                character.image_title_1 || null,
+                character.image_title_2 || null,
+                character.image_title_3 || null,
+                character.image_description_1 || null,
+                character.image_description_2 || null,
+                character.image_description_3 || null,
+                character.timeline_id || this.currentTimelineId
+            );
+
+            // Auto-create a character item for tag integration
+            const itemId = `item_${characterId}`;
+            const itemStmt = this.db.prepare(`
+                INSERT INTO items (
+                    id, title, description, type_id, year, subtick,
+                    timeline_id, show_in_notes, created_at, updated_at
+                ) VALUES (?, ?, ?, 7, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+            `);
+            
+            itemStmt.run(
+                itemId,
+                character.name,
+                `Character: ${character.description || character.name}`,
+                character.birth_year || 0,
+                character.birth_subtick || 0,
+                character.timeline_id || this.currentTimelineId
+            );
+
+            // Add tags if provided
+            if (character.tags && character.tags.length > 0) {
+                this.addTagsToItem(itemId, character.tags);
+            }
+            
+            this.db.prepare('COMMIT').run();
+            console.log(`[dbManager.js] Added character: ${characterId}`);
+            return characterId;
+            
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('[dbManager.js] Error adding character:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Gets a character by ID
+     * @param {string} id - Character ID
+     * @returns {Object|null} Character data
+     */
+    getCharacter(id) {
+        return this.db.prepare('SELECT * FROM characters WHERE id = ?').get(id);
+    }
+
+    /**
+     * Gets all characters for the current timeline
+     * @param {number} timelineId - Timeline ID (optional, uses current if not provided)
+     * @returns {Array} Array of characters
+     */
+    getAllCharacters(timelineId = null) {
+        const timeline = timelineId || this.currentTimelineId;
+        return this.db.prepare('SELECT * FROM characters WHERE timeline_id = ? ORDER BY name').all(timeline);
+    }
+
+    /**
+     * Updates a character
+     * @param {string} id - Character ID
+     * @param {Object} character - Updated character data
+     * @returns {boolean} Success status
+     */
+    updateCharacter(id, character) {
+        try {
+            this.db.prepare('BEGIN').run();
+            
+            const stmt = this.db.prepare(`
+                UPDATE characters SET
+                    name = ?, nicknames = ?, aliases = ?, race = ?, description = ?, notes = ?,
+                    birth_year = ?, birth_subtick = ?, birth_date = ?, birth_alternative_year = ?,
+                    death_year = ?, death_subtick = ?, death_date = ?, death_alternative_year = ?,
+                    importance = ?, color = ?,
+                    image_id_1 = ?, image_id_2 = ?, image_id_3 = ?,
+                    image_title_1 = ?, image_title_2 = ?, image_title_3 = ?,
+                    image_description_1 = ?, image_description_2 = ?, image_description_3 = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `);
+            
+            const result = stmt.run(
+                character.name,
+                character.nicknames || null,
+                character.aliases || null,
+                character.race || null,
+                character.description || null,
+                character.notes || null,
+                character.birth_year || null,
+                character.birth_subtick || null,
+                character.birth_date || null,
+                character.birth_alternative_year || null,
+                character.death_year || null,
+                character.death_subtick || null,
+                character.death_date || null,
+                character.death_alternative_year || null,
+                character.importance || 5,
+                character.color || null,
+                character.image_id_1 || null,
+                character.image_id_2 || null,
+                character.image_id_3 || null,
+                character.image_title_1 || null,
+                character.image_title_2 || null,
+                character.image_title_3 || null,
+                character.image_description_1 || null,
+                character.image_description_2 || null,
+                character.image_description_3 || null,
+                id
+            );
+
+            // Update the corresponding character item
+            const itemId = `item_${id}`;
+            this.db.prepare(`
+                UPDATE items SET
+                    title = ?, description = ?, year = ?, subtick = ?,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            `).run(
+                character.name,
+                `Character: ${character.description || character.name}`,
+                character.birth_year || 0,
+                character.birth_subtick || 0,
+                itemId
+            );
+
+            // Update tags if provided
+            if (character.tags !== undefined) {
+                this.updateItemTags(itemId, character.tags);
+            }
+            
+            this.db.prepare('COMMIT').run();
+            return result.changes > 0;
+            
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('[dbManager.js] Error updating character:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Deletes a character and all related data
+     * @param {string} id - Character ID
+     * @returns {boolean} Success status
+     */
+    deleteCharacter(id) {
+        try {
+            this.db.prepare('BEGIN').run();
+            
+            // Delete character relationships
+            this.db.prepare('DELETE FROM character_relationships WHERE character_1_id = ? OR character_2_id = ?').run(id, id);
+            
+            // Delete item-character references
+            this.db.prepare('DELETE FROM item_characters WHERE character_id = ?').run(id);
+            
+            // Delete the corresponding character item (this will cascade to tags)
+            const itemId = `item_${id}`;
+            this.db.prepare('DELETE FROM items WHERE id = ?').run(itemId);
+            
+            // Delete the character
+            const result = this.db.prepare('DELETE FROM characters WHERE id = ?').run(id);
+            
+            this.db.prepare('COMMIT').run();
+            console.log(`[dbManager.js] Deleted character: ${id}`);
+            return result.changes > 0;
+            
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('[dbManager.js] Error deleting character:', error);
+            throw error;
+        }
+    }
+
+    // ==================== CHARACTER RELATIONSHIP METHODS ====================
+
+    /**
+     * Validates relationship type
+     * @param {string} relationshipType - Relationship type to validate
+     * @returns {boolean} True if valid
+     */
+    validateRelationshipType(relationshipType) {
+        const validTypes = [
+            'parent', 'child', 'sibling', 'spouse', 'partner', 'ex-spouse', 'ex-partner',
+            'grandparent', 'grandchild', 'great-grandparent', 'great-grandchild',
+            'great-great-grandparent', 'great-great-grandchild',
+            'aunt', 'uncle', 'niece', 'nephew', 'cousin', 'great-aunt', 'great-uncle',
+            'great-niece', 'great-nephew',
+            'step-parent', 'step-child', 'step-sibling', 'half-sibling',
+            'step-grandparent', 'step-grandchild',
+            'parent-in-law', 'child-in-law', 'sibling-in-law', 'grandparent-in-law', 'grandchild-in-law',
+            'adoptive-parent', 'adoptive-child', 'adoptive-sibling',
+            'foster-parent', 'foster-child', 'foster-sibling',
+            'biological-parent', 'biological-child',
+            'godparent', 'godchild', 'mentor', 'apprentice', 'guardian', 'ward',
+            'best-friend', 'friend', 'ally', 'enemy', 'rival', 'acquaintance', 'colleague', 'neighbor',
+            'familiar', 'bonded', 'master', 'servant', 'liege', 'vassal', 'clan-member', 'pack-member',
+            'custom', 'other'
+        ];
+        return validTypes.includes(relationshipType);
+    }
+
+    /**
+     * Adds a relationship between two characters
+     * @param {Object} relationship - Relationship data
+     * @returns {number} Relationship ID
+     */
+    addCharacterRelationship(relationship) {
+        // Validate relationship type
+        if (!this.validateRelationshipType(relationship.relationship_type)) {
+            throw new Error(`Invalid relationship type: ${relationship.relationship_type}`);
+        }
+
+        const stmt = this.db.prepare(`
+            INSERT INTO character_relationships (
+                character_1_id, character_2_id, relationship_type, custom_relationship_type,
+                relationship_degree, relationship_modifier, relationship_strength,
+                is_bidirectional, notes, timeline_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `);
+        
+        const result = stmt.run(
+            relationship.character_1_id,
+            relationship.character_2_id,
+            relationship.relationship_type,
+            relationship.custom_relationship_type || null,
+            relationship.relationship_degree || null,
+            relationship.relationship_modifier || null,
+            relationship.relationship_strength || 50,
+            relationship.is_bidirectional ? 1 : 0,
+            relationship.notes || null,
+            relationship.timeline_id || this.currentTimelineId
+        );
+        
+        console.log(`[dbManager.js] Added character relationship: ${relationship.character_1_id} -> ${relationship.character_2_id}`);
+        return result.lastInsertRowid;
+    }
+
+    /**
+     * Gets all relationships for a character
+     * @param {string} characterId - Character ID
+     * @returns {Array} Array of relationships
+     */
+    getCharacterRelationships(characterId) {
+        return this.db.prepare(`
+            SELECT cr.*, 
+                   c1.name as character_1_name,
+                   c2.name as character_2_name
+            FROM character_relationships cr
+            JOIN characters c1 ON cr.character_1_id = c1.id
+            JOIN characters c2 ON cr.character_2_id = c2.id
+            WHERE cr.character_1_id = ? OR cr.character_2_id = ?
+            ORDER BY cr.relationship_strength DESC, cr.created_at ASC
+        `).all(characterId, characterId);
+    }
+
+    /**
+     * Gets all relationships for the current timeline
+     * @param {number} timelineId - Timeline ID (optional)
+     * @returns {Array} Array of all relationships
+     */
+    getAllCharacterRelationships(timelineId = null) {
+        const timeline = timelineId || this.currentTimelineId;
+        return this.db.prepare(`
+            SELECT cr.*, 
+                   c1.name as character_1_name,
+                   c2.name as character_2_name
+            FROM character_relationships cr
+            JOIN characters c1 ON cr.character_1_id = c1.id
+            JOIN characters c2 ON cr.character_2_id = c2.id
+            WHERE cr.timeline_id = ?
+            ORDER BY cr.relationship_strength DESC, cr.created_at ASC
+        `).all(timeline);
+    }
+
+    /**
+     * Updates a character relationship
+     * @param {number} id - Relationship ID
+     * @param {Object} relationship - Updated relationship data
+     * @returns {boolean} Success status
+     */
+    updateCharacterRelationship(id, relationship) {
+        // Validate relationship type
+        if (!this.validateRelationshipType(relationship.relationship_type)) {
+            throw new Error(`Invalid relationship type: ${relationship.relationship_type}`);
+        }
+
+        const stmt = this.db.prepare(`
+            UPDATE character_relationships SET
+                relationship_type = ?, custom_relationship_type = ?,
+                relationship_degree = ?, relationship_modifier = ?,
+                relationship_strength = ?, is_bidirectional = ?,
+                notes = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `);
+        
+        const result = stmt.run(
+            relationship.relationship_type,
+            relationship.custom_relationship_type || null,
+            relationship.relationship_degree || null,
+            relationship.relationship_modifier || null,
+            relationship.relationship_strength || 50,
+            relationship.is_bidirectional ? 1 : 0,
+            relationship.notes || null,
+            id
+        );
+        
+        return result.changes > 0;
+    }
+
+    /**
+     * Deletes a character relationship
+     * @param {number} id - Relationship ID
+     * @returns {boolean} Success status
+     */
+    deleteCharacterRelationship(id) {
+        const result = this.db.prepare('DELETE FROM character_relationships WHERE id = ?').run(id);
+        return result.changes > 0;
+    }
+
+    // ==================== ITEM-CHARACTER REFERENCE METHODS ====================
+
+    /**
+     * Adds character references to an item
+     * @param {string} itemId - Item ID
+     * @param {Array} characterRefs - Array of character reference objects
+     */
+    addCharacterReferencesToItem(itemId, characterRefs) {
+        if (!characterRefs || characterRefs.length === 0) return;
+        
+        try {
+            this.db.prepare('BEGIN').run();
+            
+            // Clear existing character references for this item
+            this.db.prepare('DELETE FROM item_characters WHERE item_id = ?').run(itemId);
+            
+            // Add new character references
+            const stmt = this.db.prepare(`
+                INSERT INTO item_characters (item_id, character_id, relationship_type, timeline_id)
+                VALUES (?, ?, ?, ?)
+            `);
+            
+            for (const ref of characterRefs) {
+                stmt.run(
+                    itemId,
+                    ref.character_id,
+                    ref.relationship_type || 'appears',
+                    ref.timeline_id || this.currentTimelineId
+                );
+            }
+            
+            this.db.prepare('COMMIT').run();
+            console.log(`[dbManager.js] Added ${characterRefs.length} character references to item ${itemId}`);
+            
+        } catch (error) {
+            this.db.prepare('ROLLBACK').run();
+            console.error('[dbManager.js] Error adding character references to item:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Gets character references for an item
+     * @param {string} itemId - Item ID
+     * @returns {Array} Array of character references
+     */
+    getItemCharacterReferences(itemId) {
+        return this.db.prepare(`
+            SELECT ic.*, c.name as character_name
+            FROM item_characters ic
+            JOIN characters c ON ic.character_id = c.id
+            WHERE ic.item_id = ?
+            ORDER BY c.name
+        `).all(itemId);
+    }
+
+    /**
+     * Gets all character references for the current timeline
+     * @param {number} timelineId - Timeline ID (optional)
+     * @returns {Array} Array of all character references
+     */
+    getAllCharacterReferences(timelineId = null) {
+        const timeline = timelineId || this.currentTimelineId;
+        return this.db.prepare(`
+            SELECT ic.*, c.name as character_name, i.title as item_title
+            FROM item_characters ic
+            JOIN characters c ON ic.character_id = c.id
+            JOIN items i ON ic.item_id = i.id
+            WHERE ic.timeline_id = ?
+            ORDER BY c.name, i.title
+        `).all(timeline);
+    }
+
+    /**
+     * Gets all items that reference a specific character
+     * @param {string} characterId - Character ID
+     * @returns {Array} Array of items
+     */
+    getItemsReferencingCharacter(characterId) {
+        return this.db.prepare(`
+            SELECT i.*, ic.relationship_type
+            FROM items i
+            JOIN item_characters ic ON i.id = ic.item_id
+            WHERE ic.character_id = ?
+            ORDER BY i.year, i.subtick
+        `).all(characterId);
+    }
+
+    /**
+     * Searches characters by name, description, or other fields
+     * @param {Object} criteria - Search criteria
+     * @returns {Array} Array of matching characters
+     */
+    searchCharacters(criteria) {
+        let query = 'SELECT * FROM characters WHERE timeline_id = ?';
+        const params = [criteria.timeline_id || this.currentTimelineId];
+        
+        if (criteria.name) {
+            query += ' AND (name LIKE ? OR nicknames LIKE ? OR aliases LIKE ?)';
+            const namePattern = `%${criteria.name}%`;
+            params.push(namePattern, namePattern, namePattern);
+        }
+        
+        if (criteria.race) {
+            query += ' AND race LIKE ?';
+            params.push(`%${criteria.race}%`);
+        }
+        
+        if (criteria.importance_min) {
+            query += ' AND importance >= ?';
+            params.push(criteria.importance_min);
+        }
+        
+        if (criteria.importance_max) {
+            query += ' AND importance <= ?';
+            params.push(criteria.importance_max);
+        }
+        
+        if (criteria.alive_in_year) {
+            query += ' AND (birth_year IS NULL OR birth_year <= ?) AND (death_year IS NULL OR death_year >= ?)';
+            params.push(criteria.alive_in_year, criteria.alive_in_year);
+        }
+        
+        query += ' ORDER BY importance DESC, name';
+        
+        return this.db.prepare(query).all(...params);
+    }
+
+    /**
+     * Gets character statistics for the current timeline
+     * @param {number} timelineId - Timeline ID (optional)
+     * @returns {Object} Character statistics
+     */
+    getCharacterStats(timelineId = null) {
+        const timeline = timelineId || this.currentTimelineId;
+        
+        const totalCharacters = this.db.prepare('SELECT COUNT(*) as count FROM characters WHERE timeline_id = ?').get(timeline).count;
+        const totalRelationships = this.db.prepare('SELECT COUNT(*) as count FROM character_relationships WHERE timeline_id = ?').get(timeline).count;
+        const totalReferences = this.db.prepare('SELECT COUNT(*) as count FROM item_characters WHERE timeline_id = ?').get(timeline).count;
+        
+        const raceStats = this.db.prepare(`
+            SELECT race, COUNT(*) as count 
+            FROM characters 
+            WHERE timeline_id = ? AND race IS NOT NULL 
+            GROUP BY race 
+            ORDER BY count DESC
+        `).all(timeline);
+        
+        const importanceStats = this.db.prepare(`
+            SELECT 
+                AVG(importance) as avg_importance,
+                MIN(importance) as min_importance,
+                MAX(importance) as max_importance
+            FROM characters 
+            WHERE timeline_id = ?
+        `).get(timeline);
+        
+        return {
+            totalCharacters,
+            totalRelationships,
+            totalReferences,
+            raceStats,
+            importanceStats
+        };
     }
 }
 

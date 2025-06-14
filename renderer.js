@@ -1358,6 +1358,55 @@ function openEditItemWindow(item) {
     window.api.send('open-edit-item-window', item);
 }
 
+// ==================== CHARACTER WINDOW FUNCTIONS ====================
+
+/**
+ * Opens the add character window
+ */
+function openAddCharacterWindow() {
+    // Get current timeline ID
+    window.api.getCurrentTimelineId().then(timelineId => {
+        if (timelineId) {
+            window.api.send('open-add-character-window', timelineId);
+        } else {
+            showError('No timeline is currently loaded. Please open a timeline first.');
+        }
+    }).catch(error => {
+        console.error('[renderer.js] Error getting timeline ID:', error);
+        showError('Error opening character window: ' + error.message);
+    });
+}
+
+/**
+ * Opens the character manager window
+ */
+function openCharacterManagerWindow() {
+    // Get current timeline ID
+    window.api.getCurrentTimelineId().then(timelineId => {
+        if (timelineId) {
+            window.api.send('open-character-manager-window', timelineId);
+        } else {
+            showError('No timeline is currently loaded. Please open a timeline first.');
+        }
+    }).catch(error => {
+        console.error('[renderer.js] Error getting timeline ID:', error);
+        showError('Error opening character manager: ' + error.message);
+    });
+}
+
+/**
+ * Opens the edit character window for a specific character
+ * @param {Object} character - Character data to edit
+ */
+function openEditCharacterWindow(character) {
+    if (!character) {
+        showError('No character data provided.');
+        return;
+    }
+    
+    window.api.send('open-edit-character-window', character);
+}
+
 // Toast notification system to replace alerts
 window.showToast = function(message, type = 'info', duration = 5000) {
     const container = document.getElementById('toast-container');

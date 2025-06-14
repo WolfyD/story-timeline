@@ -1,0 +1,262 @@
+/* Character Forms CSS - Matches addItem.css theming */
+@import url('design-system.css');
+
+body {
+    background: var(--color-bg-primary);
+    color: #4b2e2e;
+    font-family: var(--default-font), "Times New Roman", serif;
+    padding: 20px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.character-form-container {
+    max-width: 800px;
+    margin: 0 auto;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 30px;
+    border: 1px solid #ccc;
+}
+
+.form-header {
+    text-align: center;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #4b2e2e;
+    padding-bottom: 15px;
+}
+
+.form-title {
+    font-size: 24px;
+    color: #4b2e2e;
+    margin: 0;
+    font-family: var(--default-font), serif;
+    font-weight: bold;
+}
+
+.character-id {
+    font-size: 12px;
+    color: #666;
+    margin-top: 5px;
+}
+
+.form-section {
+    margin-bottom: 25px;
+    background: rgba(255,255,255,0.1);
+    padding: 15px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+
+.section-title {
+    font-size: 18px;
+    color: #4b2e2e;
+    margin-bottom: 15px;
+    font-weight: bold;
+    border-bottom: 1px solid #ccc;
+    padding-bottom: 5px;
+}
+
+.form-row {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 15px;
+    align-items: flex-start;
+}
+
+.form-group {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    margin-bottom: 20px;
+}
+
+.form-group.half {
+    flex: 0.5;
+}
+
+.form-group.quarter {
+    flex: 0.25;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+    color: #4b2e2e;
+    font-size: 14px;
+}
+
+.form-group input, 
+.form-group textarea, 
+.form-group select {
+    width: calc(100% - 20px);
+    padding: 8px;
+    position: relative;
+    margin-right: 20px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-size: 14px;
+    background-color: #fff;
+    color: #4b2e2e;
+}
+
+.form-group input:focus, 
+.form-group textarea:focus, 
+.form-group select:focus {
+    outline: none;
+    border-color: #4b2e2e;
+    box-shadow: 0 0 0 2px rgba(75, 46, 46, 0.2);
+}
+
+.form-group textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.color-input {
+    width: 60px !important;
+    height: 40px;
+    padding: 2px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.importance-slider {
+    width: calc(100% - 40px) !important;
+    margin-right: 10px;
+}
+
+.importance-value {
+    font-weight: bold;
+    color: #4b2e2e;
+    margin-left: 10px;
+    min-width: 20px;
+}
+
+.form-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 1px solid #ccc;
+}
+
+.help-text {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+    margin-top: 3px;
+}
+
+.aliases-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 5px;
+}
+
+.alias-tag {
+    background: #e2c9a0;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    border: 1px solid #ccc;
+}
+
+.alias-remove {
+    cursor: pointer;
+    color: #4b2e2e;
+    font-weight: bold;
+}
+
+.alias-remove:hover {
+    color: #dc3545;
+}
+
+.loading {
+    text-align: center;
+    padding: 50px;
+    color: #666;
+    background: var(--color-bg-primary);
+}
+
+/* Button styles - matching addItem.css */
+button[type="submit"], .btn {
+    background-color: #4b2e2e;
+    color: #f5e6d4;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 16px;
+    font-family: inherit;
+    transition: background-color 0.2s;
+}
+
+button[type="submit"]:hover, .btn-primary:hover {
+    background-color: #5d3a3a;
+}
+
+.btn-secondary {
+    background-color: #6c757d;
+    color: #fff;
+}
+
+.btn-secondary:hover {
+    background-color: #5a6268;
+}
+
+.btn-danger {
+    background-color: #dc3545;
+    color: #fff;
+}
+
+.btn-danger:hover {
+    background-color: #c82333;
+}
+
+/* Image upload container - inherits from addItem.css */
+.image-upload-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+    width: 100%;
+}
+
+/* Ensure proper spacing for character-specific elements */
+.form-row .form-group {
+    margin-bottom: 0;
+}
+
+.form-section .form-group {
+    margin-bottom: 15px;
+}
+
+/* Style adjustments for importance slider container */
+.form-group div[style*="display: flex"] {
+    align-items: center;
+    width: 100%;
+}
+
+.form-group div[style*="display: flex"] input[type="range"] {
+    margin-right: 0 !important;
+    width: calc(100% - 40px) !important;
+}
+
+.form-group div[style*="display: flex"] .importance-value {
+    margin-left: 10px;
+    margin-right: 20px;
+} 
+
+.color-input-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-direction: row;
+}
