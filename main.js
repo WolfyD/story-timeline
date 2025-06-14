@@ -1076,6 +1076,10 @@ function setupIpcHandlers() {
     return data.timeline_id;
   });
 
+  ipcMain.handle('get-current-timeline-granularity', () => {
+    return data.granularity;
+  });
+
   ipcMain.on('save-settings', (event, newSettings, newData) => {
     // Merge new settings with current settings
     console.log("NEW SETTINGS", newSettings);

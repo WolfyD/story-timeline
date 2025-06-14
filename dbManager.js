@@ -375,22 +375,10 @@ class DatabaseManager {
                 death_alternative_year TEXT,
                 importance INTEGER DEFAULT 5,
                 color TEXT,
-                image_id_1 INTEGER,
-                image_id_2 INTEGER,
-                image_id_3 INTEGER,
-                image_title_1 TEXT,
-                image_title_2 TEXT,
-                image_title_3 TEXT,
-                image_description_1 TEXT,
-                image_description_2 TEXT,
-                image_description_3 TEXT,
                 timeline_id INTEGER NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE,
-                FOREIGN KEY (image_id_1) REFERENCES pictures(id) ON DELETE SET NULL,
-                FOREIGN KEY (image_id_2) REFERENCES pictures(id) ON DELETE SET NULL,
-                FOREIGN KEY (image_id_3) REFERENCES pictures(id) ON DELETE SET NULL
+                FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
             )
         `);
 
@@ -674,22 +662,10 @@ class DatabaseManager {
                         death_alternative_year TEXT,
                         importance INTEGER DEFAULT 5,
                         color TEXT,
-                        image_id_1 INTEGER,
-                        image_id_2 INTEGER,
-                        image_id_3 INTEGER,
-                        image_title_1 TEXT,
-                        image_title_2 TEXT,
-                        image_title_3 TEXT,
-                        image_description_1 TEXT,
-                        image_description_2 TEXT,
-                        image_description_3 TEXT,
                         timeline_id INTEGER NOT NULL,
                         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                         updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                        FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE,
-                        FOREIGN KEY (image_id_1) REFERENCES pictures(id) ON DELETE SET NULL,
-                        FOREIGN KEY (image_id_2) REFERENCES pictures(id) ON DELETE SET NULL,
-                        FOREIGN KEY (image_id_3) REFERENCES pictures(id) ON DELETE SET NULL
+                        FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE
                     )
                 `);
                 console.log('[dbManager.js] Characters table created successfully');
@@ -713,15 +689,6 @@ class DatabaseManager {
                     { name: 'death_alternative_year', type: 'TEXT' },
                     { name: 'importance', type: 'INTEGER', default: 5 },
                     { name: 'color', type: 'TEXT' },
-                    { name: 'image_id_1', type: 'INTEGER' },
-                    { name: 'image_id_2', type: 'INTEGER' },
-                    { name: 'image_id_3', type: 'INTEGER' },
-                    { name: 'image_title_1', type: 'TEXT' },
-                    { name: 'image_title_2', type: 'TEXT' },
-                    { name: 'image_title_3', type: 'TEXT' },
-                    { name: 'image_description_1', type: 'TEXT' },
-                    { name: 'image_description_2', type: 'TEXT' },
-                    { name: 'image_description_3', type: 'TEXT' },
                     { name: 'timeline_id', type: 'INTEGER' },
                     { name: 'created_at', type: 'DATETIME', default: 'CURRENT_TIMESTAMP' },
                     { name: 'updated_at', type: 'DATETIME', default: 'CURRENT_TIMESTAMP' }
@@ -1567,7 +1534,7 @@ class DatabaseManager {
             FROM items i 
             LEFT JOIN stories s ON i.story_id = s.id 
             LEFT JOIN item_types t ON i.type_id = t.id
-            WHERE i.timeline_id = ?
+            WHERE i.timeline_id = ? AND i.type_id != 7
             ORDER BY i.year, i.subtick, i.item_index
         `);
         const items = stmt.all(timeline.id);
@@ -1863,22 +1830,12 @@ class DatabaseManager {
 
     async addPicturesToItemEnhanced(itemId, pictures) {
         for (const pic of pictures) {
-            console.log(`[dbManager.js] Processing picture for item ${itemId}:`, {
-                isReference: pic.isReference,
-                isNew: pic.isNew,
-                hasTempPath: !!pic.temp_path,
-                hasId: !!pic.id,
-                title: pic.title,
-                file_name: pic.file_name
-            });
 
-            if (pic.isReference && pic.id) {
+            if ((pic.isReference || pic.isExisting) && pic.id) {
                 // Add reference to existing image
-                console.log(`[dbManager.js] Adding reference to existing image ${pic.id}`);
                 this.addImageReference(itemId, pic.id);
             } else if (pic.isNew || pic.temp_path) {
                 // Process and save new image, then create reference
-                console.log(`[dbManager.js] Saving new image via saveNewImage`);
                 const result = await this.saveNewImage({
                     file_path: pic.temp_path || pic.file_path,
                     file_name: pic.file_name,
@@ -1888,14 +1845,12 @@ class DatabaseManager {
                 });
 
                 if (result && result.id) {
-                    console.log(`[dbManager.js] Created new image with ID ${result.id}, adding reference`);
                     this.addImageReference(itemId, result.id);
                 } else {
                     console.error(`[dbManager.js] Failed to save new image, no result returned`);
                 }
             } else if (pic.file_path && !pic.id && !pic.isReference && !pic.isNew) {
                 // Fallback: save image to pictures table directly (for backward compatibility)
-                console.log(`[dbManager.js] Using fallback method to save image directly`);
                 const stmt = this.db.prepare(`
                     INSERT INTO pictures (file_path, file_name, file_size, file_type, width, height, title, description)
                     VALUES (@file_path, @file_name, @file_size, @file_type, @width, @height, @title, @description)
@@ -1914,7 +1869,6 @@ class DatabaseManager {
 
                 // Create a reference for the new image
                 if (result.lastInsertRowid) {
-                    console.log(`[dbManager.js] Created fallback image with ID ${result.lastInsertRowid}, adding reference`);
                     this.addImageReference(itemId, result.lastInsertRowid);
                 } else {
                     console.error(`[dbManager.js] Failed to save fallback image`);
@@ -1970,7 +1924,7 @@ class DatabaseManager {
                         file_name: pic.file_name
                     });
 
-                    if (pic.isReference && pic.id) {
+                    if ((pic.isReference || pic.isExisting) && pic.id) {
                         // Handle reference to existing image (could be new reference or existing)
                         if (existingPictureMap.has(pic.id)) {
                             console.log(`[dbManager.js] Updating description for existing referenced image ${pic.id}`);
@@ -3237,16 +3191,36 @@ class DatabaseManager {
      * @returns {string} Unique character ID
      */
     generateCharacterId(name) {
-        const baseName = name.toLowerCase().replace(/[^a-z0-9]/g, '');
-        let id = `char_${baseName}`;
-        let counter = 1;
+        // Use the same random ID generation as timeline items for proper uniqueness
+        let id;
+        let attempts = 0;
+        const maxAttempts = 100; // Safety limit to prevent infinite loops
         
-        while (this.db.prepare('SELECT id FROM characters WHERE id = ?').get(id)) {
-            id = `char_${baseName}_${counter}`;
-            counter++;
-        }
+        do {
+            id = this.generateRandomId();
+            attempts++;
+            
+            if (attempts >= maxAttempts) {
+                // Fallback: add timestamp to ensure uniqueness
+                id = this.generateRandomId() + '_' + Date.now();
+                break;
+            }
+        } while (this.db.prepare('SELECT id FROM characters WHERE id = ?').get(id));
         
         return id;
+    }
+
+    /**
+     * Generates a random ID for timeline items and characters
+     * @returns {string} Random ID (16 characters, ~95 bits of entropy)
+     */
+    generateRandomId() {
+        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+        let result = '';
+        for (let i = 0; i < 16; i++) {
+            result += chars.charAt(Math.floor(Math.random() * chars.length));
+        }
+        return result;
     }
 
     /**
@@ -3260,18 +3234,16 @@ class DatabaseManager {
         try {
             this.db.prepare('BEGIN').run();
             
-            // Insert character
+            // Images will be handled through the character reference item, not stored directly on character
+            
+            // Insert character (without image columns - images handled via character reference item)
             const stmt = this.db.prepare(`
                 INSERT INTO characters (
                     id, name, nicknames, aliases, race, description, notes,
                     birth_year, birth_subtick, birth_date, birth_alternative_year,
                     death_year, death_subtick, death_date, death_alternative_year,
-                    importance, color,
-                    image_id_1, image_id_2, image_id_3,
-                    image_title_1, image_title_2, image_title_3,
-                    image_description_1, image_description_2, image_description_3,
-                    timeline_id
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    importance, color, timeline_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `);
             
             stmt.run(
@@ -3283,48 +3255,130 @@ class DatabaseManager {
                 character.description || null,
                 character.notes || null,
                 character.birth_year || null,
-                character.birth_subtick || null,
+                character.birth_subtick !== undefined ? character.birth_subtick : null, // Fix: preserve 0 values
                 character.birth_date || null,
                 character.birth_alternative_year || null,
                 character.death_year || null,
-                character.death_subtick || null,
+                character.death_subtick !== undefined ? character.death_subtick : null, // Fix: preserve 0 values
                 character.death_date || null,
                 character.death_alternative_year || null,
                 character.importance || 5,
                 character.color || null,
-                character.image_id_1 || null,
-                character.image_id_2 || null,
-                character.image_id_3 || null,
-                character.image_title_1 || null,
-                character.image_title_2 || null,
-                character.image_title_3 || null,
-                character.image_description_1 || null,
-                character.image_description_2 || null,
-                character.image_description_3 || null,
                 character.timeline_id || this.currentTimelineId
             );
 
-            // Auto-create a character item for tag integration
-            const itemId = `item_${characterId}`;
-            const itemStmt = this.db.prepare(`
+            // Auto-create a character timeline item (type_id = 7)
+            const characterItemId = this.generateRandomId();
+            const currentGranularity = this.getUniverseData().granularity || 1; // Fix: use actual current granularity
+            
+            // Create content as JSON for easier parsing
+            const contentData = {};
+            if (character.notes) contentData.notes = character.notes;
+            if (character.aliases) contentData.aliases = character.aliases;
+            if (character.birth_alternative_year) contentData.birth_alternative_year = character.birth_alternative_year;
+            if (character.death_alternative_year) contentData.death_alternative_year = character.death_alternative_year;
+            if (character.nicknames) contentData.nicknames = character.nicknames;
+            if (character.race) contentData.race = character.race;
+            
+            const content = Object.keys(contentData).length > 0 ? JSON.stringify(contentData) : null;
+            
+            const characterItemStmt = this.db.prepare(`
                 INSERT INTO items (
-                    id, title, description, type_id, year, subtick,
-                    timeline_id, show_in_notes, created_at, updated_at
-                ) VALUES (?, ?, ?, 7, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                    id, title, description, content, type_id, year, subtick, end_year, end_subtick,
+                    original_subtick, original_end_subtick, creation_granularity,
+                    color, timeline_id, show_in_notes, created_at, updated_at
+                ) VALUES (?, ?, ?, ?, 7, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
             `);
             
-            itemStmt.run(
-                itemId,
-                character.name,
-                `Character: ${character.description || character.name}`,
+            const endYear = character.death_year || character.birth_year;
+            const endSubtick = character.death_subtick !== undefined ? character.death_subtick : character.birth_subtick;
+            const birthSubtick = character.birth_subtick !== undefined ? character.birth_subtick : 0;
+            const finalEndSubtick = endSubtick !== undefined ? endSubtick : 0;
+            
+            characterItemStmt.run(
+                characterItemId,
+                `character_item_${character.name}`,
+                character.description || null,
+                content,
                 character.birth_year || 0,
-                character.birth_subtick || 0,
+                birthSubtick,  // Fix: preserve 0 values
+                endYear || 0,
+                finalEndSubtick,  // Fix: preserve 0 values
+                birthSubtick,  // original_subtick - Fix: preserve 0 values
+                finalEndSubtick,  // original_end_subtick - Fix: preserve 0 values
+                currentGranularity,  // Fix: use actual current granularity
+                character.color || null,
                 character.timeline_id || this.currentTimelineId
             );
+
+            // Add character reference to the item
+            this.addCharacterReferencesToItem(characterItemId, [{ character_id: characterId }], true);
+
+            // Add images to the character reference item
+            if (character.images && character.images.length > 0) {
+                await this.addPicturesToItemEnhanced(characterItemId, character.images);
+            }
 
             // Add tags if provided
             if (character.tags && character.tags.length > 0) {
-                this.addTagsToItem(itemId, character.tags);
+                this.addTagsToItem(characterItemId, character.tags);
+            }
+            
+            // Add story references if provided
+            if (character.story_refs && character.story_refs.length > 0) {
+                this.addStoryReferencesToItem(characterItemId, character.story_refs);
+            }
+            
+            // Handle connected item creation if specified
+            if (character.connected_item_type) {
+                const connectedItemId = this.generateRandomId();
+                const typeId = parseInt(character.connected_item_type);
+                
+                // Determine if it's a range item (Period or Age)
+                const isRangeItem = typeId === 2 || typeId === 3; // Period or Age
+                
+                const connectedItemStmt = this.db.prepare(`
+                    INSERT INTO items (
+                        id, title, description, content, type_id, year, subtick, end_year, end_subtick,
+                        original_subtick, original_end_subtick, creation_granularity,
+                        color, timeline_id, show_in_notes, created_at, updated_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                `);
+                
+                connectedItemStmt.run(
+                    connectedItemId,
+                    character.name, // Copy character name as title
+                    character.description || null, // Copy description
+                    content, // Use the same JSON content as character item
+                    typeId,
+                    character.birth_year || 0,
+                    birthSubtick,  // Fix: preserve 0 values
+                    isRangeItem ? (endYear || 0) : (character.birth_year || 0),
+                    isRangeItem ? finalEndSubtick : birthSubtick,  // Fix: preserve 0 values
+                    birthSubtick,  // original_subtick - Fix: preserve 0 values
+                    isRangeItem ? finalEndSubtick : birthSubtick, // original_end_subtick - Fix: preserve 0 values
+                    currentGranularity,            // creation_granularity
+                    character.color || null,       // Copy color
+                    character.timeline_id || this.currentTimelineId
+                );
+                
+                // Add character reference to connected item
+                this.addCharacterReferencesToItem(connectedItemId, [{ character_id: characterId }], true);
+                
+                // Copy tags to connected item
+                if (character.tags && character.tags.length > 0) {
+                    this.addTagsToItem(connectedItemId, character.tags);
+                }
+                
+                // Copy story references to connected item
+                if (character.story_refs && character.story_refs.length > 0) {
+                    this.addStoryReferencesToItem(connectedItemId, character.story_refs);
+                }
+                
+                // Copy images to connected item
+                if (character.images && character.images.length > 0) {
+                    await this.addPicturesToItemEnhanced(connectedItemId, character.images);
+                }
             }
             
             this.db.prepare('COMMIT').run();
@@ -3339,22 +3393,84 @@ class DatabaseManager {
     }
 
     /**
-     * Gets a character by ID
+     * Gets a character by ID with images, tags, and story references from character reference item
      * @param {string} id - Character ID
-     * @returns {Object|null} Character data
+     * @returns {Object|null} Character data with images, tags, and story references
      */
     getCharacter(id) {
-        return this.db.prepare('SELECT * FROM characters WHERE id = ?').get(id);
+        // Get the basic character data
+        const character = this.db.prepare('SELECT * FROM characters WHERE id = ?').get(id);
+        
+        if (!character) {
+            return null;
+        }
+        
+        // Find the character reference item (type_id = 7)
+        const characterItemQuery = this.db.prepare(`
+            SELECT i.id FROM items i
+            JOIN item_characters ic ON i.id = ic.item_id
+            WHERE ic.character_id = ? AND i.type_id = 7
+            LIMIT 1
+        `);
+        const characterItem = characterItemQuery.get(id);
+        
+        if (characterItem) {
+            // Get images from the character reference item
+            character.images = this.getItemPictures(characterItem.id);
+            
+            // Get tags from the character reference item
+            character.tags = this.getItemTags(characterItem.id);
+            
+            // Get story references from the character reference item
+            character.story_refs = this.getItemStoryReferences(characterItem.id);
+        } else {
+            // No character reference item found, set empty arrays
+            character.images = [];
+            character.tags = [];
+            character.story_refs = [];
+        }
+        
+        return character;
     }
 
     /**
-     * Gets all characters for the current timeline
+     * Gets all characters for the current timeline with images, tags, and story references
      * @param {number} timelineId - Timeline ID (optional, uses current if not provided)
-     * @returns {Array} Array of characters
+     * @returns {Array} Array of characters with images, tags, and story references
      */
     getAllCharacters(timelineId = null) {
         const timeline = timelineId || this.currentTimelineId;
-        return this.db.prepare('SELECT * FROM characters WHERE timeline_id = ? ORDER BY name').all(timeline);
+        const characters = this.db.prepare('SELECT * FROM characters WHERE timeline_id = ? ORDER BY name').all(timeline);
+        
+        // For each character, get their images, tags, and story references from the character reference item
+        return characters.map(character => {
+            // Find the character reference item (type_id = 7)
+            const characterItemQuery = this.db.prepare(`
+                SELECT i.id FROM items i
+                JOIN item_characters ic ON i.id = ic.item_id
+                WHERE ic.character_id = ? AND i.type_id = 7
+                LIMIT 1
+            `);
+            const characterItem = characterItemQuery.get(character.id);
+            
+            if (characterItem) {
+                // Get images from the character reference item
+                character.images = this.getItemPictures(characterItem.id);
+                
+                // Get tags from the character reference item
+                character.tags = this.getItemTags(characterItem.id);
+                
+                // Get story references from the character reference item
+                character.story_refs = this.getItemStoryReferences(characterItem.id);
+            } else {
+                // No character reference item found, set empty arrays
+                character.images = [];
+                character.tags = [];
+                character.story_refs = [];
+            }
+            
+            return character;
+        });
     }
 
     /**
@@ -3363,7 +3479,7 @@ class DatabaseManager {
      * @param {Object} character - Updated character data
      * @returns {boolean} Success status
      */
-    updateCharacter(id, character) {
+    async updateCharacter(id, character) {
         try {
             this.db.prepare('BEGIN').run();
             
@@ -3373,9 +3489,6 @@ class DatabaseManager {
                     birth_year = ?, birth_subtick = ?, birth_date = ?, birth_alternative_year = ?,
                     death_year = ?, death_subtick = ?, death_date = ?, death_alternative_year = ?,
                     importance = ?, color = ?,
-                    image_id_1 = ?, image_id_2 = ?, image_id_3 = ?,
-                    image_title_1 = ?, image_title_2 = ?, image_title_3 = ?,
-                    image_description_1 = ?, image_description_2 = ?, image_description_3 = ?,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             `);
@@ -3388,45 +3501,81 @@ class DatabaseManager {
                 character.description || null,
                 character.notes || null,
                 character.birth_year || null,
-                character.birth_subtick || null,
+                character.birth_subtick !== undefined ? character.birth_subtick : null,
                 character.birth_date || null,
                 character.birth_alternative_year || null,
                 character.death_year || null,
-                character.death_subtick || null,
+                character.death_subtick !== undefined ? character.death_subtick : null,
                 character.death_date || null,
                 character.death_alternative_year || null,
                 character.importance || 5,
                 character.color || null,
-                character.image_id_1 || null,
-                character.image_id_2 || null,
-                character.image_id_3 || null,
-                character.image_title_1 || null,
-                character.image_title_2 || null,
-                character.image_title_3 || null,
-                character.image_description_1 || null,
-                character.image_description_2 || null,
-                character.image_description_3 || null,
                 id
             );
 
-            // Update the corresponding character item
-            const itemId = `item_${id}`;
-            this.db.prepare(`
-                UPDATE items SET
-                    title = ?, description = ?, year = ?, subtick = ?,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = ?
-            `).run(
-                character.name,
-                `Character: ${character.description || character.name}`,
-                character.birth_year || 0,
-                character.birth_subtick || 0,
-                itemId
-            );
+            // Find and update the corresponding character item (type_id = 7)
+            const characterItemQuery = this.db.prepare(`
+                SELECT i.id FROM items i
+                JOIN item_characters ic ON i.id = ic.item_id
+                WHERE ic.character_id = ? AND i.type_id = 7
+                LIMIT 1
+            `);
+            const characterItem = characterItemQuery.get(id);
+            
+            if (characterItem) {
+                // Create content as JSON for easier parsing
+                const contentData = {};
+                if (character.notes) contentData.notes = character.notes;
+                if (character.aliases) contentData.aliases = character.aliases;
+                if (character.birth_alternative_year) contentData.birth_alternative_year = character.birth_alternative_year;
+                if (character.death_alternative_year) contentData.death_alternative_year = character.death_alternative_year;
+                if (character.nicknames) contentData.nicknames = character.nicknames;
+                if (character.race) contentData.race = character.race;
+                
+                const content = Object.keys(contentData).length > 0 ? JSON.stringify(contentData) : null;
+                
+                const endYear = character.death_year || character.birth_year;
+                const endSubtick = character.death_subtick !== undefined ? character.death_subtick : character.birth_subtick;
+                const birthSubtick = character.birth_subtick !== undefined ? character.birth_subtick : 0;
+                const finalEndSubtick = endSubtick !== undefined ? endSubtick : 0;
+                
+                this.db.prepare(`
+                    UPDATE items SET
+                        title = ?, description = ?, content = ?, year = ?, subtick = ?, 
+                        end_year = ?, end_subtick = ?, color = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `).run(
+                    `character_item_${character.name}`,
+                    character.description || null,
+                    content,
+                    character.birth_year || 0,
+                    birthSubtick,
+                    endYear || 0,
+                    finalEndSubtick,
+                    character.color || null,
+                    characterItem.id
+                );
 
-            // Update tags if provided
-            if (character.tags !== undefined) {
-                this.updateItemTags(itemId, character.tags);
+                // Update tags if provided
+                if (character.tags !== undefined) {
+                    this.updateItemTags(characterItem.id, character.tags);
+                }
+                
+                // Update story references if provided
+                if (character.story_refs !== undefined) {
+                    // Remove existing story references
+                    this.db.prepare('DELETE FROM story_references WHERE item_id = ?').run(characterItem.id);
+                    // Add new story references
+                    if (character.story_refs.length > 0) {
+                        this.addStoryReferencesToItem(characterItem.id, character.story_refs);
+                    }
+                }
+                
+                // Update images if provided
+                if (character.images !== undefined) {
+                    await this.updateItemPictures(characterItem.id, character.images);
+                }
             }
             
             this.db.prepare('COMMIT').run();
@@ -3454,9 +3603,18 @@ class DatabaseManager {
             // Delete item-character references
             this.db.prepare('DELETE FROM item_characters WHERE character_id = ?').run(id);
             
-            // Delete the corresponding character item (this will cascade to tags)
-            const itemId = `item_${id}`;
-            this.db.prepare('DELETE FROM items WHERE id = ?').run(itemId);
+            // Find and delete the corresponding character item (this will cascade to tags)
+            const characterItemQuery = this.db.prepare(`
+                SELECT i.id FROM items i
+                JOIN item_characters ic ON i.id = ic.item_id
+                WHERE ic.character_id = ? AND i.type_id = 7
+                LIMIT 1
+            `);
+            const characterItem = characterItemQuery.get(id);
+            
+            if (characterItem) {
+                this.db.prepare('DELETE FROM items WHERE id = ?').run(characterItem.id);
+            }
             
             // Delete the character
             const result = this.db.prepare('DELETE FROM characters WHERE id = ?').run(id);
@@ -3624,13 +3782,12 @@ class DatabaseManager {
      * Adds character references to an item
      * @param {string} itemId - Item ID
      * @param {Array} characterRefs - Array of character reference objects
+     * @param {boolean} inTransaction - Whether we're already in a transaction
      */
-    addCharacterReferencesToItem(itemId, characterRefs) {
+    addCharacterReferencesToItem(itemId, characterRefs, inTransaction = false) {
         if (!characterRefs || characterRefs.length === 0) return;
         
-        try {
-            this.db.prepare('BEGIN').run();
-            
+        const executeOperations = () => {
             // Clear existing character references for this item
             this.db.prepare('DELETE FROM item_characters WHERE item_id = ?').run(itemId);
             
@@ -3649,13 +3806,28 @@ class DatabaseManager {
                 );
             }
             
-            this.db.prepare('COMMIT').run();
             console.log(`[dbManager.js] Added ${characterRefs.length} character references to item ${itemId}`);
-            
-        } catch (error) {
-            this.db.prepare('ROLLBACK').run();
-            console.error('[dbManager.js] Error adding character references to item:', error);
-            throw error;
+        };
+        
+        if (inTransaction) {
+            // We're already in a transaction, just execute the operations
+            try {
+                executeOperations();
+            } catch (error) {
+                console.error('[dbManager.js] Error adding character references to item:', error);
+                throw error;
+            }
+        } else {
+            // Manage our own transaction
+            try {
+                this.db.prepare('BEGIN').run();
+                executeOperations();
+                this.db.prepare('COMMIT').run();
+            } catch (error) {
+                this.db.prepare('ROLLBACK').run();
+                console.error('[dbManager.js] Error adding character references to item:', error);
+                throw error;
+            }
         }
     }
 

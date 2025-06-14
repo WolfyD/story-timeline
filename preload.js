@@ -184,6 +184,7 @@ contextBridge.exposeInMainWorld('api', {
     readFile: (filename) => ipcRenderer.invoke('read-file', filename),
     getDevVersion: () => DEV_VERSION,
     getCurrentTimelineId: () => ipcRenderer.invoke('get-current-timeline-id'),
+    getCurrentTimelineGranularity: () => ipcRenderer.invoke('get-current-timeline-granularity'),
     log: {
         error: (message) => ipcRenderer.send('log-message', { level: 'error', message }),
         warn: (message) => ipcRenderer.send('log-message', { level: 'warn', message }),

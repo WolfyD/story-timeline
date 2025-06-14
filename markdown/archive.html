@@ -28,16 +28,28 @@
 
         <!-- Timeline Items Tab -->
         <div class="tab-content active" id="items-tab">
-            <div class="archive-filters">
-                <button class="archive-filter active" data-type="all">All <i class="ri-list-check"></i></button>
-                <button class="archive-filter" data-type="event">Events <i class="ri-calendar-event-fill"></i></button>
-                <button class="archive-filter" data-type="age">Ages <i class="ri-hourglass-fill"></i></button>
-                <button class="archive-filter" data-type="period">Periods <i class="ri-calendar-2-fill"></i></button>
-                <button class="archive-filter" data-type="bookmark">Bookmarks <i class="ri-bookmark-fill"></i></button>
-                <button class="archive-filter" data-type="picture">Pictures <i class="ri-image-fill"></i></button>
-                <button class="archive-filter" data-type="note">Notes <i class="ri-sticky-note-fill"></i></button>
-            </div>
+            <div class="archive-filters-sorting-container">
+                <div class="archive-filters">
+                    <button class="archive-filter active" data-type="all">All <i class="ri-list-check"></i></button>
+                    <button class="archive-filter" data-type="event">Events <i class="ri-calendar-event-fill"></i></button>
+                    <button class="archive-filter" data-type="age">Ages <i class="ri-hourglass-fill"></i></button>
+                    <button class="archive-filter" data-type="period">Periods <i class="ri-calendar-2-fill"></i></button>
+                    <button class="archive-filter" data-type="bookmark">Bookmarks <i class="ri-bookmark-fill"></i></button>
+                    <button class="archive-filter" data-type="picture">Pictures <i class="ri-image-fill"></i></button>
+                    <button class="archive-filter" data-type="note">Notes <i class="ri-sticky-note-fill"></i></button>
+                </div>
 
+                <div class="archive-sorting">
+                    <select class="archive-sorting-select" id="archive-sorting-select" onchange="sortItems()">
+                        <option value="name">Name</option>
+                        <option value="date" selected>Date</option>
+                        <option value="length">Length</option>
+                        <option value="type">Type</option>
+                        <option value="importance">Importance</option>
+                        <option value="added_on">Added on</option>
+                    </select>
+                </div>
+            </div>
             <input type="text" class="archive-search" placeholder="Search items..." id="items-search">
 
             <div class="archive-content" id="items-content">

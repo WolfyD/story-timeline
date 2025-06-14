@@ -104,6 +104,39 @@ function initializeArchive() {
     window.api.send('getAllCharacters');
 }
 
+function sortItems() {
+    let sort_by = document.getElementById('archive-sorting-select').value;
+    let granularity = window.api.getCurrentTimelineGranularity();
+    console.log("items", filteredItems);
+
+    if(sort_by == 'name') {
+        filteredItems.sort((a, b) => a.title.localeCompare(b.title));
+    } else if(sort_by == 'date') {
+        filteredItems.sort((a, b) => a.year - b.year);
+    } else if(sort_by == 'length') {
+        // Granularity is a promise, so we need to wait for it to resolve
+        filteredItems.sort((a, b) => {
+            if((a.type_id == 2 || a.type_id == 3) && (b.type_id == 2 || b.type_id == 3)) {
+                return (b.end_year - b.year) - (a.end_year - a.year);
+            } else if(a.type_id == 2 || a.type_id == 3) {
+                return -1;
+            } else if(b.type_id == 2 || b.type_id == 3) {
+                return 1;
+            } else {
+                return a.year - b.year;
+            }
+        });
+    } else if(sort_by == 'type') {
+        filteredItems.sort((a, b) => a.type_id - b.type_id);
+    } else if(sort_by == 'importance') {
+        filteredItems.sort((a, b) => { console.log("importance", a.importance, b.importance); return b.importance - a.importance});
+    } else if(sort_by == 'added_on') {
+        filteredItems.sort((a, b) => a.created_at.localeCompare(b.created_at));
+    }
+
+    displayItems();
+}
+
 /**
  * Sets up event listeners for the archive window
  */
@@ -582,10 +615,10 @@ function displayTags() {
         });
         let item_ids_list = dropdown_elements.join('');
 
-        tagElement.innerHTML = `<div class="archive-item-title">${tag.name} (${tag.item_count})
+        tagElement.innerHTML = `<div class="tag-header"><div class="archive-item-title">${tag.name} (${tag.item_count})
         <button class="tag-toggle-button" title="Show items using this tag">
             <i class="ri-arrow-right-s-line"></i>
-        </button>
+        </button></div>
         
         <div class="archive-tag-buttons"><button class="archive-tag-button" id="delete-tag-${tag.id}" onclick='deleteTag("${tag.id}")'><i class="ri-delete-bin-line"></i></button></div></div> 
         <div class="tag-item-usage-dropdown-container">
@@ -646,6 +679,10 @@ function displayCharacters() {
         const birthDate = formatCharacterDate(character.birth_year, character.birth_subtick, character.birth_date);
         const deathDate = formatCharacterDate(character.death_year, character.death_subtick, character.death_date);
 
+        let image_path = character.images.length > 0 ? character.images[0].file_path : '../img/noimg.png';
+
+        console.log("character", character);
+
         characterElement.innerHTML = `
             <div class="archive-character-buttons">
                 <button class="archive-character-button edit" title="Edit character">
@@ -676,8 +713,12 @@ function displayCharacters() {
                 </div>
             ` : ''}
             
-            <div class="character-importance" style="position: absolute; top: 15px; right: 60px; background: #a67c52; color: #fff; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: bold;">
+            <div class="character-importance">
                 ${character.importance || 5}
+            </div>
+
+            <div class="character-image">
+                <img src="${image_path}" alt="${character.name}">
             </div>
         `;
 

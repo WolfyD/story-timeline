@@ -11,6 +11,9 @@
 
 let characterData = null;
 let aliases = [];
+let nicknames = [];
+let tags = [];
+let storyRefs = [];
 let images = [];
 
 // Initialize when DOM is loaded
@@ -38,6 +41,14 @@ function setupEventListeners() {
     // Aliases input
     const aliasesInput = document.getElementById('aliases-input');
     aliasesInput.addEventListener('keypress', handleAliasInput);
+    
+    // Nicknames input
+    const nicknamesInput = document.getElementById('nicknames-input');
+    nicknamesInput.addEventListener('keypress', handleNicknameInput);
+    
+    // Tags input
+    const tagsInput = document.getElementById('tags-input');
+    tagsInput.addEventListener('keypress', handleTagInput);
     
     // Add image button
     document.getElementById('addImageBtn').addEventListener('click', showImageOptions);
@@ -88,6 +99,29 @@ function populateForm() {
     if (characterData.aliases) {
         aliases = characterData.aliases.split(',').filter(alias => alias.trim() !== '');
         updateAliasesDisplay();
+    }
+    
+    // Populate nicknames
+    if (characterData.nicknames) {
+        nicknames = characterData.nicknames.split(',').filter(nickname => nickname.trim() !== '');
+        updateNicknamesDisplay();
+    }
+    
+    // Populate tags
+    if (characterData.tags && Array.isArray(characterData.tags)) {
+        tags = [...characterData.tags];
+        updateTagsDisplay();
+    }
+    
+    // Populate story references
+    if (characterData.story_refs && Array.isArray(characterData.story_refs)) {
+        storyRefs = [...characterData.story_refs];
+        // Clear container and add rows
+        const container = document.getElementById('story-references-container');
+        container.innerHTML = '';
+        storyRefs.forEach(ref => {
+            addStoryRefRow(ref.story_title, ref.story_id);
+        });
     }
     
     // Update importance display
@@ -146,6 +180,191 @@ function updateAliasesDisplay() {
 function removeAlias(index) {
     aliases.splice(index, 1);
     updateAliasesDisplay();
+}
+
+/**
+ * Handle nickname input (add on Enter key)
+ */
+function handleNicknameInput(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const input = event.target;
+        const nickname = input.value.trim();
+        
+        if (nickname && !nicknames.includes(nickname)) {
+            nicknames.push(nickname);
+            input.value = '';
+            updateNicknamesDisplay();
+        }
+    }
+}
+
+/**
+ * Update the nicknames display
+ */
+function updateNicknamesDisplay() {
+    const container = document.getElementById('nicknames-container');
+    container.innerHTML = '';
+    
+    nicknames.forEach((nickname, index) => {
+        const tag = document.createElement('div');
+        tag.className = 'alias-tag';
+        tag.innerHTML = `
+            ${nickname}
+            <span class="alias-remove" onclick="removeNickname(${index})">&times;</span>
+        `;
+        container.appendChild(tag);
+    });
+}
+
+/**
+ * Remove a nickname
+ */
+function removeNickname(index) {
+    nicknames.splice(index, 1);
+    updateNicknamesDisplay();
+}
+
+/**
+ * Handle tag input (add on Enter key)
+ */
+function handleTagInput(event) {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        const input = event.target;
+        const tag = input.value.trim();
+        
+        if (tag && !tags.includes(tag)) {
+            tags.push(tag);
+            input.value = '';
+            updateTagsDisplay();
+        }
+    }
+}
+
+/**
+ * Update the tags display
+ */
+function updateTagsDisplay() {
+    const container = document.getElementById('tags-container');
+    container.innerHTML = '';
+    
+    tags.forEach((tag, index) => {
+        const tagElement = document.createElement('div');
+        tagElement.className = 'alias-tag';
+        tagElement.innerHTML = `
+            ${tag}
+            <span class="alias-remove" onclick="removeTag(${index})">&times;</span>
+        `;
+        container.appendChild(tagElement);
+    });
+}
+
+/**
+ * Remove a tag
+ */
+function removeTag(index) {
+    tags.splice(index, 1);
+    updateTagsDisplay();
+}
+
+// ===== STORY REFERENCE FUNCTIONS =====
+
+/**
+ * Create a story reference row
+ */
+function createStoryRefRow(storyTitle = '', storyId = '') {
+    const row = document.createElement('div');
+    row.className = 'story-ref-row';
+
+    // Title input container
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'story-ref-title-container';
+
+    // Title input
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.placeholder = 'Story Title';
+    titleInput.className = 'input-text story-ref-title';
+    titleInput.value = storyTitle;
+
+    // Suggestions dropdown
+    const dropdown = document.createElement('div');
+    dropdown.className = 'story-suggestions';
+
+    // ID input
+    const idInput = document.createElement('input');
+    idInput.type = 'text';
+    idInput.placeholder = 'Story ID';
+    idInput.className = 'input-text story-ref-id';
+    idInput.value = storyId;
+
+    // Add input event listener for autocomplete
+    titleInput.addEventListener('input', function(e) {
+        const query = e.target.value.toLowerCase();
+        // For now, we'll implement basic functionality without story suggestions
+        // This can be enhanced later with actual story data
+        dropdown.style.display = 'none';
+    });
+
+    titleContainer.appendChild(titleInput);
+    titleContainer.appendChild(dropdown);
+
+    // Remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.textContent = '✕';
+    removeBtn.className = 'btn btn-danger btn-small';
+    removeBtn.onclick = function() {
+        row.remove();
+    };
+
+    row.appendChild(titleContainer);
+    row.appendChild(idInput);
+    row.appendChild(removeBtn);
+    return row;
+}
+
+/**
+ * Add a story reference row
+ */
+function addStoryRefRow(storyTitle = '', storyId = '') {
+    const container = document.getElementById('story-references-container');
+    container.appendChild(createStoryRefRow(storyTitle, storyId));
+}
+
+/**
+ * Generate a story ID
+ */
+function generateStoryId(title) {
+    return 'STORY-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+}
+
+/**
+ * Collect story references from the form
+ */
+function collectStoryRefs() {
+    const refs = [];
+    document.querySelectorAll('.story-ref-row').forEach(row => {
+        const title = row.querySelector('.story-ref-title').value.trim();
+        let id = row.querySelector('.story-ref-id').value.trim();
+        if (title) {
+            if (!id) {
+                id = generateStoryId(title);
+                row.querySelector('.story-ref-id').value = id; // update UI
+            }
+            refs.push({ story_title: title, story_id: id });
+        }
+    });
+    return refs;
+}
+
+/**
+ * Open create item modal
+ */
+function openCreateItemModal() {
+    // This will be implemented to show a modal for creating connected items
+    alert('Create Item functionality will be implemented in the next phase.');
 }
 
 // ===== IMAGE HANDLING FUNCTIONS =====
@@ -527,10 +746,11 @@ function collectFormData() {
         data[key] = value;
     }
     
-    // Add aliases array
+    // Add arrays
     data.aliases = aliases.join(',');
-    
-    // Add images array
+    data.nicknames = nicknames.join(',');
+    data.tags = tags;
+    data.story_refs = collectStoryRefs();
     data.images = images;
     
     // Convert numeric fields

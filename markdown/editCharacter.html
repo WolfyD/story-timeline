@@ -29,44 +29,61 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="name">Name *</label>
-                        <input type="text" id="name" name="name" required>
-                        <div class="help-text">The character's primary name</div>
+                        <input type="text" id="name" name="name" required title="The character's primary name">
                     </div>
                     <div class="form-group">
                         <label for="nicknames">Nicknames</label>
-                        <input type="text" id="nicknames" name="nicknames">
-                        <div class="help-text">Common nicknames (comma-separated)</div>
+                        <input type="text" id="nicknames-input" placeholder="Type nickname and press Enter" title="Common nicknames">
+                        <div class="nicknames-container" id="nicknames-container"></div>
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="aliases">Aliases</label>
-                        <input type="text" id="aliases-input" placeholder="Type alias and press Enter">
+                        <input type="text" id="aliases-input" placeholder="Type alias and press Enter" title="Alternative names, titles, or identities">
                         <div class="aliases-container" id="aliases-container"></div>
-                        <div class="help-text">Alternative names, titles, or identities</div>
                     </div>
                     <div class="form-group">
                         <label for="race">Race/Species</label>
-                        <input type="text" id="race" name="race">
-                        <div class="help-text">Character's race, species, or origin</div>
+                        <input type="text" id="race" name="race" title="Character's race, species, or origin">
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="description">Description</label>
-                        <textarea id="description" name="description" rows="3"></textarea>
-                        <div class="help-text">Brief physical or general description</div>
+                        <textarea id="description" name="description" rows="3" title="Brief physical or general description"></textarea>
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="notes">Notes</label>
-                        <textarea id="notes" name="notes" rows="4"></textarea>
-                        <div class="help-text">Additional notes, personality traits, background info</div>
+                        <textarea id="notes" name="notes" rows="4" title="Additional notes, personality traits, background info"></textarea>
                     </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="tags">Tags</label>
+                        <input type="text" id="tags-input" placeholder="Type tag and press Enter" title="Tags for categorizing this character">
+                        <div class="tags-container" id="tags-container"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Story References -->
+            <div class="form-section">
+                <h3 class="section-title">Story References</h3>
+                
+                <div class="form-group">
+                    <div class="story-references-container" id="story-references-container">
+                        <!-- Story reference rows will be added here -->
+                    </div>
+                    <button type="button" class="btn btn-secondary add-story-ref-btn" onclick="addStoryRefRow()">
+                        <i class="ri-add-line"></i> Add Story Reference
+                    </button>
                 </div>
             </div>
 
@@ -85,16 +102,14 @@
                     </div>
                     <div class="form-group half">
                         <label for="birth_date">Birth Date (Text)</label>
-                        <input type="text" id="birth_date" name="birth_date" placeholder="e.g., 3rd day of Wintermoon">
-                        <div class="help-text">Date in fictional calendar system</div>
+                        <input type="text" id="birth_date" name="birth_date" placeholder="e.g., 3rd day of Wintermoon" title="Date in fictional calendar system">
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="birth_alternative_year">Alternative Birth Year</label>
-                        <input type="text" id="birth_alternative_year" name="birth_alternative_year" placeholder="e.g., Year 5 of the New Kingdom">
-                        <div class="help-text">Year in different epoch or calendar system</div>
+                        <input type="text" id="birth_alternative_year" name="birth_alternative_year" placeholder="e.g., Year 5 of the New Kingdom" title="Year in different epoch or calendar system">
                     </div>
                 </div>
             </div>
@@ -114,16 +129,14 @@
                     </div>
                     <div class="form-group half">
                         <label for="death_date">Death Date (Text)</label>
-                        <input type="text" id="death_date" name="death_date" placeholder="e.g., Last day of the Great War">
-                        <div class="help-text">Date in fictional calendar system</div>
+                        <input type="text" id="death_date" name="death_date" placeholder="e.g., Last day of the Great War" title="Date in fictional calendar system">
                     </div>
                 </div>
 
                 <div class="form-row">
                     <div class="form-group">
                         <label for="death_alternative_year">Alternative Death Year</label>
-                        <input type="text" id="death_alternative_year" name="death_alternative_year">
-                        <div class="help-text">Year in different epoch or calendar system</div>
+                        <input type="text" id="death_alternative_year" name="death_alternative_year" title="Year in different epoch or calendar system">
                     </div>
                 </div>
             </div>
@@ -135,16 +148,14 @@
                 <div class="form-row">
                     <div class="form-group quarter">
                         <label for="importance">Importance (1-10)</label>
-                        <div style="display: flex; align-items: center;">
+                        <div style="display: flex; align-items: center;" title="Character's importance in the story">
                             <input type="range" id="importance" name="importance" min="1" max="10" value="5" class="importance-slider">
                             <span class="importance-value" id="importance-value">5</span>
                         </div>
-                        <div class="help-text">Character's importance in the story</div>
                     </div>
                     <div class="form-group quarter">
                         <label for="color">Color</label>
-                        <input type="color" id="color" name="color" value="#a67c52" class="color-input">
-                        <div class="help-text">Character's theme color</div>
+                        <input type="color" id="color" name="color" value="#a67c52" class="color-input" title="Character's theme color">
                     </div>
                 </div>
             </div>
@@ -158,6 +169,20 @@
                         <div class="add-image-btn" id="addImageBtn">
                             <span>+ Add Image</span>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create Item Section -->
+            <div class="form-section">
+                <h3 class="section-title">Create Connected Item</h3>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <button type="button" class="btn btn-secondary" onclick="openCreateItemModal()">
+                            <i class="ri-add-line"></i> Create Item
+                        </button>
+                        <small style="margin-left: 10px; color: #666;">Create a timeline item connected to this character</small>
                     </div>
                 </div>
             </div>
