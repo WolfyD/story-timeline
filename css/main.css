@@ -5,23 +5,25 @@
 input[type="text"],
 input[type="number"], 
 textarea,
-select {
-    padding: var(--space-sm) var(--space-md);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-base);
-    font-size: var(--font-size-base);
-    background: var(--color-bg-white);
-    color: var(--color-text-primary);
-    transition: all var(--transition-base);
+select,
+input[type="date"],
+input[type="color"] {
+    padding: 5px;
+    margin: 2px;
+    border: 1px solid #ddd;
+    border-radius: 3px;
+    font-size: 14px;
 }
 
 input[type="text"]:focus,
 input[type="number"]:focus,
 textarea:focus,
-select:focus {
+select:focus,
+input[type="date"]:focus,
+input[type="color"]:focus {
     outline: none;
-    border-color: var(--color-focus);
-    box-shadow: 0 0 0 2px rgba(74, 144, 226, 0.2);
+    border-color: #6b8f47;
+    box-shadow: 0 0 5px rgba(107, 143, 71, 0.5);
 }
 
 /* Apply design system styling only to buttons that should have it */
@@ -117,8 +119,6 @@ button[type="submit"]:hover,
     transform: translateY(-1px) !important;
     box-shadow: var(--shadow-sm) !important;
 }
-
-
 
 .form-group {
     margin-bottom: var(--space-lg);
@@ -1501,4 +1501,315 @@ input[type="color"].settings-input:focus {
     margin: 0;
     padding: 0;
     text-decoration: underline;
+}
+
+/* ============ DARK MODE STYLES ============ */
+
+/* Main dark mode body styles */
+body.dark-mode {
+    background: #121212;
+    color: #e0e0e0;
+}
+
+/* Dark mode input styles */
+body.dark-mode input[type="text"],
+body.dark-mode input[type="number"],
+body.dark-mode textarea,
+body.dark-mode select,
+body.dark-mode input[type="date"],
+body.dark-mode input[type="color"] {
+    background: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode input[type="text"]:focus,
+body.dark-mode input[type="number"]:focus,
+body.dark-mode textarea:focus,
+body.dark-mode select:focus,
+body.dark-mode input[type="date"]:focus,
+body.dark-mode input[type="color"]:focus {
+    border-color: #4a7c59;
+    box-shadow: 0 0 5px rgba(74, 124, 89, 0.5);
+}
+
+/* Dark mode button styles */
+body.dark-mode button[type="submit"]:not([class*="timeline"]):not([class*="archive"]):not([class*="splash"]),
+body.dark-mode .button,
+body.dark-mode .btn {
+    background: #4a7c59;
+    color: #ffffff;
+    border-color: #5d8f6c;
+}
+
+body.dark-mode button[type="submit"]:not([class*="timeline"]):not([class*="archive"]):not([class*="splash"]):hover,
+body.dark-mode .button:hover,
+body.dark-mode .btn:hover {
+    background: #5d8f6c;
+    box-shadow: 0 4px 12px rgba(74, 124, 89, 0.3);
+}
+
+/* Dark mode layout containers */
+body.dark-mode .title-container {
+    background: #1e1e1e;
+    border-color: #333;
+}
+
+body.dark-mode .main_title {
+    color: #e0e0e0;
+}
+
+body.dark-mode .main_subtitle {
+    color: #b0b0b0;
+}
+
+body.dark-mode .main-content-left,
+body.dark-mode .main-content-middle,
+body.dark-mode .main-content-right {
+    background: #1e1e1e;
+    border-color: #333;
+}
+
+/* Dark mode right-hand side notes text lightening */
+body.dark-mode .main-content-right {
+    color: #c0c0c0;
+}
+
+body.dark-mode .main-content-right h3 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .main-content-right p {
+    color: #c0c0c0;
+}
+
+/* Dark mode timeline styles */
+body.dark-mode #timeline-container {
+    background: #252525; /* Slightly different from general background for differentiation */
+}
+
+body.dark-mode #timeline-canvas {
+    filter: invert(0.75) hue-rotate(180deg) contrast(1.1); /* Made less bright and improved contrast */
+}
+
+body.dark-mode .timeline-item-box {
+    background: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .timeline-item-box:hover {
+    background: #3d3d3d;
+    border-color: #555;
+}
+
+body.dark-mode .timeline-item-title {
+    color: #e0e0e0;
+}
+
+body.dark-mode .timeline-item-date {
+    color: #b0b0b0;
+}
+
+body.dark-mode .timeline-picture-box {
+    border-color: #444;
+}
+
+body.dark-mode .timeline-picture-box:hover {
+    border-color: #555;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Dark mode settings panel */
+body.dark-mode .settings_container {
+    background: #1e1e1e;
+    border-color: #333;
+}
+
+body.dark-mode .settings_div {
+    background: #1e1e1e;
+    color: #e0e0e0;
+}
+
+body.dark-mode .settings-section-title {
+    color: #e0e0e0;
+    border-bottom-color: #444;
+}
+
+body.dark-mode .settings-separator {
+    background: #444;
+}
+
+body.dark-mode .settings-row label {
+    color: #e0e0e0;
+}
+
+body.dark-mode .settings-input {
+    background: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .settings-input:focus {
+    border-color: #4a7c59;
+    box-shadow: 0 0 5px rgba(74, 124, 89, 0.5);
+}
+
+body.dark-mode .info-icon {
+    background: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .info-icon:hover {
+    background: #555;
+}
+
+body.dark-mode .info-bubble {
+    background: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .custom-css {
+    background: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+/* Dark mode checkbox styles */
+body.dark-mode input[type="checkbox"].settings-input {
+    background: #2d2d2d;
+    border-color: #444;
+}
+
+body.dark-mode input[type="checkbox"].settings-input:checked {
+    background: #4a7c59;
+    border-color: #5d8f6c;
+}
+
+body.dark-mode input[type="checkbox"].settings-input:hover {
+    border-color: #555;
+}
+
+/* Dark mode modal styles */
+body.dark-mode .modal {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+body.dark-mode .modal-content {
+    background: #1e1e1e;
+    border-color: #333;
+    color: #e0e0e0;
+}
+
+body.dark-mode .modal-header {
+    border-bottom-color: #444;
+}
+
+body.dark-mode .close-button {
+    background: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .close-button:hover {
+    background: #555;
+}
+
+/* Dark mode font preview */
+body.dark-mode .preview-text {
+    background: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+/* Dark mode version/fps displays */
+body.dark-mode .version-display,
+body.dark-mode .fps-display,
+body.dark-mode .visible-item-display {
+    background: #2d2d2d;
+    color: #e0e0e0;
+    border-color: #444;
+}
+
+/* Dark mode center content styles */
+body.dark-mode .center-note {
+    background: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .center-note h1,
+body.dark-mode .center-note h2,
+body.dark-mode .center-note h3,
+body.dark-mode .center-note h4,
+body.dark-mode .center-note h5,
+body.dark-mode .center-note h6 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .center-note .note-description {
+    color: #b0b0b0;
+}
+
+body.dark-mode .center-note .note-tag {
+    background: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .center-note hr {
+    border-color: #444;
+}
+
+/* Dark mode jump to date */
+body.dark-mode .jump-to-date-container input {
+    background: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .jump-to-date-container button {
+    background: #4a7c59;
+    color: #ffffff;
+    border-color: #5d8f6c;
+}
+
+body.dark-mode .jump-to-date-container button:hover {
+    background: #5d8f6c;
+}
+
+/* Dark mode timeline markers */
+body.dark-mode .timeline-bookmark-line,
+body.dark-mode .timeline-bookmark-dot {
+    background: #4a7c59;
+}
+
+body.dark-mode .timeline-start-marker-triangle,
+body.dark-mode .timeline-end-marker-triangle {
+    border-color: #4a7c59;
+}
+
+/* Dark mode image container */
+body.dark-mode .image-container {
+    background: #1e1e1e;
+}
+
+body.dark-mode .cascading-image {
+    border-color: #444;
+}
+
+/* Dark mode scrollbar styles */
+body.dark-mode ::-webkit-scrollbar {
+    background: #2d2d2d;
+}
+
+body.dark-mode ::-webkit-scrollbar-track {
+    background: #1e1e1e;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb {
+    background: #444;
+}
+
+body.dark-mode ::-webkit-scrollbar-thumb:hover {
+    background: #555;
 }

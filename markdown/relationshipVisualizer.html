@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Relationship Visualizer</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/relationship-visualizer.css">
+    <link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css" type="text/css" />
+</head>
+<body>
+    <div class="visualizer-container">
+        <!-- Header with controls -->
+        <div class="visualizer-header">
+            <div class="header-left">
+                <h1 class="visualizer-title">Relationship Visualizer</h1>
+                <div class="focus-character" id="focus-character-display">
+                    <!-- Will show focused character info -->
+                </div>
+                <div class="breadcrumb-container">
+                    <div id="breadcrumb-path" class="breadcrumb-path" style="display: none;">
+                        <!-- Breadcrumb path will be shown here -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="header-center">
+                <div class="view-controls">
+                    <button class="control-btn" id="zoom-in-btn" title="Zoom In">
+                        <i class="ri-zoom-in-line"></i>
+                    </button>
+                    <button class="control-btn" id="zoom-out-btn" title="Zoom Out">
+                        <i class="ri-zoom-out-line"></i>
+                    </button>
+                    <button class="control-btn" id="reset-view-btn" title="Reset View">
+                        <i class="ri-focus-3-line"></i>
+                    </button>
+                    <button class="control-btn" id="center-focus-btn" title="Center on Focus Character">
+                        <i class="ri-crosshair-line"></i>
+                    </button>
+                </div>
+                
+                <div class="layout-controls">
+                    <select id="layout-select" class="layout-select">
+                        <option value="force">Force Layout</option>
+                        <option value="circular">Circular Layout</option>
+                        <option value="hierarchical">Hierarchical Layout</option>
+                        <option value="grid">Grid Layout</option>
+                        <option value="family-forest">Family Forest</option>
+                    </select>
+                    <button class="control-btn" id="apply-layout-btn" title="Apply Layout">
+                        <i class="ri-refresh-line"></i>
+                    </button>
+                </div>
+                
+                <div class="distance-controls">
+                    <button class="control-btn" id="decrease-distance-btn" title="Decrease Node Distance">
+                        <i class="ri-subtract-line"></i>
+                    </button>
+                    <span class="distance-display" id="distance-display">100%</span>
+                    <button class="control-btn" id="increase-distance-btn" title="Increase Node Distance">
+                        <i class="ri-add-line"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="header-right">
+                <div class="filter-controls">
+                    <input type="text" id="search-characters" placeholder="Search characters..." class="search-input">
+                    <select id="relationship-filter" class="filter-select">
+                        <option value="all">All Relationships</option>
+                        <option value="family">Family</option>
+                        <option value="romantic">Romantic</option>
+                        <option value="friendship">Friendship</option>
+                        <option value="professional">Professional</option>
+                        <option value="antagonistic">Antagonistic</option>
+                    </select>
+                </div>
+                
+                <button class="control-btn" id="dark-mode-toggle" title="Toggle Dark Mode">
+                    <i class="ri-moon-line"></i>
+                </button>
+                
+                <button class="control-btn close-btn" id="close-btn" title="Close">
+                    <i class="ri-close-line"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Main canvas area -->
+        <div class="canvas-container">
+            <canvas id="relationship-canvas" class="relationship-canvas"></canvas>
+            
+            <!-- Overlay for UI elements that need to be on top of canvas -->
+            <div class="canvas-overlay">
+                <!-- Context menu will be added here dynamically -->
+                <div id="context-menu" class="context-menu hidden">
+                    <!-- Context menu items will be added dynamically -->
+                </div>
+                
+                <!-- Character info panel -->
+                <div id="character-info-panel" class="character-info-panel hidden">
+                    <div class="panel-header">
+                        <h3 id="panel-character-name">Character Name</h3>
+                        <button class="panel-close-btn" id="close-info-panel">
+                            <i class="ri-close-line"></i>
+                        </button>
+                    </div>
+                    <div class="panel-content">
+                        <div id="panel-character-details">
+                            <!-- Character details will be populated here -->
+                        </div>
+                        <div id="panel-relationships">
+                            <!-- Relationship list will be populated here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom status bar -->
+        <div class="status-bar">
+            <div class="status-left">
+                <span id="character-count">0 characters</span>
+                <span class="separator">•</span>
+                <span id="relationship-count">0 relationships</span>
+            </div>
+            
+            <div class="status-center">
+                <span id="view-coordinates">View: (0, 0)</span>
+                <span class="separator">•</span>
+                <span id="zoom-level">Zoom: 100%</span>
+            </div>
+            
+            <div class="status-right">
+                <span id="selected-info">No selection</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading overlay -->
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">Loading relationships...</div>
+        </div>
+    </div>
+
+    <script src="../relationshipVisualizer.js"></script>
+</body>
+</html> 

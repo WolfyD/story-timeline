@@ -917,3 +917,296 @@ textarea {
     background: #2196F3;
     color: white;
 }
+
+/* ============ DARK MODE STYLES ============ */
+
+/* Dark mode base */
+body.dark-mode {
+    background: #121212;
+    color: #e0e0e0;
+}
+
+/* Dark mode containers */
+body.dark-mode .container {
+    background: #1e1e1e;
+    color: #e0e0e0;
+}
+
+/* Dark mode form groups */
+body.dark-mode .form-group {
+    background: #2d2d2d;
+    border-color: #444;
+}
+
+body.dark-mode label {
+    color: #e0e0e0;
+}
+
+/* Dark mode inputs */
+body.dark-mode input[type="text"], 
+body.dark-mode input[type="number"],
+body.dark-mode textarea,
+body.dark-mode select {
+    background: #3d3d3d;
+    border-color: #555;
+    color: #e0e0e0;
+}
+
+body.dark-mode input[type="text"]:focus,
+body.dark-mode input[type="number"]:focus,
+body.dark-mode textarea:focus,
+body.dark-mode select:focus {
+    border-color: #4a7c59;
+    box-shadow: 0 0 0 2px rgba(74, 124, 89, 0.2);
+}
+
+body.dark-mode input[type="text"]::placeholder,
+body.dark-mode input[type="number"]::placeholder,
+body.dark-mode textarea::placeholder {
+    color: #888;
+}
+
+/* Dark mode color preview */
+body.dark-mode .color-preview {
+    border-color: #555;
+}
+
+/* Dark mode buttons */
+body.dark-mode .button-group button[type="submit"] {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode .button-group button[type="submit"]:hover {
+    background: #5d8f6c;
+}
+
+body.dark-mode .button-group button[type="button"] {
+    background: #8b3d3d;
+    color: #ffffff;
+}
+
+body.dark-mode .button-group button[type="button"]:hover {
+    background: #a04545;
+}
+
+body.dark-mode .button-debug {
+    background: #4a7c59 !important;
+    color: #ffffff !important;
+}
+
+body.dark-mode .button-debug:hover {
+    background: #5d8f6c !important;
+}
+
+/* Dark mode tags */
+body.dark-mode .tag-container {
+    background: #3d3d3d;
+    border-color: #555;
+}
+
+body.dark-mode .tag {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode .tag .remove-tag {
+    color: #ffffff;
+}
+
+body.dark-mode .tag .remove-tag:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+}
+
+/* Dark mode suggestions */
+body.dark-mode .suggestions-dropdown {
+    background: #2d2d2d;
+    border-color: #444;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .suggestion-item {
+    color: #e0e0e0;
+}
+
+body.dark-mode .suggestion-item:hover {
+    background: #3d3d3d;
+}
+
+/* Dark mode image upload */
+body.dark-mode .image-upload-container {
+    background: #2d2d2d;
+    border-color: #444;
+}
+
+body.dark-mode .image-preview {
+    background: #3d3d3d;
+    border-color: #555;
+}
+
+body.dark-mode .image-description-editor {
+    background: #3d3d3d;
+    border-top-color: #555;
+}
+
+body.dark-mode .image-description-editor textarea {
+    background: #4d4d4d;
+    border-color: #666;
+    color: #e0e0e0;
+}
+
+body.dark-mode .image-description-editor textarea:focus {
+    border-color: #4a7c59;
+    box-shadow: 0 0 0 2px rgba(74, 124, 89, 0.2);
+}
+
+body.dark-mode .btn-description-save {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode .btn-description-save:hover {
+    background: #5d8f6c;
+}
+
+body.dark-mode .btn-description-cancel {
+    background: #666;
+    color: #ffffff;
+}
+
+body.dark-mode .btn-description-cancel:hover {
+    background: #777;
+}
+
+body.dark-mode .remove-image {
+    background: rgba(139, 61, 61, 0.9);
+    color: #ffffff;
+}
+
+body.dark-mode .remove-image:hover {
+    background: rgba(160, 69, 69, 1);
+}
+
+body.dark-mode .add-image-btn {
+    background: #3d3d3d;
+    border-color: #4a7c59;
+    color: #4a7c59;
+}
+
+body.dark-mode .add-image-btn:hover {
+    background: rgba(74, 124, 89, 0.1);
+}
+
+body.dark-mode .image-preview-info {
+    background: #4d4d4d;
+    color: #e0e0e0;
+}
+
+body.dark-mode .image-preview-name {
+    color: #e0e0e0;
+}
+
+/* Dark mode image options modal */
+body.dark-mode .image-options-modal {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+body.dark-mode .image-options-content {
+    background: #1e1e1e;
+    color: #e0e0e0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+body.dark-mode .image-options-content h3 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .image-option-btn {
+    background: #2d2d2d;
+    border-color: #4a7c59;
+    color: #e0e0e0;
+}
+
+body.dark-mode .image-option-btn:hover {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode .image-option-btn i {
+    color: #4a7c59;
+}
+
+body.dark-mode .image-option-btn:hover i {
+    color: #ffffff;
+}
+
+body.dark-mode .image-option-btn span {
+    color: #e0e0e0;
+}
+
+body.dark-mode .image-option-btn:hover span {
+    color: #ffffff;
+}
+
+body.dark-mode .image-option-btn small {
+    color: #b0b0b0;
+}
+
+body.dark-mode .image-option-btn:hover small {
+    color: #e0e0e0;
+}
+
+body.dark-mode .cancel-btn {
+    background: #666;
+    color: #ffffff;
+}
+
+body.dark-mode .cancel-btn:hover {
+    background: #777;
+}
+
+/* Dark mode miscellaneous */
+body.dark-mode .modified {
+    color: #5d8f6c !important;
+}
+
+body.dark-mode .error {
+    color: #ff6b6b;
+}
+
+body.dark-mode .shortcut-hint {
+    color: #888;
+}
+
+body.dark-mode #modifiedIndicator {
+    color: #5d8f6c;
+}
+
+body.dark-mode #testFillBtn {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode #testFillBtn:hover {
+    background: #5d8f6c;
+}
+
+body.dark-mode .line {
+    background: #444;
+}
+
+body.dark-mode .type-label {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode #addImageBtn {
+    background: #3d3d3d;
+    border-color: #4a7c59;
+    color: #4a7c59;
+}
+
+body.dark-mode #addImageBtn:hover {
+    background: rgba(74, 124, 89, 0.1);
+}

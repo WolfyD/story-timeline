@@ -423,3 +423,182 @@
     color: var(--text-color-secondary);
     padding: 5px;
 }
+
+/* ============ DARK MODE STYLES ============ */
+
+/* Dark mode modal backgrounds */
+body.dark-mode #item-viewer-modal {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+body.dark-mode .modal {
+    background: rgba(0, 0, 0, 0.8);
+}
+
+/* Dark mode modal content */
+body.dark-mode #item-viewer-content {
+    background: #1e1e1e;
+    border-color: #333;
+    color: #e0e0e0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+body.dark-mode .modal-content.fullscreen {
+    background: #1e1e1e;
+    border-color: #333;
+    color: #e0e0e0;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+body.dark-mode .modal-content {
+    background: #1e1e1e;
+    border-color: #333;
+    color: #e0e0e0;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+/* Dark mode modal headers */
+body.dark-mode .modal-header {
+    background: #2d2d2d;
+    border-bottom-color: #444;
+}
+
+body.dark-mode .modal-header h1 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .date-row {
+    color: #e0e0e0;
+}
+
+body.dark-mode .date-row .label {
+    color: #b0b0b0;
+}
+
+/* Dark mode close buttons */
+body.dark-mode #item-viewer-close {
+    color: #e0e0e0;
+    background: #444;
+    border-radius: 4px;
+}
+
+body.dark-mode #item-viewer-close:hover {
+    background: #555;
+}
+
+body.dark-mode .close-button {
+    background: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .close-button:hover {
+    background: #555;
+}
+
+/* Dark mode modal body */
+body.dark-mode .modal-body {
+    background: #1e1e1e;
+    color: #e0e0e0;
+}
+
+body.dark-mode .content-section {
+    background: #2d2d2d;
+    border-color: #444;
+}
+
+body.dark-mode .content-section h2 {
+    color: #e0e0e0;
+    border-bottom-color: #444;
+}
+
+body.dark-mode .content-text {
+    color: #c0c0c0;
+}
+
+body.dark-mode .images-section {
+    background: #2d2d2d;
+}
+
+body.dark-mode .modal-image {
+    border-color: #444;
+}
+
+body.dark-mode .image-description {
+    background: #3d3d3d;
+    color: #e0e0e0;
+}
+
+/* Dark mode tags container */
+body.dark-mode .tags-container {
+    background: #2d2d2d;
+}
+
+body.dark-mode .tag-item {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+/* Dark mode book styles */
+body.dark-mode .book-title {
+    color: #e0e0e0;
+}
+
+body.dark-mode .book-details {
+    color: #e0e0e0;
+}
+
+body.dark-mode .book-details .label {
+    color: #b0b0b0;
+}
+
+/* Dark mode story references */
+body.dark-mode .story-references {
+    border-top-color: #444;
+}
+
+body.dark-mode .story-references h3 {
+    color: #e0e0e0;
+}
+
+body.dark-mode .story-item {
+    color: #c0c0c0;
+}
+
+/* Dark mode modal controls */
+body.dark-mode .modal-controls {
+    background: #2d2d2d;
+    border-top-color: #444;
+}
+
+body.dark-mode .modal-button {
+    background: #4a7c59;
+    color: #ffffff;
+    border-color: #5d8f6c;
+}
+
+body.dark-mode .edit-button {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode .delete-button {
+    background: #8b3d3d;
+    color: #ffffff;
+}
+
+body.dark-mode .modal-button:hover {
+    background: #5d8f6c;
+}
+
+body.dark-mode .delete-button:hover {
+    background: #a04545;
+}
+
+/* Dark mode item viewer sections */
+body.dark-mode .item-viewer-date {
+    color: #b0b0b0;
+}
+
+body.dark-mode .item-viewer-description {
+    color: #c0c0c0;
+}

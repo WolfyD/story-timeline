@@ -3927,32 +3927,42 @@ class DatabaseManager {
                 SELECT 
                     cr.*,
                     c1.name as character1_name,
-                    c2.name as character2_name
+                    c2.name as character2_name,
+                    c1.color as character1_color,
+                    c2.color as character2_color
                 FROM character_relationships cr
-                JOIN characters c1 ON cr.character1_id = c1.id
-                JOIN characters c2 ON cr.character2_id = c2.id
-                WHERE (cr.character1_id = ? OR cr.character2_id = ?)
+                JOIN characters c1 ON cr.character_1_id = c1.id
+                JOIN characters c2 ON cr.character_2_id = c2.id
+                WHERE (cr.character_1_id = ? OR cr.character_2_id = ?)
                 AND cr.timeline_id = ?
             `).all(currentCharId, currentCharId, this.currentTimelineId);
+
+
+            console.log( "relationships", relationships);
 
             for (const rel of relationships) {
                 // Apply importance filter
                 if (importance !== -1 && rel.strength < importance) {
+                    console.log( "importance", importance, "rel.strength", rel.strength);
                     continue;
                 }
 
                 // Apply family filter
                 if (onlyFamily && !familyTypes.includes(rel.relationship_type)) {
+                    console.log( "onlyFamily", onlyFamily, "rel.relationship_type", rel.relationship_type);
                     continue;
                 }
 
                 // Determine the connected character
-                const connectedCharId = rel.character1_id === currentCharId ? rel.character2_id : rel.character1_id;
+                const connectedCharId = rel.character_1_id === currentCharId ? rel.character_2_id : rel.character_1_id;
                 const nextDistance = currentDistance + 1;
 
                 // Get the connected character data
                 const connectedChar = this.getCharacter(connectedCharId);
-                if (!connectedChar) continue;
+                if (!connectedChar) {
+                    console.log( "connectedChar", connectedChar);
+                    continue;
+                }
 
                 // Determine the relationship type from current character's perspective
                 let relationshipType = rel.relationship_type;
@@ -3988,6 +3998,8 @@ class DatabaseManager {
                 }
             }
         }
+
+        console.log(Array.from(characterMap.values()));
 
         // Convert map to array and return
         return Array.from(characterMap.values());

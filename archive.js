@@ -41,6 +41,15 @@ let searchQueries = {
     characters: ''
 };
 let storyReferences = [];
+let allItems = [];
+let allStories = [];
+let allMedia = [];
+let allTags = [];
+let allCharacters = [];
+let sortBy = 'date-desc';
+let activeFilters = [];
+let searchQuery = '';
+let isDarkMode = false;
 
 let item_types = {
     1: 'Event',
@@ -78,8 +87,28 @@ let item_type_icons = {
     9: 'ri-book-fill'
 };
 
-// Get the current timeline ID when window loads
-window.addEventListener('DOMContentLoaded', async function() {
+// Initialize dark mode
+function initializeDarkMode() {
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(savedDarkMode);
+}
+
+function setDarkMode(enabled) {
+    isDarkMode = enabled;
+    document.body.classList.toggle('dark-mode', enabled);
+    localStorage.setItem('darkMode', enabled.toString());
+}
+
+// Listen for dark mode changes from other windows
+if (window.api && window.api.receive) {
+    window.api.receive('dark-mode-changed', (enabled) => {
+        setDarkMode(enabled);
+    });
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    initializeDarkMode();
     timeline_id = await window.api.getCurrentTimelineId();
     initializeArchive();
     setupEventListeners();

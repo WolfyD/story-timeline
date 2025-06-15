@@ -14,12 +14,28 @@
 let timelineId = null;
 let allCharacters = [];
 let filteredCharacters = [];
-let selectedCharacters = []; // Array to store selected character IDs (max 2)
-let allRelationships = []; // Store all relationships in the timeline
+let selectedCharacters = new Set();
+let allRelationships = [];
+let isDarkMode = false;
 
 // Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', function() {
-    setupEventListeners();
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        initializeDarkMode();
+        
+        // Initialize character manager
+        timelineId = await window.api.getCurrentTimelineId();
+        console.log('Timeline ID:', timelineId);
+        
+        setupEventListeners();
+        await loadCharacters();
+        updateStatistics();
+        displayCharacters();
+        await updateRelationshipDisplay();
+    } catch (error) {
+        console.error('Error initializing character manager:', error);
+        showError('Failed to initialize character manager');
+    }
 });
 
 // Listen for timeline ID from main process
@@ -35,6 +51,13 @@ window.api.receive('refresh-data', () => {
     loadCharacters();
     updateRelationshipDisplay();
 });
+
+// Listen for dark mode changes from other windows
+if (window.api && window.api.receive) {
+    window.api.receive('dark-mode-changed', (enabled) => {
+        setDarkMode(enabled);
+    });
+}
 
 /**
  * Set up all event listeners
@@ -143,7 +166,7 @@ function createCharacterCard(character) {
     card.dataset.characterId = character.id;
     
     // Check if this character is selected
-    const isSelected = selectedCharacters.includes(character.id);
+    const isSelected = selectedCharacters.has(character.id);
     if (isSelected) {
         card.classList.add('selected');
     }
@@ -212,18 +235,19 @@ function selectCharacter(characterId) {
     const character = allCharacters.find(char => char.id === characterId);
     if (!character) return;
     
-    const isCurrentlySelected = selectedCharacters.includes(characterId);
+    const isCurrentlySelected = selectedCharacters.has(characterId);
     
     if (isCurrentlySelected) {
         // Deselect character
-        selectedCharacters = selectedCharacters.filter(id => id !== characterId);
+        selectedCharacters.delete(characterId);
     } else {
         // Select character
-        if (selectedCharacters.length >= 2) {
+        if (selectedCharacters.size >= 2) {
             // Replace selection if already 2 selected
-            selectedCharacters = [characterId];
+            selectedCharacters.clear();
+            selectedCharacters.add(characterId);
         } else {
-            selectedCharacters.push(characterId);
+            selectedCharacters.add(characterId);
         }
     }
     
@@ -240,7 +264,7 @@ function updateCharacterSelection() {
     document.querySelectorAll('.character-card').forEach(card => {
         const characterId = card.dataset.characterId;
         const checkbox = card.querySelector('.character-checkbox');
-        const isSelected = selectedCharacters.includes(characterId);
+        const isSelected = selectedCharacters.has(characterId);
         
         if (isSelected) {
             card.classList.add('selected');
@@ -259,7 +283,7 @@ async function updateRelationshipDisplay() {
     const relationshipDisplay = document.getElementById('relationship-display');
     const characterContainer = document.getElementById('character-manager-container');
     
-    if (selectedCharacters.length !== 2) {
+    if (selectedCharacters.size !== 2) {
         relationshipDisplay.classList.add('hidden');
         characterContainer.classList.add('full-height');
         return;
@@ -271,8 +295,8 @@ async function updateRelationshipDisplay() {
 
     
     // Update selected character names
-    const char1 = allCharacters.find(c => c.id === selectedCharacters[0]);
-    const char2 = allCharacters.find(c => c.id === selectedCharacters[1]);
+    const char1 = allCharacters.find(c => c.id === selectedCharacters.values().next().value);
+    const char2 = allCharacters.find(c => c.id === selectedCharacters.values().next().value);
     
     document.getElementById('selected-char-1').textContent = char1?.name || 'Unknown';
     document.getElementById('selected-char-2').textContent = char2?.name || 'Unknown';
@@ -285,12 +309,12 @@ async function updateRelationshipDisplay() {
  * Load relationships between selected characters
  */
 async function loadRelationships() {
-    if (selectedCharacters.length !== 2) return;
+    if (selectedCharacters.size !== 2) return;
     
     try {
         const result = await window.api.invoke('get-character-relationships-between', {
-            character1Id: selectedCharacters[0],
-            character2Id: selectedCharacters[1],
+            character1Id: selectedCharacters.values().next().value,
+            character2Id: selectedCharacters.values().next().value,
             timelineId: timelineId
         });
         
@@ -346,8 +370,8 @@ function createRelationshipItem(relationship) {
     let firstChar, secondChar, arrow;
     
     // Always display in selection order
-    const firstSelectedId = selectedCharacters[0];
-    const secondSelectedId = selectedCharacters[1];
+    const firstSelectedId = selectedCharacters.values().next().value;
+    const secondSelectedId = selectedCharacters.values().next().value;
     firstChar = allCharacters.find(c => c.id === firstSelectedId);
     secondChar = allCharacters.find(c => c.id === secondSelectedId);
     
@@ -462,6 +486,23 @@ function openAddCharacterWindow() {
 }
 
 /**
+ * Opens the relationship visualizer window
+ */
+function openRelationshipVisualizer() {
+    console.log('[characterManager.js] Opening relationship visualizer for timeline:', timelineId);
+    
+    if (!timelineId) {
+        showError('Timeline ID not available');
+        return;
+    }
+    
+    // Get the currently selected character as focus (if any)
+    const focusCharacterId = selectedCharacters.size === 1 ? selectedCharacters.values().next().value : null;
+    
+    window.api.send('open-relationship-visualizer-window', timelineId, focusCharacterId);
+}
+
+/**
  * Edit a character
  */
 async function editCharacter(characterId) {
@@ -502,7 +543,7 @@ async function deleteCharacter(characterId, characterName) {
             showSuccess(`Character "${characterName}" deleted successfully!`);
             
             // Remove from selected characters if selected
-            selectedCharacters = selectedCharacters.filter(id => id !== characterId);
+            selectedCharacters.delete(characterId);
             
             // Reload characters
             await loadCharacters();
@@ -521,14 +562,14 @@ async function deleteCharacter(characterId, characterName) {
  * Open relationship editor window
  */
 function openRelationshipEditor() {
-    if (selectedCharacters.length !== 2) {
+    if (selectedCharacters.size !== 2) {
         showError('Please select exactly two characters to create a relationship.');
         return;
     }
     
     // Get the character objects
-    const character1 = allCharacters.find(c => c.id === selectedCharacters[0]);
-    const character2 = allCharacters.find(c => c.id === selectedCharacters[1]);
+    const character1 = allCharacters.find(c => c.id === selectedCharacters.values().next().value);
+    const character2 = allCharacters.find(c => c.id === selectedCharacters.values().next().value);
     
     if (!character1 || !character2) {
         showError('Error: Could not find selected characters.');
@@ -694,7 +735,9 @@ function handleDrop(e) {
     
     if (draggedCharacterId && targetCharacterId && draggedCharacterId !== targetCharacterId) {
         // Select both characters
-        selectedCharacters = [draggedCharacterId, targetCharacterId];
+        selectedCharacters.clear();
+        selectedCharacters.add(draggedCharacterId);
+        selectedCharacters.add(targetCharacterId);
         updateCharacterSelection();
         updateRelationshipDisplay();
     }
@@ -916,8 +959,8 @@ function updateCharacterHighlighting() {
     });
     
     // If exactly one character is selected, highlight connected characters
-    if (selectedCharacters.length === 1) {
-        const selectedId = selectedCharacters[0];
+    if (selectedCharacters.size === 1) {
+        const selectedId = selectedCharacters.values().next().value;
         const connectedIds = getConnectedCharacters(selectedId);
         
         connectedIds.forEach(connectedId => {
@@ -927,4 +970,16 @@ function updateCharacterHighlighting() {
             }
         });
     }
+}
+
+// Initialize dark mode
+function initializeDarkMode() {
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(savedDarkMode);
+}
+
+function setDarkMode(enabled) {
+    isDarkMode = enabled;
+    document.body.classList.toggle('dark-mode', enabled);
+    localStorage.setItem('darkMode', enabled.toString());
 }

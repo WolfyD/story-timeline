@@ -8,8 +8,49 @@ const splashCreateTimelineButton = document.getElementById('splash_create_timeli
 // Add event listeners
 splashCreateTimelineButton.addEventListener('click', createNewTimeline);
 
-// Load timelines when the page loads
-window.addEventListener('DOMContentLoaded', async () => {
+let currentTimelineId = null;
+let isDarkMode = false;
+
+// Initialize dark mode from localStorage
+function initializeDarkMode() {
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(savedDarkMode);
+    
+    // Setup dark mode toggle
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    if (darkModeToggle) {
+        darkModeToggle.addEventListener('click', toggleDarkMode);
+    }
+}
+
+function setDarkMode(enabled) {
+    isDarkMode = enabled;
+    document.body.classList.toggle('dark-mode', enabled);
+    
+    const toggleBtn = document.getElementById('dark-mode-toggle');
+    if (toggleBtn) {
+        const icon = toggleBtn.querySelector('i');
+        if (icon) {
+            icon.className = enabled ? 'ri-sun-line' : 'ri-moon-line';
+        }
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('darkMode', enabled.toString());
+    
+    // Send to main process for other windows
+    if (window.api) {
+        window.api.send('set-dark-mode', enabled);
+    }
+}
+
+function toggleDarkMode() {
+    setDarkMode(!isDarkMode);
+}
+
+// Initialize on page load
+document.addEventListener('DOMContentLoaded', async () => {
+    initializeDarkMode();
     loadTimelines();
     
     // Get timeline information for display

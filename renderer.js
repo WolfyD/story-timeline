@@ -110,6 +110,41 @@ let loadedSettings = null;
 let loadedData = null;
 let isDataReady = false;
 let isSettingsReady = false;
+let isDarkMode = false;
+
+// Initialize dark mode from settings or localStorage
+function initializeDarkMode() {
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(savedDarkMode);
+}
+
+function setDarkMode(enabled) {
+    isDarkMode = enabled;
+    document.body.classList.toggle('dark-mode', enabled);
+    
+    // Update dark mode checkbox if it exists
+    const darkModeCheckbox = document.getElementById('dark-mode');
+    if (darkModeCheckbox) {
+        darkModeCheckbox.checked = enabled;
+    }
+    
+    // Save to localStorage
+    localStorage.setItem('darkMode', enabled.toString());
+    
+    // Send to main process for other windows
+    if (window.api) {
+        window.api.send('set-dark-mode', enabled);
+    }
+}
+
+function toggleDarkMode(enabled) {
+    setDarkMode(enabled);
+}
+
+// Initialize dark mode on page load
+document.addEventListener('DOMContentLoaded', () => {
+    initializeDarkMode();
+});
 
 // ===== Public API Functions =====
 /**

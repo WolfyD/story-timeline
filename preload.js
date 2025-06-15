@@ -59,6 +59,9 @@ contextBridge.exposeInMainWorld('api', {
             'duplicate-timeline',
             'reset-timeline-css',
             'set-window-scale',
+            // Dark mode channels
+            'set-dark-mode',
+            'get-dark-mode',
             // Character system channels
             'open-add-character-window',
             'open-edit-character-window',
@@ -67,6 +70,7 @@ contextBridge.exposeInMainWorld('api', {
             'getAllCharacterRelationships',
             'getAllCharacterReferences',
             'open-relationship-editor-window',
+            'open-relationship-visualizer-window',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -97,6 +101,8 @@ contextBridge.exposeInMainWorld('api', {
             'analyze-filesystem-vs-database',
             'get-current-timeline-id',
             'read-file',
+            // Dark mode invoke channels
+            'get-dark-mode',
             // Character system invoke channels
             'add-character',
             'get-character',
@@ -120,6 +126,7 @@ contextBridge.exposeInMainWorld('api', {
             'get-relationship-editor-data',
             'create-character-relationship',
             'refresh-character-manager',
+            'get-character-group',
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
@@ -176,6 +183,8 @@ contextBridge.exposeInMainWorld('api', {
             'jumpToDate',
             'timeline-duplicated',
             'window-scale-changed',
+            // Dark mode receive channels
+            'dark-mode-changed',
             // Character system receive channels
             'characters',
             'characterRelationships',
@@ -186,6 +195,7 @@ contextBridge.exposeInMainWorld('api', {
             'refresh-data',
             'character-created',
             'character-updated',
+            'initialize-visualizer',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

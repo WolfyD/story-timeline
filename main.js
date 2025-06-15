@@ -64,7 +64,8 @@ const DEFAULT_SETTINGS = {
     pixelsPerSubtick: 20,
     showGuides: true,
     useCustomScaling: false,
-    customScale: 1.0
+    customScale: 1.0,
+    isDarkMode: false
 };
 
 // Epic title generation
@@ -131,19 +132,17 @@ let addCharacterWindow;
 let editCharacterWindow;
 let characterManagerWindow;
 let relationshipEditorWindow;
+let relationshipVisualizerWindow;
 let relationshipEditorData = null;
 let settings = DEFAULT_SETTINGS;
 let data = {
-    title: '',
+    timeline_id: 1,
+    title: 'New Timeline',
     author: '',
     description: '',
     start: 0,
     granularity: 4,
-    items: [],
-    size: {
-        x: 1000,
-        y: 700
-    }
+    items: []
 };
 
 let splashWindow = null;
@@ -1096,6 +1095,23 @@ function setupIpcHandlers() {
     return data.granularity;
   });
 
+  // Dark mode handlers
+  ipcMain.on('set-dark-mode', (event, enabled) => {
+    settings.isDarkMode = enabled;
+    
+    // Send to all windows
+    BrowserWindow.getAllWindows().forEach(window => {
+      if (!window.isDestroyed()) {
+        window.webContents.send('dark-mode-changed', enabled);
+      }
+    });
+  });
+
+  ipcMain.handle('get-dark-mode', () => {
+    // Return false if undefined, ensure it's always a boolean
+    return Boolean(settings.isDarkMode);
+  });
+
   ipcMain.on('save-settings', (event, newSettings, newData) => {
     // Merge new settings with current settings
     console.log("NEW SETTINGS", newSettings);
@@ -1125,8 +1141,8 @@ function setupIpcHandlers() {
         use_timeline_css: updatedSettings.useCustomCSS ? 1 : 0,
         is_fullscreen: mainWindow.isMaximized() ? 1 : 0,
         show_guides: updatedSettings.showGuides ? 1 : 0,
-        window_size_x: parseInt(mainWindow.isMaximized() ? data.size.x : mainWindow.getSize()[0] - 2),
-        window_size_y: parseInt(mainWindow.isMaximized() ? data.size.y : mainWindow.getSize()[1] - 1),
+        window_size_x: parseInt(mainWindow.isMaximized() ? settings.size.x : mainWindow.getSize()[0] - 2),
+        window_size_y: parseInt(mainWindow.isMaximized() ? settings.size.y : mainWindow.getSize()[1] - 1),
         window_position_x: parseInt(mainWindow.getPosition()[0] + 2),
         window_position_y: parseInt(mainWindow.getPosition()[1] + 1),
         use_custom_scaling: updatedSettings.useCustomScaling ? 1 : 0,
@@ -2503,6 +2519,17 @@ function setupIpcHandlers() {
     }
   });
 
+  // Get character group (connected characters within distance)
+  ipcMain.handle('get-character-group', async (event, characterId, options = {}) => {
+    try {
+      const group = dbManager.getCharacterGroup(characterId, options);
+      return { success: true, group };
+    } catch (error) {
+      console.error('[main.js] Error getting character group:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
   // Character-item reference operations
   ipcMain.handle('add-character-references-to-item', async (event, itemId, characterRefs) => {
     try {
@@ -2601,6 +2628,11 @@ function setupIpcHandlers() {
 
   ipcMain.on('open-relationship-editor-window', (event, relationshipData) => {
     createRelationshipEditorWindow(relationshipData);
+  });
+
+  ipcMain.on('open-relationship-visualizer-window', (event, timelineId, focusCharacterId) => {
+    console.log('[main.js] IPC handler called: open-relationship-visualizer-window', { timelineId, focusCharacterId });
+    createRelationshipVisualizerWindow(timelineId, focusCharacterId);
   });
 
   // Character validation handlers
@@ -3110,3 +3142,75 @@ function createRelationshipEditorWindow(relationshipData) {
 /**
  * Creates the splash window for timeline selection
  */
+function createRelationshipVisualizerWindow(timelineId, focusCharacterId = null) {
+    console.log('[main.js] createRelationshipVisualizerWindow called with:', { timelineId, focusCharacterId });
+    
+    if (relationshipVisualizerWindow) {
+        console.log('[main.js] Relationship visualizer window already exists, focusing...');
+        relationshipVisualizerWindow.focus();
+        return;
+    }
+
+    try {
+        const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+        const windowWidth = 1400;
+        const windowHeight = 900;
+
+        console.log('[main.js] Creating relationship visualizer window...');
+
+        relationshipVisualizerWindow = new BrowserWindow({
+            width: windowWidth,
+            height: windowHeight,
+            x: Math.floor((width - windowWidth) / 2),
+            y: Math.floor((height - windowHeight) / 2),
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                preload: path.join(__dirname, 'preload.js'),
+            },
+            show: true, // Show immediately for debugging
+            autoHideMenuBar: true,
+            parent: mainWindow,
+            modal: false,
+            title: 'Relationship Visualizer'
+        });
+
+        console.log('[main.js] BrowserWindow created successfully');
+
+        relationshipVisualizerWindow.webContents.on("before-input-event", (event, input) => {
+            if (input.key === "F12") {
+                relationshipVisualizerWindow.webContents.openDevTools();
+            }
+        });
+
+        // Add error handling for file loading
+        relationshipVisualizerWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+            console.error('[main.js] Failed to load relationship visualizer:', errorCode, errorDescription);
+        });
+
+        console.log('[main.js] Loading relationshipVisualizer.html...');
+        relationshipVisualizerWindow.loadFile('./markdown/relationshipVisualizer.html').then(() => {
+            console.log('[main.js] relationshipVisualizer.html loaded successfully');
+        }).catch((error) => {
+            console.error('[main.js] Error loading relationshipVisualizer.html:', error);
+        });
+
+        relationshipVisualizerWindow.once('ready-to-show', () => {
+            console.log('[main.js] Relationship visualizer window ready to show');
+            relationshipVisualizerWindow.show();
+            // Send initialization data to the window
+            relationshipVisualizerWindow.webContents.send('initialize-visualizer', {
+                timelineId,
+                focusCharacterId
+            });
+        });
+
+        relationshipVisualizerWindow.on('closed', () => {
+            console.log('[main.js] Relationship visualizer window closed');
+            relationshipVisualizerWindow = null;
+        });
+
+    } catch (error) {
+        console.error('[main.js] Error creating relationship visualizer window:', error);
+    }
+}

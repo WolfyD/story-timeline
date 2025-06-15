@@ -13,6 +13,28 @@ let aliases = [];
 let nicknames = [];
 let tags = [];
 let storyRefs = [];
+let selectedImages = [];
+let selectedItem = null;
+let isDarkMode = false;
+
+// Initialize dark mode
+function initializeDarkMode() {
+    const savedDarkMode = localStorage.getItem('darkMode') === 'true';
+    setDarkMode(savedDarkMode);
+}
+
+function setDarkMode(enabled) {
+    isDarkMode = enabled;
+    document.body.classList.toggle('dark-mode', enabled);
+    localStorage.setItem('darkMode', enabled.toString());
+}
+
+// Listen for dark mode changes from other windows
+if (window.api && window.api.receive) {
+    window.api.receive('dark-mode-changed', (enabled) => {
+        setDarkMode(enabled);
+    });
+}
 let images = [];
 
 // Existing item selection functionality
@@ -22,6 +44,7 @@ let selectedExistingItem = null;
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
+    initializeDarkMode();
     initializeForm();
     setupEventListeners();
 });

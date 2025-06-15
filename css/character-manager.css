@@ -596,3 +596,292 @@
         justify-content: center;
     }
 }
+
+/* ============ DARK MODE STYLES ============ */
+
+/* Dark mode base */
+body.dark-mode {
+    background: #121212;
+    color: #e0e0e0;
+}
+
+/* Dark mode containers */
+body.dark-mode .character-manager-container {
+    background: #1e1e1e;
+    color: #e0e0e0;
+}
+
+body.dark-mode .manager-header {
+    background: #2d2d2d;
+    border-bottom-color: #444;
+}
+
+body.dark-mode .manager-title {
+    color: #e0e0e0;
+}
+
+/* Dark mode search */
+body.dark-mode .search-input {
+    background: #3d3d3d;
+    border-color: #555;
+    color: #e0e0e0;
+}
+
+body.dark-mode .search-input::placeholder {
+    color: #888;
+}
+
+body.dark-mode .search-input:focus {
+    border-color: #4a7c59;
+    box-shadow: 0 0 5px rgba(74, 124, 89, 0.5);
+}
+
+/* Dark mode character cards */
+body.dark-mode .character-card {
+    background: #2d2d2d;
+    border-color: #444;
+    color: #e0e0e0;
+}
+
+body.dark-mode .character-card:hover {
+    background: #3d3d3d;
+    border-color: #555;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .character-card.dragging {
+    background: #404040;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+}
+
+body.dark-mode .card-header {
+    background: #3d3d3d;
+    border-bottom-color: #555;
+}
+
+body.dark-mode .character-name {
+    color: #e0e0e0;
+}
+
+body.dark-mode .character-checkbox {
+    background: #444;
+    border-color: #666;
+}
+
+body.dark-mode .character-checkbox:checked {
+    background: #4a7c59;
+    border-color: #5d8f6c;
+}
+
+body.dark-mode .card-body {
+    background: #2d2d2d;
+}
+
+body.dark-mode .card-body:hover {
+    background: #3d3d3d;
+}
+
+body.dark-mode .character-image {
+    border-color: #555;
+}
+
+body.dark-mode .character-race {
+    color: #b0b0b0;
+}
+
+body.dark-mode .character-aliases {
+    color: #888;
+}
+
+body.dark-mode .character-importance {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+/* Dark mode action buttons */
+body.dark-mode .action-btn {
+    background: #444;
+    color: #e0e0e0;
+    border-color: #666;
+}
+
+body.dark-mode .action-btn:hover {
+    background: #555;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+body.dark-mode .edit-btn {
+    background: #4a7c59;
+    border-color: #5d8f6c;
+}
+
+body.dark-mode .edit-btn:hover {
+    background: #5d8f6c;
+}
+
+body.dark-mode .delete-btn {
+    background: #8b3d3d;
+    border-color: #a04545;
+}
+
+body.dark-mode .delete-btn:hover {
+    background: #a04545;
+}
+
+body.dark-mode .importance-indicator {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode .no-characters {
+    color: #b0b0b0;
+}
+
+/* Dark mode statistics */
+body.dark-mode .character-stats {
+    background: #2d2d2d;
+    border-color: #444;
+}
+
+body.dark-mode .stat-number {
+    color: #4a7c59;
+}
+
+body.dark-mode .stat-label {
+    color: #b0b0b0;
+}
+
+/* Dark mode buttons */
+body.dark-mode .btn {
+    background: #4a7c59;
+    color: #ffffff;
+    border-color: #5d8f6c;
+}
+
+body.dark-mode .btn-primary {
+    background: #4a7c59;
+    border-color: #5d8f6c;
+}
+
+body.dark-mode .btn-primary:hover {
+    background: #5d8f6c;
+}
+
+body.dark-mode .btn-secondary {
+    background: #444;
+    color: #e0e0e0;
+    border-color: #666;
+}
+
+body.dark-mode .btn-secondary:hover {
+    background: #555;
+}
+
+body.dark-mode .loading {
+    color: #b0b0b0;
+}
+
+/* Dark mode relationships */
+body.dark-mode .relationship-display {
+    background: #2d2d2d;
+    border-color: #444;
+}
+
+body.dark-mode .relationship-header {
+    background: #3d3d3d;
+    border-bottom-color: #555;
+}
+
+body.dark-mode .relationship-title {
+    color: #e0e0e0;
+}
+
+body.dark-mode .selected-character {
+    background: #4a7c59;
+    color: #ffffff;
+    border-color: #5d8f6c;
+}
+
+body.dark-mode .relationship-connector {
+    background: #666;
+}
+
+body.dark-mode .relationship-item {
+    background: #3d3d3d;
+    border-color: #555;
+    color: #e0e0e0;
+}
+
+body.dark-mode .relationship-item:hover {
+    background: #4d4d4d;
+    border-color: #666;
+}
+
+body.dark-mode .relationship-characters {
+    color: #e0e0e0;
+}
+
+body.dark-mode .relationship-arrow {
+    color: #b0b0b0;
+}
+
+body.dark-mode .relationship-type {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode .relationship-strength {
+    color: #b0b0b0;
+}
+
+body.dark-mode .relationship-notes {
+    color: #c0c0c0;
+}
+
+body.dark-mode .relationship-btn {
+    background: #444;
+    color: #e0e0e0;
+    border-color: #666;
+}
+
+body.dark-mode .relationship-btn:hover {
+    background: #555;
+}
+
+body.dark-mode .relationship-btn.delete:hover {
+    background: #8b3d3d;
+    color: #ffffff;
+}
+
+body.dark-mode .no-relationships {
+    color: #b0b0b0;
+}
+
+/* Dark mode drag and drop */
+body.dark-mode .character-card.drag-over {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+body.dark-mode .character-card.drag-target {
+    border-color: #4a7c59;
+    box-shadow: 0 0 10px rgba(74, 124, 89, 0.5);
+}
+
+body.dark-mode .character-card.faintly-highlighted {
+    background: #3d4d3d;
+}
+
+body.dark-mode .connection-count {
+    background: #4a7c59;
+    color: #ffffff;
+}
+
+/* Dark mode layout containers */
+body.dark-mode #character-manager-container {
+    background: #1e1e1e;
+}
+
+body.dark-mode .main-container {
+    background: #1e1e1e;
+}

@@ -5,6 +5,38 @@ let tagSuggestions = []; // Add tag suggestions array
 let type; // Declare type in global scope
 let timeline_id; // Add timeline_id to global scope
 
+// Initialize dark mode when window loads
+document.addEventListener('DOMContentLoaded', function() {
+    initializeDarkMode();
+});
+
+/**
+ * Initialize dark mode for the add item with range window
+ */
+function initializeDarkMode() {
+    // Get dark mode state from main process
+    window.api.invoke('get-dark-mode').then(isDarkMode => {
+        setDarkMode(isDarkMode);
+    });
+
+    // Listen for dark mode changes
+    window.api.receive('dark-mode-changed', (isDarkMode) => {
+        setDarkMode(isDarkMode);
+    });
+}
+
+/**
+ * Set dark mode state
+ * @param {boolean} enabled - Whether dark mode is enabled
+ */
+function setDarkMode(enabled) {
+    if (enabled) {
+        document.body.classList.add('dark-mode');
+    } else {
+        document.body.classList.remove('dark-mode');
+    }
+}
+
 // Get the current timeline ID when window loads
 window.addEventListener('DOMContentLoaded', async function() {
     timeline_id = await window.api.getCurrentTimelineId();
