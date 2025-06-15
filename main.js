@@ -40,7 +40,7 @@ const fs = require('fs');
 const { v4: uuidv4 } = require('uuid');
 const dbManager = require('./dbManager');
 
-const CLOSE_SPLASH_WINDOW = true;
+const CLOSE_SPLASH_WINDOW = false;
 
 // ===== Constants =====
 /**
@@ -130,6 +130,8 @@ let loadingWindow;
 let addCharacterWindow;
 let editCharacterWindow;
 let characterManagerWindow;
+let relationshipEditorWindow;
+let relationshipEditorData = null;
 let settings = DEFAULT_SETTINGS;
 let data = {
     title: '',
@@ -280,6 +282,14 @@ function createWindow(width = null, height = null, x = null, y = null) {
   // Emitted when the window is closed.
   mainWindow.on('closed', () => {
     mainWindow = null;
+    
+    // Show splash screen again when main window closes
+    if (!splashWindow || splashWindow.isDestroyed()) {
+      createSplashWindow();
+    } else {
+      splashWindow.show();
+      splashWindow.focus();
+    }
   });
 
   updateLoadingProgress('Initializing database...', 50);
@@ -859,12 +869,16 @@ function loadData() {
             return;
         }
 
+        console.log(`[main.js] loadData() called - current timeline: ${dbManager.currentTimelineId || 'undefined'}`);
         const savedData = dbManager.getUniverseData();
         if (savedData) {
+            const items = dbManager.getAllItems() || [];
+            console.log(`[main.js] loadData() fetched ${items.length} items from database`);
+            
             data = {
                 ...data,
                 ...savedData,
-                items: dbManager.getAllItems() || []
+                items: items
             };
 
             console.log("[main.js] Timeline data loaded:", {
@@ -873,7 +887,8 @@ function loadData() {
                 author: data.author,
                 description: data.description,
                 start: data.start,
-                granularity: data.granularity
+                granularity: data.granularity,
+                itemCount: data.items.length
             });
             mainWindow.webContents.send('call-load-data', data);
         }
@@ -1227,7 +1242,9 @@ function setupIpcHandlers() {
 
   ipcMain.on('getAllItems', (event) => {
     // Always fetch the latest items from the database
+    console.log(`[main.js] getAllItems called - current timeline: ${dbManager.currentTimelineId || 'undefined'}`);
     const items = dbManager.getAllItems();
+    console.log(`[main.js] getAllItems returning ${items ? items.length : 0} items`);
     event.sender.send('items', items);
   });
 
@@ -1560,6 +1577,8 @@ function setupIpcHandlers() {
 
   // Handle new timeline creation
   ipcMain.on('new-timeline', (event) => {
+    console.log('[main.js] Creating new timeline...');
+    
     // Create the timeline in the database
     const timeline = {
         title: dbManager.constructor.generateEpicTitle(),
@@ -1569,6 +1588,11 @@ function setupIpcHandlers() {
         granularity: 4
     };
     const newTimelineId = dbManager.addTimeline(timeline);
+    console.log(`[main.js] New timeline created with ID: ${newTimelineId}`);
+    
+    // CRITICAL: Set the current timeline context in dbManager
+    dbManager.setCurrentTimeline(newTimelineId);
+    console.log(`[main.js] Database manager timeline context set to: ${newTimelineId}`);
     
     // Create a dedicated folder for this timeline's images
     const timelineMediaDir = path.join(app.getPath('userData'), 'media', 'pictures', newTimelineId.toString());
@@ -1613,9 +1637,13 @@ function setupIpcHandlers() {
         items: [],
         settings: defaultSettings
     };
+    console.log(`[main.js] Data state updated for new timeline: ${newTimelineId}`);
 
     if (mainWindow) {
+        console.log(`[main.js] Main window exists, reloading with new timeline: ${newTimelineId}`);
         mainWindow.loadFile('./markdown/index.html').then(() => {
+            console.log(`[main.js] Main window reloaded, sending timeline data for: ${newTimelineId}`);
+            
             // Send the timeline data to the main window
             mainWindow.webContents.send('timeline-data', {
                 id: newTimelineId,
@@ -1626,7 +1654,8 @@ function setupIpcHandlers() {
                 granularity: timeline.granularity
             });
 
-            // Send the data to load
+            // Send the data to load (explicitly empty items for new timeline)
+            console.log(`[main.js] Sending empty timeline data for new timeline: ${newTimelineId}`);
             mainWindow.webContents.send('call-load-data', {
                 title: timeline.title,
                 author: timeline.author,
@@ -1645,8 +1674,11 @@ function setupIpcHandlers() {
             mainWindow.webContents.setZoomFactor(1.0);
         });
     } else {
+        console.log(`[main.js] Main window doesn't exist, creating new window for timeline: ${newTimelineId}`);
         createWindow();
         mainWindow.webContents.once('did-finish-load', () => {
+            console.log(`[main.js] New main window loaded, sending timeline data for: ${newTimelineId}`);
+            
             // Send the timeline data to the main window
             mainWindow.webContents.send('timeline-data', {
                 id: newTimelineId,
@@ -1657,7 +1689,8 @@ function setupIpcHandlers() {
                 granularity: timeline.granularity
             });
 
-            // Send the data to load
+            // Send the data to load (explicitly empty items for new timeline)
+            console.log(`[main.js] Sending empty timeline data for new timeline: ${newTimelineId}`);
             mainWindow.webContents.send('call-load-data', {
                 title: timeline.title,
                 author: timeline.author,
@@ -1676,8 +1709,13 @@ function setupIpcHandlers() {
             mainWindow.webContents.setZoomFactor(1.0);
         });
     }
-    if (splashWindow && CLOSE_SPLASH_WINDOW) {
-        splashWindow.close();
+    if (splashWindow) {
+        if (CLOSE_SPLASH_WINDOW) {
+            splashWindow.close();
+        } else {
+            // Hide splash window instead of closing it so we can show it again later
+            splashWindow.hide();
+        }
     }
   });
 
@@ -2269,6 +2307,17 @@ function setupIpcHandlers() {
   ipcMain.handle('add-character', async (event, character) => {
     try {
       const newCharacter = await dbManager.addCharacter(character);
+      
+      // Notify character manager to refresh if it's open
+      if (characterManagerWindow && !characterManagerWindow.isDestroyed()) {
+        characterManagerWindow.webContents.send('refresh-data');
+      }
+      
+      // Notify relationship editor if it's open
+      if (relationshipEditorWindow && !relationshipEditorWindow.isDestroyed()) {
+        relationshipEditorWindow.webContents.send('character-created');
+      }
+      
       return { success: true, character: newCharacter };
     } catch (error) {
       console.error('[main.js] Error adding character:', error);
@@ -2300,6 +2349,16 @@ function setupIpcHandlers() {
     try {
       const success = dbManager.updateCharacter(characterId, character);
       if (success) {
+        // Notify character manager to refresh if it's open
+        if (characterManagerWindow && !characterManagerWindow.isDestroyed()) {
+          characterManagerWindow.webContents.send('refresh-data');
+        }
+        
+        // Notify relationship editor if it's open
+        if (relationshipEditorWindow && !relationshipEditorWindow.isDestroyed()) {
+          relationshipEditorWindow.webContents.send('character-updated');
+        }
+        
         return { success: true };
       } else {
         return { success: false, error: 'Character not found or update failed' };
@@ -2365,9 +2424,9 @@ function setupIpcHandlers() {
     }
   });
 
-  ipcMain.handle('update-character-relationship', async (event, relationshipId, relationship) => {
+  ipcMain.handle('update-character-relationship', async (event, { id, relationship }) => {
     try {
-      const success = dbManager.updateCharacterRelationship(relationshipId, relationship);
+      const success = dbManager.updateCharacterRelationship(id, relationship);
       if (success) {
         return { success: true };
       } else {
@@ -2389,6 +2448,55 @@ function setupIpcHandlers() {
       }
     } catch (error) {
       console.error('[main.js] Error deleting character relationship:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get relationships between two specific characters
+  ipcMain.handle('get-character-relationships-between', async (event, { character1Id, character2Id, timelineId }) => {
+    try {
+      // Get all relationships for both characters and filter for connections between them
+      const relationships1 = dbManager.getCharacterRelationships(character1Id);
+      const relationships2 = dbManager.getCharacterRelationships(character2Id);
+      
+      // Find relationships between these two characters
+      const betweenRelationships = [];
+      
+      // Check relationships where character1 is the source
+      relationships1.forEach(rel => {
+        if (rel.character_2_id === character2Id && rel.timeline_id === timelineId) {
+          betweenRelationships.push(rel);
+        }
+      });
+      
+      // Check relationships where character2 is the source
+      relationships2.forEach(rel => {
+        if (rel.character_2_id === character1Id && rel.timeline_id === timelineId) {
+          betweenRelationships.push(rel);
+        }
+      });
+      
+      return { success: true, relationships: betweenRelationships };
+    } catch (error) {
+      console.error('[main.js] Error getting relationships between characters:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Get a single character relationship by ID
+  ipcMain.handle('get-character-relationship', async (event, relationshipId) => {
+    try {
+      // Since we don't have a direct method, we'll need to get all relationships and find the one
+      const allRelationships = dbManager.getAllCharacterRelationships();
+      const relationship = allRelationships.find(rel => rel.id === relationshipId);
+      
+      if (relationship) {
+        return { success: true, relationship };
+      } else {
+        return { success: false, error: 'Relationship not found' };
+      }
+    } catch (error) {
+      console.error('[main.js] Error getting character relationship:', error);
       return { success: false, error: error.message };
     }
   });
@@ -2489,6 +2597,10 @@ function setupIpcHandlers() {
     createCharacterManagerWindow(timelineId);
   });
 
+  ipcMain.on('open-relationship-editor-window', (event, relationshipData) => {
+    createRelationshipEditorWindow(relationshipData);
+  });
+
   // Character validation handlers
   ipcMain.handle('validate-relationship-type', async (event, relationshipType) => {
     try {
@@ -2496,6 +2608,47 @@ function setupIpcHandlers() {
       return { success: true, isValid };
     } catch (error) {
       console.error('[main.js] Error validating relationship type:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Relationship editor data handler
+  ipcMain.handle('get-relationship-editor-data', async (event) => {
+    try {
+      // This will be set by the character manager when opening the relationship editor
+      return relationshipEditorData || null;
+    } catch (error) {
+      console.error('[main.js] Error getting relationship editor data:', error);
+      return null;
+    }
+  });
+
+  // Create character relationship handler
+  ipcMain.handle('create-character-relationship', async (event, relationshipData) => {
+    try {
+      const relationshipId = dbManager.addCharacterRelationship(relationshipData);
+      
+      // Notify character manager to refresh if it's open
+      if (characterManagerWindow && !characterManagerWindow.isDestroyed()) {
+        characterManagerWindow.webContents.send('refresh-data');
+      }
+      
+      return { success: true, relationshipId };
+    } catch (error) {
+      console.error('[main.js] Error creating character relationship:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  // Refresh character manager handler
+  ipcMain.handle('refresh-character-manager', async (event) => {
+    try {
+      if (characterManagerWindow && !characterManagerWindow.isDestroyed()) {
+        characterManagerWindow.webContents.send('refresh-data');
+      }
+      return { success: true };
+    } catch (error) {
+      console.error('[main.js] Error refreshing character manager:', error);
       return { success: false, error: error.message };
     }
   });
@@ -2511,8 +2664,13 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
+  // Only quit if we're not on macOS and there are truly no windows left
+  // This allows the splash screen to keep the app running
   if (process.platform !== 'darwin') {
-    app.quit();
+    // Check if splash window still exists
+    if (!splashWindow || splashWindow.isDestroyed()) {
+      app.quit();
+    }
   }
 });
 
@@ -2636,14 +2794,17 @@ function createCharacterManagerWindow(timelineId) {
     }
 
     const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const { left, top } = mainWindow.getBounds();
     const windowWidth = 1200;
     const windowHeight = 800;
+    const x = left + (width - windowWidth) / 2;
+    const y = top + (height - windowHeight) / 2;
 
     characterManagerWindow = new BrowserWindow({
         width: windowWidth,
         height: windowHeight,
-        x: Math.floor((width - windowWidth) / 2),
-        y: Math.floor((height - windowHeight) / 2),
+        x: x,
+        y: y,
         webPreferences: {
             nodeIntegration: false,
             contextIsolation: true,
@@ -2652,7 +2813,7 @@ function createCharacterManagerWindow(timelineId) {
         show: false,
         autoHideMenuBar: true,
         parent: mainWindow,
-        modal: true
+        modal: false
     });
 
     characterManagerWindow.webContents.on("before-input-event", (event, input) => {
@@ -2891,6 +3052,57 @@ function closeLoadingWindow() {
     loadingWindow.close();
     loadingWindow = null;
   }
+}
+
+/**
+ * Creates the relationship editor window
+ * @param {Object} relationshipData - Relationship data (for editing) or character pair data (for creating)
+ */
+function createRelationshipEditorWindow(relationshipData) {
+    if (relationshipEditorWindow) {
+        relationshipEditorWindow.focus();
+        return;
+    }
+
+    // Store the relationship data for the IPC handler
+    relationshipEditorData = relationshipData;
+
+    const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+    const windowWidth = 600;
+    const windowHeight = 700;
+
+    relationshipEditorWindow = new BrowserWindow({
+        width: windowWidth,
+        height: windowHeight,
+        x: Math.floor((width - windowWidth) / 2),
+        y: Math.floor((height - windowHeight) / 2),
+        webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            preload: path.join(__dirname, 'preload.js'),
+        },
+        show: false,
+        autoHideMenuBar: true,
+        parent: characterManagerWindow || mainWindow,
+        modal: true
+    });
+
+    relationshipEditorWindow.webContents.on("before-input-event", (event, input) => {
+        if (input.key === "F12") {
+            relationshipEditorWindow.webContents.openDevTools();
+        }
+    });
+
+    relationshipEditorWindow.loadFile('./markdown/relationshipEditor.html');
+
+    relationshipEditorWindow.once('ready-to-show', () => {
+        relationshipEditorWindow.show();
+    });
+
+    relationshipEditorWindow.on('closed', () => {
+        relationshipEditorWindow = null;
+        relationshipEditorData = null; // Clear the data when window closes
+    });
 }
 
 /**

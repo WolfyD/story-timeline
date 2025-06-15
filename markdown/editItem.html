@@ -601,7 +601,7 @@
             updateColorPreview(item.color || color || '#000000');
             document.getElementById('startYear').value = item.year || year;
             document.getElementById('startSubtick').value = item.subtick || subtick;
-            document.getElementById('endYear').value = item.end_year || item.year || year;
+            document.getElementById('endYear').value = item.end_year !== undefined && item.end_year !== null ? item.end_year : (item.year || year);
             document.getElementById('endSubtick').value = item.end_subtick || item.subtick || subtick;
             // Clear existing tags and add new ones
             tags.clear();

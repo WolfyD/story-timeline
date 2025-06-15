@@ -9,52 +9,79 @@
     <link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css" type="text/css" />
 </head>
 <body>
-    <div class="character-manager-container">
+
+    <div class="manager-main-header-container">
         <div class="manager-header">
             <h1 class="manager-title">Character Manager</h1>
             <div class="manager-actions">
                 <button class="btn btn-primary" onclick="openAddCharacterWindow()">
                     <i class="ri-add-line"></i> Add Character
                 </button>
+                <button class="btn btn-secondary" onclick="generateTestData()" title="Generate 50 test characters with random relationships">
+                    <i class="ri-flask-line"></i> Generate Test Data
+                </button>
                 <button class="btn btn-secondary" onclick="window.close()">
                     <i class="ri-close-line"></i> Close
                 </button>
             </div>
         </div>
-
+        
         <div id="loading" class="loading">
             <div>Loading characters...</div>
         </div>
+        
+        <div id="character-stats" class="character-stats">
+            <div class="stat-item">
+                <div class="stat-number" id="total-characters">0</div>
+                <div class="stat-label">Total Characters</div>
+            </div>
+        </div>
 
-        <div id="character-content" style="display: none;">
-            <div id="character-stats" class="character-stats">
-                <div class="stat-item">
-                    <div class="stat-number" id="total-characters">0</div>
-                    <div class="stat-label">Total Characters</div>
+        <div class="search-container">
+            <input type="text" id="search-input" class="search-input" placeholder="Search characters by name, race, or description...">
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div id="character-manager-container" class="character-manager-container full-height">
+            <div id="character-content" style="display: none;">
+
+                
+
+                <div id="characters-grid" class="characters-grid">
+                    <!-- Characters will be populated here -->
                 </div>
-                <div class="stat-item">
-                    <div class="stat-number" id="living-characters">0</div>
-                    <div class="stat-label">Living</div>
-                </div>
-                <div class="stat-item">
-                    <div class="stat-number" id="deceased-characters">0</div>
-                    <div class="stat-label">Deceased</div>
+
+                <div id="no-characters" class="no-characters" style="display: none;">
+                    <div>No characters found.</div>
+                    <button class="btn btn-primary" onclick="openAddCharacterWindow()" style="margin-top: 15px;">
+                        <i class="ri-add-line"></i> Create Your First Character
+                    </button>
                 </div>
             </div>
+        </div>
 
-            <div class="search-container">
-                <input type="text" id="search-input" class="search-input" placeholder="Search characters by name, race, or description...">
-            </div>
-
-            <div id="characters-grid" class="characters-grid">
-                <!-- Characters will be populated here -->
-            </div>
-
-            <div id="no-characters" class="no-characters" style="display: none;">
-                <div>No characters found.</div>
-                <button class="btn btn-primary" onclick="openAddCharacterWindow()" style="margin-top: 15px;">
-                    <i class="ri-add-line"></i> Create Your First Character
+        <!-- Relationship Display Area -->
+        <div id="relationship-display" class="relationship-display hidden">
+            <div class="relationship-header">
+                <h2 class="relationship-title">Character Relationships</h2>
+                <div class="selected-characters">
+                    <span id="selected-char-1" class="selected-character"></span>
+                    <span class="relationship-connector">↔</span>
+                    <span id="selected-char-2" class="selected-character"></span>
+                </div>
+                <button id="create-relationship-btn" class="btn btn-primary" onclick="openRelationshipEditor()">
+                    <i class="ri-add-line"></i> Create Relationship
                 </button>
+            </div>
+            
+            <div id="relationships-list" class="relationships-list">
+                <!-- Relationships will be populated here -->
+            </div>
+            
+            <div id="no-relationships" class="no-relationships" style="display: none;">
+                <div>No relationships found between these characters.</div>
+                <p>Click "Create Relationship" to add one.</p>
             </div>
         </div>
     </div>

@@ -15,6 +15,11 @@ let tags = [];
 let storyRefs = [];
 let images = [];
 
+// Existing item selection functionality
+let allTimelineItems = [];
+let filteredItems = [];
+let selectedExistingItem = null;
+
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', function() {
     initializeForm();
@@ -64,6 +69,13 @@ function setupEventListeners() {
     
     // Add image button
     document.getElementById('addImageBtn').addEventListener('click', showImageOptions);
+    
+    // Connected item type dropdown - clear existing item selection when changed
+    document.getElementById('connected-item-type').addEventListener('change', function() {
+        if (this.value && selectedExistingItem) {
+            clearSelectedItem();
+        }
+    });
     
     console.log('[addCharacter.js] Event listeners set up');
 }
@@ -637,6 +649,9 @@ function collectFormData() {
     // Add connected item type
     data.connected_item_type = document.getElementById('connected-item-type').value || null;
     
+    // Add selected existing item
+    data.selected_existing_item = selectedExistingItem ? selectedExistingItem.id : null;
+    
     // Convert numeric fields
     if (data.birth_year) data.birth_year = parseInt(data.birth_year);
     if (data.birth_subtick) data.birth_subtick = parseInt(data.birth_subtick);
@@ -717,6 +732,231 @@ function generateRandomColor() {
         '#8B008B', '#9932CC', '#8B0000', '#DC143C', '#B22222'
     ];
     return colors[Math.floor(Math.random() * colors.length)];
+}
+
+/**
+ * Open the existing item selection modal
+ */
+async function openExistingItemModal() {
+    const modal = document.getElementById('existing-item-modal');
+    modal.style.display = 'block';
+    
+    // Add click outside to close functionality
+    modal.addEventListener('click', function(event) {
+        if (event.target === modal) {
+            closeExistingItemModal();
+        }
+    });
+    
+    // Load timeline items if not already loaded
+    if (allTimelineItems.length === 0) {
+        await loadTimelineItems();
+    }
+    
+    // Set up event listeners for search and filter
+    setupModalEventListeners();
+    
+    // Display all items initially
+    filteredItems = [...allTimelineItems];
+    displayItems();
+}
+
+/**
+ * Close the existing item selection modal
+ */
+function closeExistingItemModal() {
+    const modal = document.getElementById('existing-item-modal');
+    modal.style.display = 'none';
+}
+
+/**
+ * Load all timeline items from the database
+ */
+async function loadTimelineItems() {
+    try {
+        const items = await window.api.invoke('get-all-items');
+        // Filter out character reference items (type_id = 7)
+        allTimelineItems = items.filter(item => item.type_id !== 7);
+        console.log('[addCharacter.js] Loaded timeline items:', allTimelineItems.length);
+    } catch (error) {
+        console.error('[addCharacter.js] Error loading timeline items:', error);
+        allTimelineItems = [];
+        
+        // Show error message in the modal
+        const itemsList = document.getElementById('items-list');
+        if (itemsList) {
+            itemsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #dc3545;">Error loading timeline items. Please try again.</div>';
+        }
+    }
+}
+
+/**
+ * Set up event listeners for the modal
+ */
+function setupModalEventListeners() {
+    const searchInput = document.getElementById('item-search');
+    const typeFilter = document.getElementById('item-type-filter');
+    
+    // Remove existing listeners to avoid duplicates
+    searchInput.removeEventListener('input', handleItemSearch);
+    typeFilter.removeEventListener('change', handleTypeFilter);
+    
+    // Add new listeners
+    searchInput.addEventListener('input', handleItemSearch);
+    typeFilter.addEventListener('change', handleTypeFilter);
+}
+
+/**
+ * Handle search input
+ */
+function handleItemSearch(event) {
+    const searchTerm = event.target.value.toLowerCase();
+    const typeFilter = document.getElementById('item-type-filter').value;
+    
+    filteredItems = allTimelineItems.filter(item => {
+        const matchesSearch = !searchTerm || 
+            item.title.toLowerCase().includes(searchTerm) ||
+            (item.description && item.description.toLowerCase().includes(searchTerm)) ||
+            (item.content && item.content.toLowerCase().includes(searchTerm));
+        
+        const matchesType = !typeFilter || item.type_id.toString() === typeFilter;
+        
+        return matchesSearch && matchesType;
+    });
+    
+    displayItems();
+}
+
+/**
+ * Handle type filter change
+ */
+function handleTypeFilter(event) {
+    const typeFilter = event.target.value;
+    const searchTerm = document.getElementById('item-search').value.toLowerCase();
+    
+    filteredItems = allTimelineItems.filter(item => {
+        const matchesSearch = !searchTerm || 
+            item.title.toLowerCase().includes(searchTerm) ||
+            (item.description && item.description.toLowerCase().includes(searchTerm)) ||
+            (item.content && item.content.toLowerCase().includes(searchTerm));
+        
+        const matchesType = !typeFilter || item.type_id.toString() === typeFilter;
+        
+        return matchesSearch && matchesType;
+    });
+    
+    displayItems();
+}
+
+/**
+ * Display filtered items in the modal
+ */
+function displayItems() {
+    const itemsList = document.getElementById('items-list');
+    
+    if (filteredItems.length === 0) {
+        itemsList.innerHTML = '<div style="text-align: center; padding: 20px; color: #666;">No items found</div>';
+        return;
+    }
+    
+    const itemTypeNames = {
+        1: 'Event',
+        2: 'Period', 
+        3: 'Age',
+        4: 'Picture',
+        5: 'Note',
+        6: 'Bookmark'
+    };
+    
+    const itemsHtml = filteredItems.map(item => {
+        const typeName = itemTypeNames[item.type_id] || 'Unknown';
+        const dateStr = `${item.year}.${item.subtick || 0}`;
+        const endDateStr = (item.end_year && item.end_year !== item.year) ? 
+            ` - ${item.end_year}.${item.end_subtick || 0}` : '';
+        
+        return `
+            <div class="item-row" onclick="selectExistingItem('${item.id}')" style="
+                padding: 12px; 
+                border-bottom: 1px solid #eee; 
+                cursor: pointer;
+                transition: background-color 0.2s;
+            " onmouseover="this.style.backgroundColor='#f5f5f5'" onmouseout="this.style.backgroundColor='white'">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div style="flex: 1;">
+                        <div style="font-weight: bold; margin-bottom: 4px;">${item.title}</div>
+                        <div style="font-size: 0.9em; color: #666; margin-bottom: 4px;">
+                            ${typeName} • ${dateStr}${endDateStr}
+                        </div>
+                        ${item.description ? `<div style="font-size: 0.9em; color: #888;">${item.description}</div>` : ''}
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    itemsList.innerHTML = itemsHtml;
+}
+
+/**
+ * Select an existing item to connect to the character
+ */
+function selectExistingItem(itemId) {
+    const item = allTimelineItems.find(i => i.id === itemId);
+    if (!item) return;
+    
+    selectedExistingItem = item;
+    
+    // Update UI to show selected item
+    const selectedDiv = document.getElementById('selected-existing-item');
+    const itemInfo = document.getElementById('selected-item-info');
+    const dropdown = document.getElementById('connected-item-type');
+    
+    const itemTypeNames = {
+        1: 'Event',
+        2: 'Period', 
+        3: 'Age',
+        4: 'Picture',
+        5: 'Note',
+        6: 'Bookmark'
+    };
+    
+    const typeName = itemTypeNames[item.type_id] || 'Unknown';
+    const dateStr = `${item.year}.${item.subtick || 0}`;
+    const endDateStr = (item.end_year && item.end_year !== item.year) ? 
+        ` - ${item.end_year}.${item.end_subtick || 0}` : '';
+    
+    itemInfo.innerHTML = `
+        <div><strong>${item.title}</strong></div>
+        <div style="color: #666; font-size: 0.9em;">${typeName} • ${dateStr}${endDateStr}</div>
+        ${item.description ? `<div style="color: #888; font-size: 0.9em; margin-top: 4px;">${item.description}</div>` : ''}
+    `;
+    
+    // Show the selected item info and disable the dropdown
+    selectedDiv.style.display = 'block';
+    dropdown.disabled = true;
+    dropdown.style.opacity = '0.6';
+    
+    // Close the modal
+    closeExistingItemModal();
+    
+    console.log('[addCharacter.js] Selected existing item:', item);
+}
+
+/**
+ * Clear the selected existing item
+ */
+function clearSelectedItem() {
+    selectedExistingItem = null;
+    
+    // Hide the selected item info and re-enable the dropdown
+    const selectedDiv = document.getElementById('selected-existing-item');
+    const dropdown = document.getElementById('connected-item-type');
+    
+    selectedDiv.style.display = 'none';
+    dropdown.disabled = false;
+    dropdown.style.opacity = '1';
+    
+    console.log('[addCharacter.js] Cleared selected existing item');
 }
 
 /**

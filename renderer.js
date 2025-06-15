@@ -725,7 +725,7 @@ function checkAllLoaded() {
  * - IPC communication failure
  */
 function refreshAllItems() {
-    console.log("Requesting all items...");
+    console.log("[renderer.js] refreshAllItems() called - requesting all items...");
     window.api.send('getAllItems');
 }
 
@@ -997,6 +997,7 @@ window.api.receive('itemRemoved', (result) => {
  * - Items load failure
  */
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('[renderer.js] DOMContentLoaded fired, calling refreshAllItems()');
     refreshAllItems();
 });
 

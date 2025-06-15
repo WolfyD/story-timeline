@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Relationship Editor</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/relationship-editor.css">
+    <link rel="stylesheet" href="../node_modules/remixicon/fonts/remixicon.css" type="text/css" />
+</head>
+<body>
+    <div class="relationship-editor-container">
+        <div class="relationship-editor-header">
+            <div class="relationship-editor-title" id="relationship-title">
+                <span id="character1-name">Character 1</span>
+                <span class="relationship-arrow" id="relationship-arrow">→</span>
+                <span id="character2-name">Character 2</span>
+            </div>
+            <button class="close-button" id="relationship-close">&times;</button>
+        </div>
+
+        <form id="relationship-form" class="relationship-form">
+            <div class="form-section">
+                <div class="form-row">
+                    <label for="relationship-type">Relationship Type:</label>
+                    <div class="relationship-type-container">
+                        <select id="relationship-type" name="relationship_type" required>
+                            <option value="">Select relationship type...</option>
+                            <optgroup label="Family">
+                                <option value="parent">Parent</option>
+                                <option value="child">Child</option>
+                                <option value="sibling">Sibling</option>
+                                <option value="spouse">Spouse</option>
+                                <option value="partner">Partner</option>
+                                <option value="ex-spouse">Ex-Spouse</option>
+                                <option value="ex-partner">Ex-Partner</option>
+                                <option value="grandparent">Grandparent</option>
+                                <option value="grandchild">Grandchild</option>
+                                <option value="great-grandparent">Great-Grandparent</option>
+                                <option value="great-grandchild">Great-Grandchild</option>
+                                <option value="great-great-grandparent">Great-Great-Grandparent</option>
+                                <option value="great-great-grandchild">Great-Great-Grandchild</option>
+                                <option value="aunt">Aunt</option>
+                                <option value="uncle">Uncle</option>
+                                <option value="niece">Niece</option>
+                                <option value="nephew">Nephew</option>
+                                <option value="cousin">Cousin</option>
+                                <option value="great-aunt">Great-Aunt</option>
+                                <option value="great-uncle">Great-Uncle</option>
+                                <option value="great-niece">Great-Niece</option>
+                                <option value="great-nephew">Great-Nephew</option>
+                            </optgroup>
+                            <optgroup label="Step/Half Family">
+                                <option value="step-parent">Step-Parent</option>
+                                <option value="step-child">Step-Child</option>
+                                <option value="step-sibling">Step-Sibling</option>
+                                <option value="half-sibling">Half-Sibling</option>
+                                <option value="step-grandparent">Step-Grandparent</option>
+                                <option value="step-grandchild">Step-Grandchild</option>
+                            </optgroup>
+                            <optgroup label="In-Laws">
+                                <option value="parent-in-law">Parent-in-Law</option>
+                                <option value="child-in-law">Child-in-Law</option>
+                                <option value="sibling-in-law">Sibling-in-Law</option>
+                                <option value="grandparent-in-law">Grandparent-in-Law</option>
+                                <option value="grandchild-in-law">Grandchild-in-Law</option>
+                            </optgroup>
+                            <optgroup label="Adoptive/Foster">
+                                <option value="adoptive-parent">Adoptive Parent</option>
+                                <option value="adoptive-child">Adoptive Child</option>
+                                <option value="adoptive-sibling">Adoptive Sibling</option>
+                                <option value="foster-parent">Foster Parent</option>
+                                <option value="foster-child">Foster Child</option>
+                                <option value="foster-sibling">Foster Sibling</option>
+                                <option value="biological-parent">Biological Parent</option>
+                                <option value="biological-child">Biological Child</option>
+                            </optgroup>
+                            <optgroup label="Guardianship">
+                                <option value="godparent">Godparent</option>
+                                <option value="godchild">Godchild</option>
+                                <option value="mentor">Mentor</option>
+                                <option value="apprentice">Apprentice</option>
+                                <option value="guardian">Guardian</option>
+                                <option value="ward">Ward</option>
+                            </optgroup>
+                            <optgroup label="Social">
+                                <option value="best-friend">Best Friend</option>
+                                <option value="friend">Friend</option>
+                                <option value="ally">Ally</option>
+                                <option value="enemy">Enemy</option>
+                                <option value="rival">Rival</option>
+                                <option value="acquaintance">Acquaintance</option>
+                                <option value="colleague">Colleague</option>
+                                <option value="neighbor">Neighbor</option>
+                            </optgroup>
+                            <optgroup label="Other">
+                                <option value="familiar">Familiar</option>
+                                <option value="bonded">Bonded</option>
+                                <option value="master">Master</option>
+                                <option value="servant">Servant</option>
+                                <option value="liege">Liege</option>
+                                <option value="vassal">Vassal</option>
+                                <option value="clan-member">Clan Member</option>
+                                <option value="pack-member">Pack Member</option>
+                                <option value="other">Other</option>
+                                <option value="custom">Custom</option>
+                            </optgroup>
+                        </select>
+                        <input type="text" id="custom-relationship-type" name="custom_relationship_type" 
+                               placeholder="Enter custom relationship type..." style="display: none;">
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label for="bidirectional">
+                        <input type="checkbox" id="bidirectional" name="is_bidirectional">
+                        Bidirectional Relationship
+                    </label>
+                    <div class="info-text">
+                        Check this if the relationship applies in both directions (e.g., siblings, colleagues)
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label for="relationship-degree">Relationship Degree:</label>
+                    <select id="relationship-degree" name="relationship_degree">
+                        <option value="">Not specified</option>
+                        <option value="close">Close</option>
+                        <option value="distant">Distant</option>
+                        <option value="estranged">Estranged</option>
+                        <option value="complicated">Complicated</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label for="relationship-modifier">Relationship Modifier:</label>
+                    <select id="relationship-modifier" name="relationship_modifier">
+                        <option value="">None</option>
+                        <option value="former">Former</option>
+                        <option value="potential">Potential</option>
+                        <option value="secret">Secret</option>
+                        <option value="public">Public</option>
+                        <option value="forbidden">Forbidden</option>
+                        <option value="arranged">Arranged</option>
+                    </select>
+                </div>
+
+                <div class="form-row">
+                    <label for="relationship-strength">Relationship Strength:</label>
+                    <div class="strength-container">
+                        <input type="range" id="relationship-strength" name="relationship_strength" 
+                               min="0" max="100" value="50" step="1">
+                        <span id="strength-value">50</span>
+                        <div class="strength-labels">
+                            <span>Weak</span>
+                            <span>Strong</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <label for="relationship-notes">Notes:</label>
+                    <textarea id="relationship-notes" name="notes" rows="3" 
+                              placeholder="Additional notes about this relationship..."></textarea>
+                </div>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" id="cancel-button" class="secondary-button">Cancel</button>
+                <button type="submit" id="save-button" class="primary-button">Save Relationship</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="../relationshipEditor.js"></script>
+</body>
+</html> 

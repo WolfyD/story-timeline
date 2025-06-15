@@ -179,10 +179,23 @@
                 
                 <div class="form-row">
                     <div class="form-group">
-                        <button type="button" class="btn btn-secondary" onclick="openCreateItemModal()">
-                            <i class="ri-add-line"></i> Create Item
-                        </button>
-                        <small style="margin-left: 10px; color: #666;">Create a timeline item connected to this character</small>
+                        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 10px;">
+                            <button type="button" class="btn btn-secondary" onclick="openCreateItemModal()">
+                                <i class="ri-add-line"></i> Create Item
+                            </button>
+                            <button type="button" class="btn btn-secondary" onclick="openExistingItemModal()">
+                                <i class="ri-link"></i> Connect Existing Item
+                            </button>
+                        </div>
+                        <small style="color: #666;">Create a timeline item connected to this character or connect to an existing item</small>
+                        
+                        <div id="selected-existing-item" style="display: none; margin-top: 10px; padding: 10px; background: #f0f8ff; border: 1px solid #ccc; border-radius: 4px;">
+                            <strong>Connected to existing item:</strong>
+                            <div id="selected-item-info"></div>
+                            <button type="button" class="btn btn-small btn-secondary" onclick="clearSelectedItem()" style="margin-top: 5px;">
+                                <i class="ri-close-line"></i> Remove Connection
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -193,6 +206,46 @@
                 <button type="submit" class="btn btn-primary">Update Character</button>
             </div>
         </form>
+    </div>
+
+    <!-- Existing Item Selection Modal -->
+    <div id="existing-item-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 800px; max-height: 80vh;">
+            <div class="modal-header">
+                <h2>Select Existing Timeline Item</h2>
+                <button type="button" class="close-button" onclick="closeExistingItemModal()">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="search-container" style="margin-bottom: 20px;">
+                    <input type="text" id="item-search" placeholder="Search items by title, description, or content..." 
+                           style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                </div>
+                
+                <div class="filter-container" style="margin-bottom: 20px;">
+                    <label>Filter by type:</label>
+                    <select id="item-type-filter" style="margin-left: 10px; padding: 5px;">
+                        <option value="">All Types</option>
+                        <option value="1">Events</option>
+                        <option value="2">Periods</option>
+                        <option value="3">Ages</option>
+                        <option value="4">Pictures</option>
+                        <option value="5">Notes</option>
+                        <option value="6">Bookmarks</option>
+                    </select>
+                </div>
+                
+                <div id="items-list" class="items-list" style="max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px;">
+                    <div class="loading-message" style="text-align: center; padding: 20px; color: #666;">
+                        Loading timeline items...
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeExistingItemModal()">Cancel</button>
+            </div>
+        </div>
     </div>
 
     <script src="../imageLibrary.js"></script>

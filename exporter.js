@@ -370,12 +370,12 @@ class Exporter {
 
         for (const age of sortedAges) {
             const ageStart = age.year + (age.subtick || 0) / 1000;
-            const ageEnd = (age.end_year || age.year) + (age.end_subtick || age.subtick || 0) / 1000;
+            const ageEnd = (age.end_year !== undefined && age.end_year !== null ? age.end_year : age.year) + (age.end_subtick !== undefined && age.end_subtick !== null ? age.end_subtick : (age.subtick || 0)) / 1000;
 
             // Find periods within this age
             const periodsInAge = periods.filter(period => {
                 const periodStart = period.year + (period.subtick || 0) / 1000;
-                const periodEnd = (period.end_year || period.year) + (period.end_subtick || period.subtick || 0) / 1000;
+                const periodEnd = (period.end_year !== undefined && period.end_year !== null ? period.end_year : period.year) + (period.end_subtick !== undefined && period.end_subtick !== null ? period.end_subtick : (period.subtick || 0)) / 1000;
                 
                 // Period is within age if it starts within the age
                 return periodStart >= ageStart && periodStart <= ageEnd;
@@ -387,12 +387,12 @@ class Exporter {
                 return itemStart >= ageStart && itemStart <= ageEnd;
             });
 
-            hierarchy.push({
+                            hierarchy.push({
                 type: 'age',
                 item: age,
                 periods: periodsInAge.map(period => {
                     const periodStart = period.year + (period.subtick || 0) / 1000;
-                    const periodEnd = (period.end_year || period.year) + (period.end_subtick || period.subtick || 0) / 1000;
+                    const periodEnd = (period.end_year !== undefined && period.end_year !== null ? period.end_year : period.year) + (period.end_subtick !== undefined && period.end_subtick !== null ? period.end_subtick : (period.subtick || 0)) / 1000;
                     
                     // Find items within this period
                     const itemsInPeriod = itemsInAge.filter(item => {
@@ -410,7 +410,7 @@ class Exporter {
                     // Only include items that aren't already in a period
                     return !periodsInAge.some(period => {
                         const periodStart = period.year + (period.subtick || 0) / 1000;
-                        const periodEnd = (period.end_year || period.year) + (period.end_subtick || period.subtick || 0) / 1000;
+                        const periodEnd = (period.end_year !== undefined && period.end_year !== null ? period.end_year : period.year) + (period.end_subtick !== undefined && period.end_subtick !== null ? period.end_subtick : (period.subtick || 0)) / 1000;
                         const itemStart = item.year + (item.subtick || 0) / 1000;
                         return itemStart >= periodStart && itemStart <= periodEnd;
                     });
@@ -423,7 +423,7 @@ class Exporter {
             const itemStart = item.year + (item.subtick || 0) / 1000;
             return !ages.some(age => {
                 const ageStart = age.year + (age.subtick || 0) / 1000;
-                const ageEnd = (age.end_year || age.year) + (age.end_subtick || age.subtick || 0) / 1000;
+                const ageEnd = (age.end_year !== undefined && age.end_year !== null ? age.end_year : age.year) + (age.end_subtick !== undefined && age.end_subtick !== null ? age.end_subtick : (age.subtick || 0)) / 1000;
                 return itemStart >= ageStart && itemStart <= ageEnd;
             });
         });

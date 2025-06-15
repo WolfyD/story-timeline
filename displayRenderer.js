@@ -218,7 +218,7 @@ class DisplayRenderer {
         this.maxYear = -Infinity;
         this.timelineItems.forEach(item => {
             this.minYear = Math.min(this.minYear, item.year);
-            this.maxYear = Math.max(this.maxYear, item.end_year || item.year);
+            this.maxYear = Math.max(this.maxYear, item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year);
         });
         
         // Render components in order
@@ -258,7 +258,7 @@ class DisplayRenderer {
         
         this.timelineItems.forEach(item => {
             minYear = Math.min(minYear, item.year);
-            maxYear = Math.max(maxYear, item.end_year || item.year);
+            maxYear = Math.max(maxYear, item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year);
         });
 
         if (minYear === Infinity || maxYear === -Infinity) {
@@ -272,7 +272,7 @@ class DisplayRenderer {
         // Calculate density for each segment
         this.timelineItems.forEach(item => {
             const startYear = item.year;
-            const endYear = item.end_year || item.year;
+            const endYear = item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year;
             
             // Calculate which segments this item spans
             const startSegment = Math.floor((startYear - minYear) / segmentWidth);
@@ -327,7 +327,7 @@ class DisplayRenderer {
         
         this.timelineItems.forEach(item => {
             minYear = Math.min(minYear, item.year);
-            maxYear = Math.max(maxYear, item.end_year || item.year);
+            maxYear = Math.max(maxYear, item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year);
         });
 
         if (minYear === Infinity || maxYear === -Infinity) {
@@ -721,7 +721,7 @@ class DisplayRenderer {
         
         this.timelineItems.forEach(item => {
             minYear = Math.min(minYear, item.year);
-            maxYear = Math.max(maxYear, item.end_year || item.year);
+            maxYear = Math.max(maxYear, item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year);
         });
 
         if (minYear === Infinity || maxYear === -Infinity) return;

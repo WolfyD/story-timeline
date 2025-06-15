@@ -1,0 +1,371 @@
+/* Relationship Editor Window Styles */
+
+/* Import the unified design system */
+@import url('design-system.css');
+
+body * {
+    user-select: none;
+}
+
+body {
+    margin: 0;
+    padding: 20px;
+    font-family: var(--default-font), 'Georgia', serif;
+    background-color: #f5e6d4; /* parchment color from main.css */
+    color: #4b2e2e; /* dark brown ink color */
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.relationship-editor-container {
+    background: rgba(245, 230, 212, 0.98);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px 0 rgba(75, 46, 46, 0.15);
+    padding: 0;
+    width: 100%;
+    max-width: 600px;
+    min-width: 500px;
+    position: relative;
+}
+
+.relationship-editor-header {
+    background: linear-gradient(135deg, #a67c52, #8b6239);
+    color: #fff8ef;
+    padding: 20px 24px;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: relative;
+}
+
+.relationship-editor-title {
+    font-size: 18px;
+    font-weight: bold;
+    font-family: 'Quintessential', var(--default-font), serif;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex: 1;
+}
+
+#character1-name, #character2-name {
+    font-weight: bold;
+    padding: 4px 8px;
+    border-radius: 4px;
+    background: rgba(255, 248, 239, 0.2);
+    border: 1px solid rgba(255, 248, 239, 0.3);
+}
+
+.relationship-arrow {
+    font-size: 20px;
+    font-weight: bold;
+    color: #fff8ef;
+    transition: transform 0.3s ease;
+}
+
+.relationship-arrow.bidirectional {
+    transform: scale(1.2);
+}
+
+.close-button {
+    background: none;
+    border: none;
+    color: #fff8ef;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background-color 0.2s;
+    line-height: 1;
+}
+
+.close-button:hover {
+    background-color: rgba(255, 248, 239, 0.2);
+}
+
+.relationship-form {
+    padding: 24px;
+}
+
+.form-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-row label {
+    font-weight: bold;
+    color: #4b2e2e;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.form-row label input[type="checkbox"] {
+    margin: 0;
+}
+
+.relationship-type-container {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+select, input[type="text"], textarea {
+    padding: 10px 12px;
+    border: 1px solid #cbb89d;
+    border-radius: 4px;
+    background: #fff8ef;
+    color: #4b2e2e;
+    font-family: var(--default-font), serif;
+    font-size: 14px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+select:focus, input[type="text"]:focus, textarea:focus {
+    outline: none;
+    border-color: #a67c52;
+    box-shadow: 0 0 0 2px rgba(166, 124, 82, 0.2);
+}
+
+select {
+    cursor: pointer;
+}
+
+#custom-relationship-type {
+    margin-top: 8px;
+    transition: all 0.3s ease;
+}
+
+#custom-relationship-type.show {
+    display: block !important;
+}
+
+.info-text {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+    margin-top: 4px;
+}
+
+.strength-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    position: relative;
+}
+
+input[type="range"] {
+    flex: 1;
+    height: 6px;
+    border-radius: 3px;
+    background: #e2c9a0;
+    outline: none;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #a67c52;
+    cursor: pointer;
+    border: 2px solid #fff8ef;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+input[type="range"]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #a67c52;
+    cursor: pointer;
+    border: 2px solid #fff8ef;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+#strength-value {
+    font-weight: bold;
+    color: #a67c52;
+    min-width: 30px;
+    text-align: center;
+}
+
+.strength-labels {
+    position: absolute;
+    top: 25px;
+    left: 0;
+    right: 30px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #666;
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: var(--default-font), serif;
+}
+
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e2c9a0;
+}
+
+.primary-button, .secondary-button {
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: var(--default-font), serif;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+    font-weight: bold;
+}
+
+.primary-button {
+    background-color: #a67c52;
+    color: #fff8ef;
+}
+
+.primary-button:hover {
+    background-color: #8b6239;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(166, 124, 82, 0.3);
+}
+
+.primary-button:active {
+    transform: translateY(0);
+}
+
+.secondary-button {
+    background-color: transparent;
+    color: #4b2e2e;
+    border: 1px solid #cbb89d;
+}
+
+.secondary-button:hover {
+    background-color: #f0f0f0;
+    border-color: #a67c52;
+}
+
+/* Checkbox styling */
+input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #a67c52;
+    cursor: pointer;
+}
+
+/* Optgroup styling */
+optgroup {
+    font-weight: bold;
+    color: #4b2e2e;
+    font-style: normal;
+}
+
+optgroup option {
+    font-weight: normal;
+    padding-left: 10px;
+}
+
+/* Responsive design */
+@media (max-width: 600px) {
+    body {
+        padding: 10px;
+    }
+    
+    .relationship-editor-container {
+        min-width: auto;
+        width: 100%;
+    }
+    
+    .relationship-editor-header {
+        padding: 16px 20px;
+    }
+    
+    .relationship-editor-title {
+        font-size: 16px;
+        gap: 8px;
+    }
+    
+    .relationship-form {
+        padding: 20px;
+    }
+    
+    .form-actions {
+        flex-direction: column-reverse;
+    }
+    
+    .primary-button, .secondary-button {
+        width: 100%;
+    }
+}
+
+/* Animation for showing/hiding custom input */
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#custom-relationship-type.show {
+    animation: slideDown 0.3s ease;
+}
+
+/* Warning styles for duplicate relationships */
+.warning-message {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    color: #856404;
+    padding: 12px;
+    border-radius: 4px;
+    margin-bottom: 16px;
+    font-size: 14px;
+    display: none;
+}
+
+.warning-message.show {
+    display: block;
+    animation: slideDown 0.3s ease;
+}
+
+.warning-message strong {
+    color: #6c5700;
+}
+
+/* Loading state */
+.form-actions .primary-button:disabled {
+    background-color: #cbb89d;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.form-actions .primary-button:disabled:hover {
+    background-color: #cbb89d;
+    transform: none;
+    box-shadow: none;
+} 

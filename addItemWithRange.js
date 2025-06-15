@@ -66,7 +66,7 @@ function initializeForm() {
             // Fill in all form fields with the item data
             document.getElementById('yearInput').value = itemData.year || year;
             document.getElementById('subtickInput').value = itemData.subtick || subtick;
-            document.getElementById('endYearInput').value = itemData.end_year || year;
+            document.getElementById('endYearInput').value = itemData.end_year !== undefined && itemData.end_year !== null ? itemData.end_year : year;
             document.getElementById('endSubtickInput').value = itemData.end_subtick || subtick;
             document.getElementById('titleInput').value = itemData.title || '';
             document.getElementById('descriptionInput').value = itemData.description || '';
@@ -805,7 +805,7 @@ window.api.receive('itemData', (item) => {
         document.getElementById('contentInput').value = item.content || '';
         document.getElementById('yearInput').value = item.year || '';
         document.getElementById('subtickInput').value = item.subtick || '';
-        document.getElementById('endYearInput').value = item.end_year || item.year || '';
+        document.getElementById('endYearInput').value = item.end_year !== undefined && item.end_year !== null ? item.end_year : (item.year || '');
         document.getElementById('endSubtickInput').value = item.end_subtick || item.subtick || '';
         document.getElementById('bookTitleInput').value = item.book_title || '';
         document.getElementById('chapterInput').value = item.chapter || '';

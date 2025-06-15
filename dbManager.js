@@ -1412,7 +1412,7 @@ class DatabaseManager {
                 item.year,
                 item.subtick,
                 item.original_subtick || item.subtick,
-                item.end_year || item.year,
+                item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year,
                 item.end_subtick || item.subtick,
                 item.original_end_subtick || item.original_subtick || item.subtick,
                 item.creation_granularity || this.getUniverseData().granularity,
@@ -1506,8 +1506,8 @@ class DatabaseManager {
             year: item.year,
             subtick: item.subtick,
             original_subtick: item.original_subtick,
-            end_year: item.end_year || item.year,
-            end_subtick: item.end_subtick || item.subtick,
+            end_year: item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year,
+            end_subtick: item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : item.subtick,
             original_end_subtick: item.original_end_subtick || item.original_subtick,
             creation_granularity: item.creation_granularity,
             book_title: item.book_title,
@@ -1603,8 +1603,8 @@ class DatabaseManager {
             year: item.year,
             subtick: item.subtick,
             subtick_changed: subtickChanged ? 1 : 0,
-            end_year: item.end_year || item.year,
-            end_subtick: item.end_subtick || item.subtick,
+            end_year: item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year,
+            end_subtick: item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : item.subtick,
             end_subtick_changed: endSubtickChanged ? 1 : 0,
             book_title: item.book_title,
             chapter: item.chapter,
@@ -1900,34 +1900,36 @@ class DatabaseManager {
         return [];
     }
 
-    async updateItemPictures(itemId, pictures) {
-        try {
-            this.db.prepare('BEGIN').run();
-
+    async updateItemPictures(itemId, pictures, inTransaction = false) {
+        const executeOperations = async () => {
             // Get existing picture references to preserve descriptions for existing images
             const existingPictures = this.getItemPictures(itemId);
             const existingPictureMap = new Map(existingPictures.map(pic => [pic.id, pic]));
 
-            // Remove all existing picture references for this item
-            this.db.prepare('DELETE FROM item_pictures WHERE item_id = ?').run(itemId);
+            // Create a set of picture IDs that should remain (from the new pictures array)
+            const newPictureIds = new Set();
+            if (pictures && pictures.length > 0) {
+                pictures.forEach(pic => {
+                    if (pic.id) {
+                        newPictureIds.add(pic.id);
+                    }
+                });
+            }
+
+            // Remove picture references that are no longer in the new array
+            for (const existingPic of existingPictures) {
+                if (!newPictureIds.has(existingPic.id)) {
+                    this.db.prepare('DELETE FROM item_pictures WHERE item_id = ? AND picture_id = ?').run(itemId, existingPic.id);
+                }
+            }
 
             // Process pictures: update descriptions for existing ones, add new ones
             if (pictures && pictures.length > 0) {
                 for (const pic of pictures) {
-                    console.log(`[dbManager.js] Updating picture for item ${itemId}:`, {
-                        isReference: pic.isReference,
-                        isNew: pic.isNew,
-                        hasTempPath: !!pic.temp_path,
-                        hasId: !!pic.id,
-                        wasLinked: existingPictureMap.has(pic.id),
-                        title: pic.title,
-                        file_name: pic.file_name
-                    });
 
                     if ((pic.isReference || pic.isExisting) && pic.id) {
                         // Handle reference to existing image (could be new reference or existing)
                         if (existingPictureMap.has(pic.id)) {
-                            console.log(`[dbManager.js] Updating description for existing referenced image ${pic.id}`);
                             // Update description for existing referenced image
                             const updateStmt = this.db.prepare(`
                                 UPDATE pictures 
@@ -1938,8 +1940,8 @@ class DatabaseManager {
                                 id: pic.id,
                                 description: pic.description || ''
                             });
+                            // Reference already exists, no need to re-add
                         } else {
-                            console.log(`[dbManager.js] Adding new reference to existing image ${pic.id}`);
                             // Update description for the referenced image
                             if (pic.description) {
                                 const updateStmt = this.db.prepare(`
@@ -1952,29 +1954,66 @@ class DatabaseManager {
                                     description: pic.description
                                 });
                             }
+                            // Add the new reference
+                            this.addImageReference(itemId, pic.id);
                         }
-                        
-                        // Re-add the reference (for both existing and new references)
-                        this.addImageReference(itemId, pic.id);
                     } else if (pic.isNew || pic.temp_path) {
                         // For completely new images, use the enhanced method
-                        console.log(`[dbManager.js] Processing new image via addPicturesToItemEnhanced`);
                         await this.addPicturesToItemEnhanced(itemId, [pic]);
+                    } else if (pic.id && pic.file_path) {
+                        // Fallback for existing images that have an ID but missing reference flags
+                        if (existingPictureMap.has(pic.id)) {
+                            // Update description for existing referenced image
+                            const updateStmt = this.db.prepare(`
+                                UPDATE pictures 
+                                SET description = @description 
+                                WHERE id = @id
+                            `);
+                            updateStmt.run({
+                                id: pic.id,
+                                description: pic.description || ''
+                            });
+                            // Reference already exists, no need to re-add
+                        } else {
+                            // Add new reference to existing image
+                            if (pic.description) {
+                                const updateStmt = this.db.prepare(`
+                                    UPDATE pictures 
+                                    SET description = @description 
+                                    WHERE id = @id
+                                `);
+                                updateStmt.run({
+                                    id: pic.id,
+                                    description: pic.description
+                                });
+                            }
+                            // Add the new reference
+                            this.addImageReference(itemId, pic.id);
+                        }
                     } else if (pic.file_path && !pic.id && !pic.isReference) {
                         // Fallback for legacy images without proper flags
-                        console.log(`[dbManager.js] Processing legacy image via addPicturesToItemEnhanced`);
                         await this.addPicturesToItemEnhanced(itemId, [pic]);
                     } else {
                         console.warn(`[dbManager.js] Skipping picture in update - no valid processing path found`, pic);
                     }
                 }
             }
+        };
 
-            this.db.prepare('COMMIT').run();
-        } catch (error) {
-            this.db.prepare('ROLLBACK').run();
-            console.error('Error updating item pictures:', error);
-            throw error;
+        if (inTransaction) {
+            // If already in a transaction, just execute the operations
+            await executeOperations();
+        } else {
+            // If not in a transaction, manage our own transaction
+            try {
+                this.db.prepare('BEGIN').run();
+                await executeOperations();
+                this.db.prepare('COMMIT').run();
+            } catch (error) {
+                this.db.prepare('ROLLBACK').run();
+                console.error('Error updating item pictures:', error);
+                throw error;
+            }
         }
     }
 
@@ -3381,9 +3420,19 @@ class DatabaseManager {
                 }
             }
             
+            // Handle connecting to existing item if specified
+            if (character.selected_existing_item) {
+                // Add character reference to the existing item
+                this.addCharacterReferencesToItem(character.selected_existing_item, [{ character_id: characterId }], true);
+                console.log(`[dbManager.js] Connected character ${characterId} to existing item ${character.selected_existing_item}`);
+            }
+            
             this.db.prepare('COMMIT').run();
             console.log(`[dbManager.js] Added character: ${characterId}`);
-            return characterId;
+            
+            // Return the full character object with the ID
+            const newCharacter = this.getCharacter(characterId);
+            return newCharacter;
             
         } catch (error) {
             this.db.prepare('ROLLBACK').run();
@@ -3565,7 +3614,7 @@ class DatabaseManager {
                 // Update story references if provided
                 if (character.story_refs !== undefined) {
                     // Remove existing story references
-                    this.db.prepare('DELETE FROM story_references WHERE item_id = ?').run(characterItem.id);
+                    this.db.prepare('DELETE FROM item_story_refs WHERE item_id = ?').run(characterItem.id);
                     // Add new story references
                     if (character.story_refs.length > 0) {
                         this.addStoryReferencesToItem(characterItem.id, character.story_refs);
@@ -3574,8 +3623,15 @@ class DatabaseManager {
                 
                 // Update images if provided
                 if (character.images !== undefined) {
-                    await this.updateItemPictures(characterItem.id, character.images);
+                    await this.updateItemPictures(characterItem.id, character.images, true);
                 }
+            }
+            
+            // Handle connecting to existing item if specified
+            if (character.selected_existing_item) {
+                // Add character reference to the existing item
+                this.addCharacterReferencesToItem(character.selected_existing_item, [{ character_id: id }], true);
+                console.log(`[dbManager.js] Connected character ${id} to existing item ${character.selected_existing_item}`);
             }
             
             this.db.prepare('COMMIT').run();
@@ -3774,6 +3830,186 @@ class DatabaseManager {
     deleteCharacterRelationship(id) {
         const result = this.db.prepare('DELETE FROM character_relationships WHERE id = ?').run(id);
         return result.changes > 0;
+    }
+
+    getCharacterGroup(characterId, options = {}) {
+        let onlyFamily = options.onlyFamily || false;
+        let importance = options.importance || -1;
+        let distance = options.distance || -1;
+
+        // Define family relationship types
+        const familyTypes = [
+            'parent', 'child', 'sibling', 'spouse', 'partner', 'grandparent', 'grandchild',
+            'great_grandparent', 'great_grandchild', 'aunt_uncle', 'niece_nephew', 'cousin',
+            'in_law', 'step_parent', 'step_child', 'step_sibling', 'half_sibling',
+            'adopted_parent', 'adopted_child', 'foster_parent', 'foster_child',
+            'godparent', 'godchild', 'ancestor', 'descendant'
+        ];
+
+        // Get the starting character
+        const startingCharacter = this.getCharacter(characterId);
+        if (!startingCharacter) {
+            return [];
+        }
+
+        // Result map to store unique characters and their relationships
+        const characterMap = new Map();
+        
+        // Add the starting character
+        characterMap.set(characterId, {
+            character: startingCharacter,
+            relationships: [],
+            distance: 0
+        });
+
+        // Queue for BFS traversal: [characterId, currentDistance]
+        const queue = [[characterId, 0]];
+        const visited = new Set([characterId]);
+
+        while (queue.length > 0) {
+            const [currentCharId, currentDistance] = queue.shift();
+
+            // If we've reached the maximum distance, don't explore further
+            if (distance !== -1 && currentDistance >= distance) {
+                continue;
+            }
+
+            // Get all relationships for the current character
+            const relationships = this.db.prepare(`
+                SELECT 
+                    cr.*,
+                    c1.name as character1_name,
+                    c2.name as character2_name
+                FROM character_relationships cr
+                JOIN characters c1 ON cr.character1_id = c1.id
+                JOIN characters c2 ON cr.character2_id = c2.id
+                WHERE (cr.character1_id = ? OR cr.character2_id = ?)
+                AND cr.timeline_id = ?
+            `).all(currentCharId, currentCharId, this.currentTimelineId);
+
+            for (const rel of relationships) {
+                // Apply importance filter
+                if (importance !== -1 && rel.strength < importance) {
+                    continue;
+                }
+
+                // Apply family filter
+                if (onlyFamily && !familyTypes.includes(rel.relationship_type)) {
+                    continue;
+                }
+
+                // Determine the connected character
+                const connectedCharId = rel.character1_id === currentCharId ? rel.character2_id : rel.character1_id;
+                const nextDistance = currentDistance + 1;
+
+                // Get the connected character data
+                const connectedChar = this.getCharacter(connectedCharId);
+                if (!connectedChar) continue;
+
+                // Determine the relationship type from current character's perspective
+                let relationshipType = rel.relationship_type;
+                if (rel.character2_id === currentCharId) {
+                    // We need to reverse the relationship perspective
+                    relationshipType = this.reverseRelationshipType(rel.relationship_type);
+                }
+
+                const relationshipData = {
+                    type: relationshipType,
+                    strength: rel.strength,
+                    distance: nextDistance,
+                    notes: rel.notes
+                };
+
+                // Add or update the character in our map
+                if (characterMap.has(connectedCharId)) {
+                    // Character already exists, add this relationship path
+                    characterMap.get(connectedCharId).relationships.push(relationshipData);
+                } else {
+                    // New character
+                    characterMap.set(connectedCharId, {
+                        character: connectedChar,
+                        relationships: [relationshipData],
+                        distance: nextDistance
+                    });
+                }
+
+                // Add to queue for further exploration if not visited and within distance
+                if (!visited.has(connectedCharId) && (distance === -1 || nextDistance < distance)) {
+                    queue.push([connectedCharId, nextDistance]);
+                    visited.add(connectedCharId);
+                }
+            }
+        }
+
+        // Convert map to array and return
+        return Array.from(characterMap.values());
+    }
+
+    /**
+     * Reverses a relationship type to get the perspective from the other character
+     * @param {string} relationshipType - The original relationship type
+     * @returns {string} The reversed relationship type
+     */
+    reverseRelationshipType(relationshipType) {
+        const reverseMap = {
+            'parent': 'child',
+            'child': 'parent',
+            'sibling': 'sibling',
+            'spouse': 'spouse',
+            'partner': 'partner',
+            'grandparent': 'grandchild',
+            'grandchild': 'grandparent',
+            'great_grandparent': 'great_grandchild',
+            'great_grandchild': 'great_grandparent',
+            'aunt_uncle': 'niece_nephew',
+            'niece_nephew': 'aunt_uncle',
+            'cousin': 'cousin',
+            'in_law': 'in_law',
+            'step_parent': 'step_child',
+            'step_child': 'step_parent',
+            'step_sibling': 'step_sibling',
+            'half_sibling': 'half_sibling',
+            'adopted_parent': 'adopted_child',
+            'adopted_child': 'adopted_parent',
+            'foster_parent': 'foster_child',
+            'foster_child': 'foster_parent',
+            'godparent': 'godchild',
+            'godchild': 'godparent',
+            'ancestor': 'descendant',
+            'descendant': 'ancestor',
+            'friend': 'friend',
+            'enemy': 'enemy',
+            'rival': 'rival',
+            'ally': 'ally',
+            'mentor': 'student',
+            'student': 'mentor',
+            'teacher': 'student',
+            'boss': 'employee',
+            'employee': 'boss',
+            'colleague': 'colleague',
+            'neighbor': 'neighbor',
+            'roommate': 'roommate',
+            'lover': 'lover',
+            'ex_partner': 'ex_partner',
+            'crush': 'crush', // Note: this might not be truly bidirectional in real life
+            'guardian': 'ward',
+            'ward': 'guardian',
+            'master': 'servant',
+            'servant': 'master',
+            'lord': 'vassal',
+            'vassal': 'lord',
+            'king': 'subject',
+            'subject': 'king',
+            'creator': 'creation',
+            'creation': 'creator',
+            'summoner': 'summon',
+            'summon': 'summoner',
+            'familiar': 'master', // Assuming familiar -> master relationship
+            'other': 'other',
+            'custom': 'custom'
+        };
+
+        return reverseMap[relationshipType] || relationshipType;
     }
 
     // ==================== ITEM-CHARACTER REFERENCE METHODS ====================

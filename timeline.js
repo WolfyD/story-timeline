@@ -247,8 +247,8 @@ function computePeriodStackLevels() {
         const aStart = parseFloat(a.year || a.date || 0) + (parseFloat(a.subtick || 0) / timelineState.granularity);
         const bStart = parseFloat(b.year || b.date || 0) + (parseFloat(b.subtick || 0) / timelineState.granularity);
         if (aStart !== bStart) return aStart - bStart;
-        const aEnd = parseFloat(a.end_year || a.year || 0) + (parseFloat(a.end_subtick || a.subtick || 0) / timelineState.granularity);
-        const bEnd = parseFloat(b.end_year || b.year || 0) + (parseFloat(b.end_subtick || b.subtick || 0) / timelineState.granularity);
+        const aEnd = parseFloat(a.end_year !== undefined && a.end_year !== null ? a.end_year : (a.year || 0)) + (parseFloat(a.end_subtick !== undefined && a.end_subtick !== null ? a.end_subtick : (a.subtick || 0)) / timelineState.granularity);
+        const bEnd = parseFloat(b.end_year !== undefined && b.end_year !== null ? b.end_year : (b.year || 0)) + (parseFloat(b.end_subtick !== undefined && b.end_subtick !== null ? b.end_subtick : (b.subtick || 0)) / timelineState.granularity);
         return aEnd - bEnd;
     });
     // Assign stack levels and alternation indices
@@ -260,7 +260,7 @@ function computePeriodStackLevels() {
         periodAltIndices[item.id] = altIndex++;
         // Stacking logic
         const start = parseFloat(item.year || item.date || 0) + (parseFloat(item.subtick || 0) / timelineState.granularity);
-        const end = parseFloat(item.end_year || item.year || 0) + (parseFloat(item.end_subtick || item.subtick || 0) / timelineState.granularity);
+        const end = parseFloat(item.end_year !== undefined && item.end_year !== null ? item.end_year : (item.year || 0)) + (parseFloat(item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : (item.subtick || 0)) / timelineState.granularity);
         // Alternate above/below based on periodAltIndex
         const isAbove = (periodAltIndices[item.id] % 2 === 0);
         const stacks = isAbove ? aboveStacks : belowStacks;
@@ -497,7 +497,7 @@ function updateMainContent(centerX, centerYear) {
         
         // Calculate exact pixel positions for start and end
         const startX = calculatePositionFromYear(item.year) + (item.subtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
-        const endX = calculatePositionFromYear(item.end_year || item.year) + ((item.end_subtick || item.subtick) / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        const endX = calculatePositionFromYear(item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year) + ((item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : item.subtick) / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
         
         // Check if centerX is between start and end positions
         return centerX >= startX && centerX <= endX;
@@ -508,7 +508,7 @@ function updateMainContent(centerX, centerYear) {
         
         // Calculate exact pixel positions for start and end
         const startX = calculatePositionFromYear(item.year) + (item.subtick / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
-        const endX = calculatePositionFromYear(item.end_year || item.year) + ((item.end_subtick || item.subtick) / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
+        const endX = calculatePositionFromYear(item.end_year !== undefined && item.end_year !== null ? item.end_year : item.year) + ((item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : item.subtick) / timelineState.granularity) * timelineState.pixelsPerSubtick * timelineState.granularity;
         
         // Check if centerX is between start and end positions
         return centerX >= startX && centerX <= endX;
@@ -734,8 +734,8 @@ function getVisibleItems(centerX, centerYear) {
         // Calculate item's start and end positions
         const startYear = parseFloat(item.year || item.date || 0);
         const startSubtick = parseFloat(item.subtick || 0);
-        const endYear = parseFloat(item.end_year || item.year || 0);
-        const endSubtick = parseFloat(item.end_subtick || item.subtick || 0);
+        const endYear = parseFloat(item.end_year !== undefined && item.end_year !== null ? item.end_year : (item.year || 0));
+        const endSubtick = parseFloat(item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : (item.subtick || 0));
         
         // Calculate exact positions
         const startPosition = startYear + (startSubtick / granularity);
@@ -879,7 +879,7 @@ function renderTimeline() {
     // Find all items that overlap with the current center position
     const overlappingItems = visibleItems.filter(item => {
         const itemStartYear = parseFloat(item.year || item.date || 0);
-        const itemEndYear = parseFloat(item.end_year || item.year || 0);
+        const itemEndYear = parseFloat(item.end_year !== undefined && item.end_year !== null ? item.end_year : (item.year || 0));
         return centerYear >= itemStartYear && centerYear <= itemEndYear;
     });
 
@@ -981,8 +981,8 @@ function renderTimeline() {
             // Calculate start and end positions
             const startYear = parseFloat(item.year || item.date || 0);
             const startSubtick = parseFloat(item.subtick || 0);
-            const endYear = parseFloat(item.end_year || item.year || 0);
-            const endSubtick = parseFloat(item.end_subtick || item.subtick || 0);
+            const endYear = parseFloat(item.end_year !== undefined && item.end_year !== null ? item.end_year : (item.year || 0));
+            const endSubtick = parseFloat(item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : (item.subtick || 0));
             
             // Calculate positions relative to the timeline's center
             const containerRect = container.getBoundingClientRect();
@@ -1072,8 +1072,8 @@ function renderTimeline() {
             // Calculate start and end positions
             const startYear = parseFloat(item.year || item.date || 0);
             const startSubtick = parseFloat(item.subtick || 0);
-            const endYear = parseFloat(item.end_year || item.year || 0);
-            const endSubtick = parseFloat(item.end_subtick || item.subtick || 0);
+            const endYear = parseFloat(item.end_year !== undefined && item.end_year !== null ? item.end_year : (item.year || 0));
+            const endSubtick = parseFloat(item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : (item.subtick || 0));
             
             // Calculate positions relative to the timeline's center
             const containerRect = container.getBoundingClientRect();
@@ -2223,8 +2223,8 @@ function findVisibleAgesAndPeriods(centerX, centerYear) {
         // Calculate start and end positions
         const startYear = parseFloat(item.year || item.date || 0);
         const startSubtick = parseInt(item.subtick || 0);
-        const endYear = parseFloat(item.end_year || item.year || 0);
-        const endSubtick = parseInt(item.end_subtick || item.subtick || 0);
+        const endYear = parseFloat(item.end_year !== undefined && item.end_year !== null ? item.end_year : (item.year || 0));
+        const endSubtick = parseInt(item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : (item.subtick || 0));
         
         // Calculate exact positions
         const startPosition = startYear + (startSubtick / timelineState.granularity);
@@ -2247,8 +2247,8 @@ function findVisibleAgesAndPeriods(centerX, centerYear) {
 function openEditAgeOrPeriod(item) {
     const year = parseFloat(item.year || item.date || 0);
     const subtick = parseInt(item.subtick || 0);
-    const endYear = parseFloat(item.end_year || item.year || 0);
-    const endSubtick = parseInt(item.end_subtick || item.subtick || 0);
+    const endYear = parseFloat(item.end_year !== undefined && item.end_year !== null ? item.end_year : (item.year || 0));
+    const endSubtick = parseInt(item.end_subtick !== undefined && item.end_subtick !== null ? item.end_subtick : (item.subtick || 0));
     
     const itemData = {
         id: item.id,

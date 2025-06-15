@@ -66,6 +66,7 @@ contextBridge.exposeInMainWorld('api', {
             'getAllCharacters',
             'getAllCharacterRelationships',
             'getAllCharacterReferences',
+            'open-relationship-editor-window',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -113,7 +114,12 @@ contextBridge.exposeInMainWorld('api', {
             'get-all-character-references',
             'get-items-referencing-character',
             'get-character-stats',
-            'validate-relationship-type'
+            'validate-relationship-type',
+            'get-character-relationships-between',
+            'get-character-relationship',
+            'get-relationship-editor-data',
+            'create-character-relationship',
+            'refresh-character-manager',
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);
@@ -175,7 +181,11 @@ contextBridge.exposeInMainWorld('api', {
             'characterRelationships',
             'characterReferences',
             'character-data',
-            'timeline-id'
+            'timeline-id',
+            'relationship-data',
+            'refresh-data',
+            'character-created',
+            'character-updated',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));
