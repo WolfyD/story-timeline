@@ -63,10 +63,34 @@ class TimelineCanvas {
 
         // Draw year label for full year ticks
         if (isFullYear && year !== null) {
-            ctx.fillStyle = '#4b2e2e';
+            // Check if year markers should be shown
+            const canvasSettings = window.timelineCanvasSettings;
+            if (canvasSettings && canvasSettings.showYearMarkers === false) {
+                return; // Don't draw year labels if disabled
+            }
+            
+            // Apply canvas settings if available
+            if (canvasSettings) {
+                ctx.fillStyle = canvasSettings.textColor || '#4b2e2e';
+                ctx.font = `${canvasSettings.fontStyle || 'normal'} ${canvasSettings.fontSize || 12}px ${canvasSettings.fontFamily || 'Arial'}`;
+                
+                // Apply letter spacing if supported
+                if (canvasSettings.letterSpacing) {
+                    ctx.letterSpacing = `${canvasSettings.letterSpacing}px`;
+                }
+            } else {
+                ctx.fillStyle = '#4b2e2e';
+                ctx.font = '12px Arial';
+            }
+            
             ctx.textAlign = 'center';
             ctx.textBaseline = 'top';
-            ctx.fillText(year.toString(), x, centerY + 25);
+            
+            // Apply text offsets
+            const offsetX = canvasSettings ? (canvasSettings.textOffsetX || 0) : 0;
+            const offsetY = canvasSettings ? (canvasSettings.textOffsetY || 0) : 0;
+            
+            ctx.fillText(year.toString(), x + offsetX, centerY + 25 + offsetY);
         }
     }
 
@@ -178,6 +202,7 @@ class TimelineCanvas {
 
 // Initialize TimelineCanvas
 const canvas = new TimelineCanvas(timelineCanvas);
+window.canvas = canvas; // Make it globally accessible
 
 // ===== State Management =====
 /**

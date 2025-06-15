@@ -372,6 +372,9 @@ function settingsSetup(settings) {
     document.body.style.setProperty('--default-font', fontSelect.value);
     document.body.style.setProperty('--default-font-scale', settings.fontSizeScale);
 
+    // Load canvas settings
+    loadCanvasSettings(settings);
+    
     loadedSettings = settings;
     checkAllLoaded();
 }
@@ -708,6 +711,14 @@ function checkAllLoaded() {
             loadedSettings.displayRadius || 10
         );
 
+        // Apply canvas settings after timeline is initialized
+        if (loadedSettings.canvasSettings) {
+            loadCanvasSettings(loadedSettings);
+        } else {
+            // Apply default canvas settings if none are saved
+            applyCanvasSettings();
+        }
+
         // If both data and settings are ready, tell main process we're ready to display
         if (isDataReady && isSettingsReady) {
             window.api.send('renderer-ready');
@@ -756,7 +767,8 @@ document.querySelector('#btn_SaveSettings')?.addEventListener('click', () => {
         showGuides: document.querySelector('#show-guides').checked,
         useCustomScaling: document.querySelector('#use-custom-scaling').checked,
         customScale: document.querySelector('#custom-scale').value,
-        displayRadius: parseInt(document.querySelector('#display-radius').value)
+        displayRadius: parseInt(document.querySelector('#display-radius').value),
+        canvasSettings: getCanvasSettings()
     };
 
     const data = {
@@ -1263,6 +1275,115 @@ function updateCustomScale(value) {
     }
 }
 
+// Canvas Settings Management
+let canvasSettings = {
+    showYearMarkers: true,
+    fontFamily: 'Arial',
+    fontSize: 12,
+    fontStyle: 'normal',
+    textColor: '#4b2e2e',
+    textOffsetX: 0,
+    textOffsetY: 0,
+    letterSpacing: 0
+};
+
+// Initialize canvas settings on page load
+document.addEventListener('DOMContentLoaded', () => {
+    // Set default canvas settings globally
+    window.timelineCanvasSettings = canvasSettings;
+});
+
+function updateCanvasSetting(setting, value) {
+    // Convert string values to appropriate types
+    if (setting === 'showYearMarkers') {
+        canvasSettings[setting] = Boolean(value);
+    } else if (setting === 'fontSize' || setting === 'textOffsetX' || setting === 'textOffsetY') {
+        canvasSettings[setting] = parseInt(value);
+    } else if (setting === 'letterSpacing') {
+        canvasSettings[setting] = parseFloat(value);
+    } else {
+        canvasSettings[setting] = value;
+    }
+    
+    // Apply the setting immediately to the display renderer if it exists
+    if (window.displayRenderer) {
+        applyCanvasSettings();
+    }
+    
+    console.log('Canvas setting updated:', setting, '=', canvasSettings[setting]);
+}
+
+function applyCanvasSettings() {
+    // Store canvas settings globally so the timeline canvas can access them
+    window.timelineCanvasSettings = canvasSettings;
+    
+    console.log('Applied canvas settings to timeline canvas:', canvasSettings);
+    
+    // Apply settings to the main timeline canvas
+    if (window.canvas && window.canvas.ctx) {
+        // Force a re-render of the timeline canvas
+        if (window.canvas.update) {
+            window.canvas.update();
+        }
+        console.log('Timeline canvas updated with new settings');
+    } else {
+        console.log('Timeline canvas not ready yet, settings stored for later application');
+    }
+}
+
+function loadCanvasSettings(settings) {
+    console.log('loadCanvasSettings called with:', settings);
+    if (!settings || !settings.canvasSettings) {
+        console.log('No canvas settings found, using defaults');
+        return;
+    }
+    
+    const savedSettings = settings.canvasSettings;
+    console.log('Loading canvas settings:', savedSettings);
+    
+    // Update our canvas settings object
+    canvasSettings = {
+        showYearMarkers: savedSettings.showYearMarkers !== undefined ? savedSettings.showYearMarkers : true,
+        fontFamily: savedSettings.fontFamily || 'Arial',
+        fontSize: savedSettings.fontSize || 12,
+        fontStyle: savedSettings.fontStyle || 'normal',
+        textColor: savedSettings.textColor || '#4b2e2e',
+        textOffsetX: savedSettings.textOffsetX || 0,
+        textOffsetY: savedSettings.textOffsetY || 0,
+        letterSpacing: savedSettings.letterSpacing || 0
+    };
+    
+    // Update the UI elements
+    const elements = {
+        'canvas-year-markers': canvasSettings.showYearMarkers,
+        'canvas-font-family': canvasSettings.fontFamily,
+        'canvas-font-size': canvasSettings.fontSize,
+        'canvas-font-style': canvasSettings.fontStyle,
+        'canvas-text-color': canvasSettings.textColor,
+        'canvas-text-offset-x': canvasSettings.textOffsetX,
+        'canvas-text-offset-y': canvasSettings.textOffsetY,
+        'canvas-letter-spacing': canvasSettings.letterSpacing
+    };
+    
+    for (const [elementId, value] of Object.entries(elements)) {
+        const element = document.getElementById(elementId);
+        if (element) {
+            if (element.type === 'checkbox') {
+                element.checked = value;
+            } else {
+                element.value = value;
+            }
+        }
+    }
+    
+    // Apply the settings to the timeline canvas
+    applyCanvasSettings();
+}
+
+function getCanvasSettings() {
+    return { ...canvasSettings };
+}
+
 // Handle timeline data
 window.api.receive('timeline-data', (data) => {
     
@@ -1315,6 +1436,8 @@ window.api.receive('timeline-data', (data) => {
     // Force a re-render of the timeline with the new data
     if (timelineState) {
         renderTimeline(timelineState.focusYear, timelineState.granularity, window.innerWidth);
+        // Apply canvas settings after timeline is rendered
+        applyCanvasSettings();
     }
 });
 
@@ -1323,6 +1446,8 @@ window.api.receive('items', (newItems) => {
     console.log('Received items:', newItems);
     timelineState.items = newItems;
     renderTimeline();
+    // Apply canvas settings after timeline is rendered
+    applyCanvasSettings();
 });
 
 // Add handler for data-ready message

@@ -692,6 +692,7 @@ function loadSettings() {
       useCustomScaling: savedSettings.useCustomScaling,
       customScale: savedSettings.customScale,
       displayRadius: parseInt(savedSettings.displayRadius || 10),
+      canvasSettings: savedSettings.canvasSettings || {},
       size: {
         x: parseInt(savedSettings.size?.x || 1000),
         y: parseInt(savedSettings.size?.y || 700)
@@ -1131,7 +1132,8 @@ function setupIpcHandlers() {
         use_custom_scaling: updatedSettings.useCustomScaling ? 1 : 0,
         custom_scale: parseFloat(updatedSettings.customScale || 1.0),
         timeline_id: data.timeline_id,
-        display_radius: parseInt(updatedSettings.displayRadius || 10)
+        display_radius: parseInt(updatedSettings.displayRadius || 10),
+        canvasSettings: updatedSettings.canvasSettings || {}
     };
 
     // Update settings in database

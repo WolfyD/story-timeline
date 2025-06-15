@@ -486,6 +486,15 @@ class DatabaseManager {
             }
         ]);
 
+        // Check and add canvas_settings column to settings table if it doesn't exist
+        this.ensureTableColumns('settings', [
+            {
+                name: 'canvas_settings',
+                type: 'TEXT',
+                default: 'NULL'
+            }
+        ]);
+
         // Migrate CSS columns to consolidate them
         await this.migrateCSSColumns();
         
@@ -1192,6 +1201,17 @@ class DatabaseManager {
         const settings = this.getTimelineSettings(timeline_id);
         if (!settings) return null;
 
+        // Parse canvas settings from JSON
+        let canvasSettings = {};
+        if (settings.canvas_settings) {
+            try {
+                canvasSettings = JSON.parse(settings.canvas_settings);
+            } catch (error) {
+                console.warn('[dbManager.js] Failed to parse canvas_settings JSON:', error);
+                canvasSettings = {};
+            }
+        }
+
         // Convert database snake_case to camelCase for frontend
         return {
             font: settings.font,
@@ -1213,7 +1233,8 @@ class DatabaseManager {
             },
             useCustomScaling: settings.use_custom_scaling === 1,
             customScale: settings.custom_scale,
-            displayRadius: settings.display_radius
+            displayRadius: settings.display_radius,
+            canvasSettings: canvasSettings
         };
     }
 
@@ -1222,6 +1243,17 @@ class DatabaseManager {
         if (!timelineId) {
             console.error('No timeline ID found in settings');
             return;
+        }
+
+        // Serialize canvas settings to JSON
+        let canvasSettingsJson = null;
+        if (settings.canvasSettings && typeof settings.canvasSettings === 'object') {
+            try {
+                canvasSettingsJson = JSON.stringify(settings.canvasSettings);
+            } catch (error) {
+                console.warn('[dbManager.js] Failed to serialize canvas_settings to JSON:', error);
+                canvasSettingsJson = null;
+            }
         }
 
         // Convert camelCase field names to snake_case for database
@@ -1244,7 +1276,8 @@ class DatabaseManager {
             use_custom_scaling: settings.use_custom_scaling !== undefined ? settings.use_custom_scaling :
                                (settings.useCustomScaling !== undefined ? (settings.useCustomScaling ? 1 : 0) : 0),
             custom_scale: settings.custom_scale || settings.customScale,
-            display_radius: settings.display_radius || settings.displayRadius
+            display_radius: settings.display_radius || settings.displayRadius,
+            canvas_settings: canvasSettingsJson
         };
 
         // First check if settings exist for this timeline
@@ -1261,14 +1294,16 @@ class DatabaseManager {
                     is_fullscreen, show_guides,
                     window_size_x, window_size_y,
                     window_position_x, window_position_y,
-                    use_custom_scaling, custom_scale, display_radius
+                    use_custom_scaling, custom_scale, display_radius,
+                    canvas_settings
                 ) VALUES (
                     @timeline_id, @font, @font_size_scale, @pixels_per_subtick,
                     @custom_css, @use_custom_css,
                     @is_fullscreen, @show_guides,
                     @window_size_x, @window_size_y,
                     @window_position_x, @window_position_y,
-                    @use_custom_scaling, @custom_scale, @display_radius
+                    @use_custom_scaling, @custom_scale, @display_radius,
+                    @canvas_settings
                 )
             `);
             return insertStmt.run(dbSettings);
@@ -1292,6 +1327,7 @@ class DatabaseManager {
                 use_custom_scaling = @use_custom_scaling,
                 custom_scale = @custom_scale,
                 display_radius = @display_radius,
+                canvas_settings = @canvas_settings,
                 updated_at = CURRENT_TIMESTAMP
             WHERE timeline_id = @timeline_id
         `);
@@ -2363,6 +2399,17 @@ class DatabaseManager {
 
         const settings = this.getTimelineSettings(timelineId);
         
+        // Parse canvas settings from JSON
+        let canvasSettings = {};
+        if (settings.canvas_settings) {
+            try {
+                canvasSettings = JSON.parse(settings.canvas_settings);
+            } catch (error) {
+                console.warn('[dbManager.js] Failed to parse canvas_settings JSON in getTimelineWithSettings:', error);
+                canvasSettings = {};
+            }
+        }
+
         // Convert database snake_case to frontend camelCase
         return {
             id: timeline.id,
@@ -2389,7 +2436,8 @@ class DatabaseManager {
                 },
                 useCustomScaling: settings.use_custom_scaling === 1,
                 customScale: settings.custom_scale,
-                displayRadius: settings.display_radius
+                displayRadius: settings.display_radius,
+                canvasSettings: canvasSettings
             }
         };
     }

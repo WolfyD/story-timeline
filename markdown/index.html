@@ -123,8 +123,9 @@
             Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc sed nisl ut mi volutpat faucibus vel ullamcorper ipsum. Ut pharetra lorem urna, a lacinia risus mollis auctor. Vivamus non ex quam. Aenean mattis eget tortor nec tincidunt. Fusce et pharetra eros, a commodo nunc. Maecenas aliquet gravida lectus nec pellentesque.
           </div>
 
-          <!-- Basic settings -->
-          <div class="basic-settings">
+          <!-- Timeline Settings -->
+          <div class="settings-section">
+            <h3 class="settings-section-title">Timeline Configuration</h3>
             <div class="settings-form">
               <div class="settings-row">
                 <label class="no-select" for="title">Title/Universe</label>
@@ -167,7 +168,15 @@
                   <div class="info-bubble no-select">How detailed your timeline should be (1-30, where 30 is most detailed)<br />Default is 4, for the four seasons</div>
                 </div>
               </div>
+            </div>
+          </div>
 
+          <div class="settings-separator"></div>
+
+          <!-- Display Settings -->
+          <div class="settings-section">
+            <h3 class="settings-section-title">Display Settings</h3>
+            <div class="settings-form">
               <div class="settings-row">
                 <label class="no-select" for="pixels-per-subtick">Tick width</label>
                 <div class="settings-input-container">
@@ -183,28 +192,6 @@
                   <input type="number" id="display-radius" min="1" max="100" value="10" onmousewheel="return true"; class="settings-input">
                   <span class="info-icon">?</span>
                   <div class="info-bubble no-select">How many ticks to show on each side of the current view</div>
-                </div>
-              </div>
-
-              <div class="settings-row">
-                <label class="no-select" for="use-custom-css">Use Custom CSS</label>
-                <div class="settings-input-container">
-                  <input type="checkbox" id="use-custom-css" class="settings-input" onclick="toggleCustomCSS(this.checked)">
-                  <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Enable custom CSS styling for the entire application</div>
-                </div>
-              </div>
-
-              <div class="settings-row css-editor-row">
-                <label class="no-select" for="custom-css-editor">Custom CSS</label>
-                <div class="settings-input-container">
-                  <textarea id="custom-css-editor" 
-                            class="settings-input custom-css" 
-                            style="margin-left: .8%; width: 95%;"
-                            placeholder="Enter your custom CSS here, or use the selector helper above to get started..."></textarea>
-                  <button class="settings-button reset-template-button" onclick="resetCSSToTemplate()">Reset to Template</button>
-                  <span class="info-icon">?</span>
-                  <div class="info-bubble no-select">Write custom CSS to style the timeline, main application, and items. Use the selector helper above to discover available CSS selectors and current styles.</div>
                 </div>
               </div>
 
@@ -234,9 +221,141 @@
                   <div class="info-bubble no-select">Set the window scale factor (0.5x to 2.0x)</div>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div class="settings-separator"></div>
+
+          <!-- Canvas Settings -->
+          <div class="settings-section">
+            <h3 class="settings-section-title">Canvas Rendering</h3>
+            <div class="settings-form">
+              <div class="settings-row">
+                <label class="no-select" for="canvas-year-markers">Show Year Markers</label>
+                <div class="settings-input-container">
+                  <input type="checkbox" id="canvas-year-markers" class="settings-input" onchange="updateCanvasSetting('showYearMarkers', this.checked)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Display year markers on the canvas timeline</div>
+                </div>
+              </div>
 
               <div class="settings-row">
-                <label class="no-select">Data Management</label>
+                <label class="no-select" for="canvas-font-family">Font Family</label>
+                <div class="settings-input-container">
+                  <select id="canvas-font-family" class="settings-input" onchange="updateCanvasSetting('fontFamily', this.value)">
+                    <option value="Arial">Arial</option>
+                    <option value="Georgia">Georgia</option>
+                    <option value="Times New Roman">Times New Roman</option>
+                    <option value="Courier New">Courier New</option>
+                    <option value="Verdana">Verdana</option>
+                    <option value="Tahoma">Tahoma</option>
+                    <option value="Trebuchet MS">Trebuchet MS</option>
+                    <option value="Palatino">Palatino</option>
+                  </select>
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Font family for canvas text rendering</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="canvas-font-size">Font Size</label>
+                <div class="settings-input-container">
+                  <input type="number" id="canvas-font-size" class="settings-input" min="8" max="24" value="12" onchange="updateCanvasSetting('fontSize', this.value)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Font size for canvas text (8-24px)</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="canvas-font-style">Font Style</label>
+                <div class="settings-input-container">
+                  <select id="canvas-font-style" class="settings-input" onchange="updateCanvasSetting('fontStyle', this.value)">
+                    <option value="normal">Normal</option>
+                    <option value="italic">Italic</option>
+                    <option value="bold">Bold</option>
+                    <option value="bold italic">Bold Italic</option>
+                  </select>
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Font style for canvas text</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="canvas-text-color">Text Color</label>
+                <div class="settings-input-container">
+                  <input type="color" id="canvas-text-color" class="settings-input" value="#4b2e2e" onchange="updateCanvasSetting('textColor', this.value)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Color for canvas text elements</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="canvas-text-offset-x">Text X Offset</label>
+                <div class="settings-input-container">
+                  <input type="number" id="canvas-text-offset-x" class="settings-input" min="-50" max="50" value="0" onchange="updateCanvasSetting('textOffsetX', this.value)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Horizontal offset for text positioning (-50 to 50px)</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="canvas-text-offset-y">Text Y Offset</label>
+                <div class="settings-input-container">
+                  <input type="number" id="canvas-text-offset-y" class="settings-input" min="-50" max="50" value="0" onchange="updateCanvasSetting('textOffsetY', this.value)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Vertical offset for text positioning (-50 to 50px)</div>
+                </div>
+              </div>
+
+              <div class="settings-row">
+                <label class="no-select" for="canvas-letter-spacing">Letter Spacing</label>
+                <div class="settings-input-container">
+                  <input type="number" id="canvas-letter-spacing" class="settings-input" min="-2" max="10" step="0.1" value="0" onchange="updateCanvasSetting('letterSpacing', this.value)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Spacing between characters (-2 to 10px)</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-separator"></div>
+
+          <!-- Styling Settings -->
+          <div class="settings-section">
+            <h3 class="settings-section-title">Custom Styling</h3>
+            <div class="settings-form">
+              <div class="settings-row">
+                <label class="no-select" for="use-custom-css">Use Custom CSS</label>
+                <div class="settings-input-container">
+                  <input type="checkbox" id="use-custom-css" class="settings-input" onclick="toggleCustomCSS(this.checked)">
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Enable custom CSS styling for the entire application</div>
+                </div>
+              </div>
+
+              <div class="settings-row css-editor-row">
+                <label class="no-select" for="custom-css-editor">Custom CSS</label>
+                <div class="settings-input-container">
+                  <textarea id="custom-css-editor" 
+                            class="settings-input custom-css" 
+                            style="margin-left: .8%; width: 95%;"
+                            placeholder="Enter your custom CSS here, or use the selector helper above to get started..."></textarea>
+                  <button class="settings-button reset-template-button" onclick="resetCSSToTemplate()">Reset to Template</button>
+                  <span class="info-icon">?</span>
+                  <div class="info-bubble no-select">Write custom CSS to style the timeline, main application, and items. Use the selector helper above to discover available CSS selectors and current styles.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-separator"></div>
+
+          <!-- Data Management -->
+          <div class="settings-section">
+            <h3 class="settings-section-title">Data Management</h3>
+            <div class="settings-form">
+              <div class="settings-row">
+                <label class="no-select">Import/Export</label>
                 <div class="settings-input-container">
                   <button class="settings-button" onclick="exportTimelineData()">Export Timeline Data</button>
                   <button class="settings-button" onclick="importTimelineData()">Import Timeline Data</button>
@@ -244,7 +363,6 @@
                   <div class="info-bubble no-select">Export/Import timeline items and story references</div>
                 </div>
               </div>
-
             </div>
           </div>
 

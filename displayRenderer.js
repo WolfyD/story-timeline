@@ -698,15 +698,25 @@ class DisplayRenderer {
     }
 
     renderYearMarkers() {
+        // Check if year markers should be shown
+        if (this.config.showYearMarkers === false) {
+            return;
+        }
+        
         const { yearMarkerHeight, yearMarkerWidth, yearLabelFont } = this.config.sizes;
         const { yearMarker, yearLabel } = this.config.colors;
         const timelineY = this.canvas.height - this.config.spacing.timelinePadding;
-        const labelY = timelineY + this.config.spacing.yearLabelPadding;
+        const labelY = timelineY + this.config.spacing.yearLabelPadding + (this.config.spacing.textOffsetY || 0);
 
         // Set up text rendering
         this.ctx.font = yearLabelFont;
         this.ctx.fillStyle = yearLabel;
         this.ctx.textAlign = 'center';
+        
+        // Apply letter spacing if supported
+        if (this.config.spacing.letterSpacing) {
+            this.ctx.letterSpacing = `${this.config.spacing.letterSpacing}px`;
+        }
 
         if (this.timelineItems.length === 0) {
             // If no items, just show the current year in the middle
@@ -755,13 +765,13 @@ class DisplayRenderer {
                 const labelWidth = this.ctx.measureText(yearText).width;
                 
                 // Adjust position for first and last labels
-                let labelX = x;
+                let labelX = x + (this.config.spacing.textOffsetX || 0);
                 if (i === 0) {
                     // First label: shift right by 60% of its width
-                    labelX = x + (labelWidth * 0.6);
+                    labelX = x + (labelWidth * 0.6) + (this.config.spacing.textOffsetX || 0);
                 } else if (i === numMarkers) {
                     // Last label: shift left by 60% of its width
-                    labelX = x - (labelWidth * 0.6);
+                    labelX = x - (labelWidth * 0.6) + (this.config.spacing.textOffsetX || 0);
                 }
                 
                 this.ctx.fillText(yearText, labelX, labelY);
@@ -789,10 +799,16 @@ class DisplayRenderer {
         this.ctx.font = this.config.sizes.currentYearFont;
         this.ctx.fillStyle = this.config.colors.currentYearLabel;
         this.ctx.textAlign = 'center';
+        
+        // Apply letter spacing if supported
+        if (this.config.spacing.letterSpacing) {
+            this.ctx.letterSpacing = `${this.config.spacing.letterSpacing}px`;
+        }
+        
         this.ctx.fillText(
             Math.round(centerYear).toString(),
-            centerX,
-            timelineY - this.config.sizes.currentYearPadding
+            centerX + (this.config.spacing.textOffsetX || 0),
+            timelineY - this.config.sizes.currentYearPadding + (this.config.spacing.textOffsetY || 0)
         );
     }
 
