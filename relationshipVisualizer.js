@@ -16,6 +16,9 @@ let canvas, ctx;
 let timelineId = null;
 let focusCharacterId = null;
 
+// Image cache for character images
+let imageCache = new Map();
+
 // Viewport state
 let viewport = {
     x: 0,
@@ -62,18 +65,55 @@ class CharacterNode {
         this.targetY = this.y;
         this.vx = 0;
         this.vy = 0;
-        this.radius = this.calculateRadius();
+        this.radius = 35; // Fixed radius for all characters
         this.color = character.color || this.generateColor();
         this.selected = false;
         this.hovered = false;
         this.isInitiating = false;
         this.connections = [];
+        this.image = null;
+        this.imageLoaded = false;
+        
+        // Load character image if available
+        if (character.images && character.images.length > 0 && character.images[0].file_path) {
+            this.loadImage(character.images[0].file_path);
+        }
     }
 
     calculateRadius() {
-        const baseRadius = 25;
-        const importance = this.character.importance || 5;
-        return baseRadius + (importance - 5) * 3;
+        // Return fixed radius - no longer variable based on importance
+        return 35;
+    }
+
+    loadImage(imagePath) {
+        // Check cache first
+        if (imageCache.has(imagePath)) {
+            const cachedImage = imageCache.get(imagePath);
+            if (cachedImage.complete) {
+                this.image = cachedImage;
+                this.imageLoaded = true;
+                return;
+            }
+        }
+
+        // Load new image
+        const img = new Image();
+        img.onload = () => {
+            this.image = img;
+            this.imageLoaded = true;
+            imageCache.set(imagePath, img);
+        };
+        img.onerror = () => {
+            console.warn(`Failed to load character image: ${imagePath}`);
+            this.imageLoaded = false;
+        };
+        
+        // Convert relative path to full path if needed
+        if (imagePath.startsWith('images/')) {
+            img.src = `../${imagePath}`;
+        } else {
+            img.src = imagePath;
+        }
     }
 
     generateColor() {
@@ -136,22 +176,44 @@ class CharacterNode {
             ctx.shadowBlur = 15;
         }
 
-        // Draw character circle
-        ctx.fillStyle = this.color;
-        ctx.strokeStyle = this.pathHighlighted ? '#FF4500' : '#4b2e2e';
-        ctx.lineWidth = this.pathHighlighted ? 3 : 2;
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-
-        // Draw character image if available
-        if (this.character.image_path) {
-            // TODO: Load and draw character image
+        // Draw character image or circle
+        if (this.imageLoaded && this.image) {
+            // Draw circular clipped image
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2);
+            ctx.clip();
+            
+            // Draw image to fit within circle
+            const imageSize = screenRadius * 2;
+            ctx.drawImage(
+                this.image, 
+                screenX - screenRadius, 
+                screenY - screenRadius, 
+                imageSize, 
+                imageSize
+            );
+            ctx.restore();
+            
+            // Draw border around image
+            ctx.strokeStyle = this.pathHighlighted ? '#FF4500' : '#4b2e2e';
+            ctx.lineWidth = this.pathHighlighted ? 3 : 2;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            // Draw character circle (fallback when no image)
+            ctx.fillStyle = this.color;
+            ctx.strokeStyle = this.pathHighlighted ? '#FF4500' : '#4b2e2e';
+            ctx.lineWidth = this.pathHighlighted ? 3 : 2;
+            ctx.beginPath();
+            ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
         }
 
         // Draw character name
-        ctx.fillStyle = '#4b2e2e';
+        ctx.fillStyle = isDarkMode ? '#e0e0e0' : '#4b2e2e';
         ctx.font = `${Math.max(12, 14 * viewport.zoom)}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -160,10 +222,10 @@ class CharacterNode {
         const textY = screenY + screenRadius + 20;
         const textWidth = ctx.measureText(this.name).width;
         
-        ctx.fillStyle = 'rgba(255, 248, 239, 0.9)';
+        ctx.fillStyle = isDarkMode ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 248, 239, 0.9)';
         ctx.fillRect(screenX - textWidth/2 - 4, textY - 8, textWidth + 8, 16);
         
-        ctx.fillStyle = '#4b2e2e';
+        ctx.fillStyle = isDarkMode ? '#e0e0e0' : '#4b2e2e';
         ctx.fillText(this.name, screenX, textY);
 
         ctx.restore();
@@ -199,16 +261,57 @@ class RelationshipConnection {
     }
 
     getTypeColor() {
+        const familyTypes = ['parent', 'child', 'sibling', 'spouse', 'partner', 'grandparent', 'grandchild', 
+                           'uncle', 'aunt', 'cousin', 'nephew', 'niece', 'step-parent', 'step-child', 
+                           'step-sibling', 'half-sibling', 'adoptive-parent', 'adoptive-child'];
+        
+        const relType = this.type || (this.relationship && this.relationship.relationship_type);
+        
+        // Family relationships - warmer colors
+        if (familyTypes.includes(relType)) {
+            const familyColors = {
+                'parent': '#E74C3C',      // Red
+                'child': '#E74C3C',       // Red
+                'sibling': '#F39C12',     // Orange
+                'spouse': '#E91E63',      // Pink
+                'partner': '#E91E63',     // Pink
+                'grandparent': '#8E44AD', // Purple
+                'grandchild': '#8E44AD',  // Purple
+                'uncle': '#D35400',       // Dark orange
+                'aunt': '#D35400',        // Dark orange
+                'cousin': '#F1C40F',      // Yellow
+                'nephew': '#D35400',      // Dark orange
+                'niece': '#D35400',       // Dark orange
+                'default_family': '#E74C3C'
+            };
+            return familyColors[relType] || familyColors.default_family;
+        }
+        
+        // Non-family relationships - cooler colors
         const typeColors = {
-            'family': '#FF6B6B',
-            'romantic': '#E17055',
-            'friendship': '#00B894',
-            'professional': '#0984E3',
-            'antagonistic': '#D63031',
-            'mentor': '#A29BFE',
-            'default': '#636E72'
+            'friend': '#27AE60',          // Green
+            'best-friend': '#2ECC71',     // Light green
+            'enemy': '#C0392B',           // Dark red
+            'rival': '#E67E22',           // Orange-red
+            'ally': '#3498DB',            // Blue
+            'colleague': '#34495E',       // Dark blue-gray
+            'mentor': '#9B59B6',          // Purple
+            'student': '#9B59B6',         // Purple
+            'neighbor': '#95A5A6',        // Gray
+            'acquaintance': '#BDC3C7',    // Light gray
+            'default': '#7F8C8D'          // Medium gray
         };
-        return typeColors[this.type] || typeColors.default;
+        
+        return typeColors[relType] || typeColors.default;
+    }
+
+    isFamilyRelationship() {
+        const familyTypes = ['parent', 'child', 'sibling', 'spouse', 'partner', 'grandparent', 'grandchild', 
+                           'uncle', 'aunt', 'cousin', 'nephew', 'niece', 'step-parent', 'step-child', 
+                           'step-sibling', 'half-sibling', 'adoptive-parent', 'adoptive-child'];
+        
+        const relType = this.type || (this.relationship && this.relationship.relationship_type);
+        return familyTypes.includes(relType);
     }
 
     draw(ctx, viewport) {
@@ -217,18 +320,29 @@ class RelationshipConnection {
 
         ctx.save();
         
-        // Enhanced styling based on strength and highlighting
-        const baseColor = this.fromNode.color || this.color;
+        // Enhanced styling based on relationship type and highlighting
+        const isFamily = this.isFamilyRelationship();
+        const baseColor = this.getTypeColor();
         ctx.strokeStyle = this.pathHighlighted ? '#FF4500' : baseColor;
         
-        // Width based on relationship strength (1-10 scale)
-        const strengthWidth = Math.max(1, Math.min(8, this.strength));
-        ctx.lineWidth = (this.pathHighlighted ? strengthWidth + 2 : strengthWidth) * viewport.zoom;
-        
-        ctx.globalAlpha = this.pathHighlighted ? 0.9 : 0.7;
+        // Different line styles for family vs non-family
+        if (isFamily) {
+            // Family relationships: solid, thicker lines
+            const strengthWidth = Math.max(2, Math.min(6, this.strength / 2));
+            ctx.lineWidth = (this.pathHighlighted ? strengthWidth + 2 : strengthWidth) * viewport.zoom;
+            ctx.globalAlpha = this.pathHighlighted ? 0.9 : 0.8;
+        } else {
+            // Non-family relationships: thinner, more transparent
+            const strengthWidth = Math.max(1, Math.min(4, this.strength / 3));
+            ctx.lineWidth = (this.pathHighlighted ? strengthWidth + 2 : strengthWidth) * viewport.zoom;
+            ctx.globalAlpha = this.pathHighlighted ? 0.9 : 0.6;
+            
+            // Dashed line for non-family relationships
+            ctx.setLineDash([8 * viewport.zoom, 4 * viewport.zoom]);
+        }
 
-        // Check if we need to curve the arrow to avoid nodes
-        const shouldCurve = this.shouldCurveAroundNodes();
+        // Family relationships stay within clusters, non-family can be longer
+        const shouldCurve = !isFamily && this.shouldCurveAroundNodes();
         
         if (shouldCurve) {
             this.drawCurvedConnection(ctx, fromScreen, toScreen, viewport.zoom);
@@ -245,14 +359,14 @@ class RelationshipConnection {
     }
 
     shouldCurveAroundNodes() {
-        // Simple check: if there are other nodes near the line, curve around them
+        // Curve longer non-family connections to avoid clusters
         const lineLength = Math.sqrt(
             Math.pow(this.toNode.x - this.fromNode.x, 2) + 
             Math.pow(this.toNode.y - this.fromNode.y, 2)
         );
         
-        // Only curve for longer connections
-        return lineLength > 150;
+        // Curve if it's a long connection (likely between different family clusters)
+        return lineLength > 200;
     }
 
     drawStraightConnection(ctx, fromScreen, toScreen, zoom) {
@@ -362,17 +476,39 @@ class RelationshipConnection {
     }
 
     drawArrowHead(ctx, x, y, dirX, dirY, zoom) {
-        const arrowLength = this.bidirectional ? 18 * zoom : 15 * zoom; // Slightly larger for bidirectional
-        const arrowAngle = Math.PI / 6;
+        const relType = this.type || (this.relationship && this.relationship.relationship_type);
+        const isFamily = this.isFamilyRelationship();
+        
+        // Different arrow styles for different relationship types
+        let arrowLength = 15 * zoom;
+        let arrowAngle = Math.PI / 6;
+        
+        if (isFamily) {
+            // Family relationships: larger, more prominent arrows
+            arrowLength = this.bidirectional ? 20 * zoom : 18 * zoom;
+            arrowAngle = Math.PI / 5; // Slightly wider
+        } else {
+            // Non-family relationships: smaller, subtler arrows
+            arrowLength = this.bidirectional ? 16 * zoom : 14 * zoom;
+            arrowAngle = Math.PI / 7; // Narrower
+        }
+        
         const angle = Math.atan2(dirY, dirX);
 
         ctx.save();
         
-        // Make bidirectional arrows slightly thicker
-        if (this.bidirectional) {
-            ctx.lineWidth = ctx.lineWidth * 1.2;
+        // Special arrow styles for specific relationships
+        if (['spouse', 'partner'].includes(relType)) {
+            // Heart-like arrow for romantic relationships
+            this.drawHeartArrow(ctx, x, y, angle, zoom);
+        } else if (['enemy', 'rival'].includes(relType)) {
+            // Sharp, aggressive arrow for antagonistic relationships
+            arrowLength *= 1.3;
+            arrowAngle = Math.PI / 4;
+            ctx.lineWidth = ctx.lineWidth * 1.5;
         }
-
+        
+        // Draw standard arrow
         ctx.beginPath();
         ctx.moveTo(x, y);
         ctx.lineTo(
@@ -385,6 +521,26 @@ class RelationshipConnection {
             y - arrowLength * Math.sin(angle + arrowAngle)
         );
         ctx.stroke();
+        
+        ctx.restore();
+    }
+    
+    drawHeartArrow(ctx, x, y, angle, zoom) {
+        const size = 12 * zoom;
+        
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        
+        // Draw a simple heart shape
+        ctx.beginPath();
+        ctx.moveTo(0, -size/3);
+        ctx.bezierCurveTo(-size/2, -size, -size, -size/2, -size/2, 0);
+        ctx.bezierCurveTo(-size/4, size/4, 0, size/2, 0, size/3);
+        ctx.bezierCurveTo(0, size/2, size/4, size/4, size/2, 0);
+        ctx.bezierCurveTo(size, -size/2, size/2, -size, 0, -size/3);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
         
         ctx.restore();
     }
@@ -589,120 +745,408 @@ class LayoutManager {
     }
 
     static applyFamilyForestLayout(nodes, connections) {
-        const familyTypes = ['parent', 'child', 'sibling', 'spouse', 'grandparent', 'grandchild', 'uncle', 'aunt', 'cousin', 'nephew', 'niece'];
+        console.log('Starting 3-step Family Forest layout...');
         
-        // Group characters into family clusters
-        const familyClusters = [];
+        const familyTypes = ['parent', 'child', 'sibling', 'spouse', 'partner', 'grandparent', 'grandchild', 
+                           'uncle', 'aunt', 'cousin', 'nephew', 'niece', 'step-parent', 'step-child', 
+                           'step-sibling', 'half-sibling', 'adoptive-parent', 'adoptive-child'];
+        
+        const canvasWidth = 1200;
+        const canvasHeight = 800;
+        const allGroups = [];
+        const processedNodes = new Set();
+        
+        // STEP 1: Identify and place family groups
+        console.log('Step 1: Processing family groups...');
+        const familyGroups = this.identifyFamilyGroups(nodes, connections, familyTypes);
+        
+        familyGroups.forEach((group, index) => {
+            const groupSize = group.members.length;
+            const baseDistance = Math.max(200, 150 + groupSize * 20 + nodes.length * 2);
+            
+            // Find a good position for this family group
+            const position = this.findGroupPosition(allGroups, canvasWidth, canvasHeight, baseDistance);
+            
+            // Layout family members tightly
+            this.layoutTightGroup(group.members, connections, position.x, position.y, 'family');
+            
+            allGroups.push({
+                type: 'family',
+                members: group.members,
+                center: position,
+                radius: this.calculateGroupRadius(group.members, position)
+            });
+            
+            group.members.forEach(node => processedNodes.add(node.id));
+            console.log(`  Family group ${index + 1}: ${groupSize} members at (${Math.round(position.x)}, ${Math.round(position.y)})`);
+        });
+        
+        // STEP 2: Identify and place acquaintance groups (5+ people)
+        console.log('Step 2: Processing acquaintance groups...');
+        const remainingNodes = nodes.filter(node => !processedNodes.has(node.id));
+        const acquaintanceGroups = this.identifyAcquaintanceGroups(remainingNodes, connections, familyTypes, 5);
+        
+        acquaintanceGroups.forEach((group, index) => {
+            const groupSize = group.members.length;
+            const baseDistance = Math.max(150, 100 + groupSize * 15);
+            
+            // Find position between/around family groups
+            const position = this.findGroupPosition(allGroups, canvasWidth, canvasHeight, baseDistance);
+            
+            // Layout acquaintances more loosely
+            this.layoutLooseGroup(group.members, connections, position.x, position.y, 'acquaintance');
+            
+            allGroups.push({
+                type: 'acquaintance',
+                members: group.members,
+                center: position,
+                radius: this.calculateGroupRadius(group.members, position)
+            });
+            
+            group.members.forEach(node => processedNodes.add(node.id));
+            console.log(`  Acquaintance group ${index + 1}: ${groupSize} members at (${Math.round(position.x)}, ${Math.round(position.y)})`);
+        });
+        
+        // STEP 3: Sprinkle the rest organically
+        console.log('Step 3: Sprinkling remaining characters...');
+        const finalRemainingNodes = nodes.filter(node => !processedNodes.has(node.id));
+        const smallGroups = this.identifySmallGroups(finalRemainingNodes, connections, familyTypes);
+        
+        smallGroups.forEach((group, index) => {
+            const groupSize = group.members.length;
+            const baseDistance = groupSize === 1 ? 80 : 100;
+            
+            // Find organic positions among existing groups
+            const position = this.findOrganicPosition(allGroups, canvasWidth, canvasHeight, baseDistance);
+            
+            if (groupSize === 1) {
+                // Single character
+                group.members[0].targetX = position.x + (Math.random() - 0.5) * 30;
+                group.members[0].targetY = position.y + (Math.random() - 0.5) * 30;
+            } else {
+                // Small group (2-4 people)
+                this.layoutSmallGroup(group.members, connections, position.x, position.y);
+            }
+            
+            allGroups.push({
+                type: 'small',
+                members: group.members,
+                center: position,
+                radius: groupSize === 1 ? 40 : this.calculateGroupRadius(group.members, position)
+            });
+            
+            console.log(`  Small group ${index + 1}: ${groupSize} members at (${Math.round(position.x)}, ${Math.round(position.y)})`);
+        });
+        
+        // Store all groups for rendering
+        window.familyClusters = allGroups.filter(g => g.type === 'family');
+        window.allGroups = allGroups; // Store all groups for potential future use
+        
+        console.log(`Family Forest layout complete: ${familyGroups.length} families, ${acquaintanceGroups.length} acquaintance groups, ${smallGroups.length} small groups`);
+    }
+    
+    static identifyFamilyGroups(nodes, connections, familyTypes) {
+        const familyGroups = [];
         const visited = new Set();
         
         nodes.forEach(node => {
             if (visited.has(node.id)) return;
             
-            const cluster = [];
+            const group = [];
             const queue = [node];
-            const clusterVisited = new Set([node.id]);
+            const groupVisited = new Set([node.id]);
             
             while (queue.length > 0) {
                 const current = queue.shift();
-                cluster.push(current);
+                group.push(current);
                 visited.add(current.id);
                 
                 // Find family connections
                 connections.forEach(conn => {
-                    if (!familyTypes.includes(conn.type)) return;
+                    const relType = conn.type || (conn.relationship && conn.relationship.relationship_type);
+                    if (!familyTypes.includes(relType)) return;
                     
                     let nextNode = null;
-                    if (conn.fromNode === current && !clusterVisited.has(conn.toNode.id)) {
+                    if (conn.fromNode === current && !groupVisited.has(conn.toNode.id)) {
                         nextNode = conn.toNode;
-                    } else if (conn.toNode === current && !clusterVisited.has(conn.fromNode.id)) {
+                    } else if (conn.toNode === current && !groupVisited.has(conn.fromNode.id)) {
                         nextNode = conn.fromNode;
                     }
                     
                     if (nextNode) {
-                        clusterVisited.add(nextNode.id);
+                        groupVisited.add(nextNode.id);
                         queue.push(nextNode);
                     }
                 });
             }
             
-            if (cluster.length > 0) {
-                familyClusters.push(cluster);
+            if (group.length > 0) {
+                familyGroups.push({ members: group });
             }
         });
         
-        // Position each family cluster
-        const clusterSpacing = 300 * nodeDistanceScale;
-        const nodeSpacing = 120 * nodeDistanceScale;
-        let currentX = 100;
+        return familyGroups;
+    }
+    
+    static identifyAcquaintanceGroups(nodes, connections, familyTypes, minSize) {
+        const acquaintanceGroups = [];
+        const visited = new Set();
         
-        familyClusters.forEach((cluster, clusterIndex) => {
-            if (cluster.length === 1) {
-                // Single character
-                cluster[0].targetX = currentX;
-                cluster[0].targetY = 300;
-            } else {
-                // Apply hierarchical layout within the cluster
-                this.layoutFamilyCluster(cluster, connections, currentX, 100);
+        nodes.forEach(node => {
+            if (visited.has(node.id)) return;
+            
+            const group = [];
+            const queue = [node];
+            const groupVisited = new Set([node.id]);
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                group.push(current);
+                visited.add(current.id);
+                
+                // Find non-family connections
+                connections.forEach(conn => {
+                    const relType = conn.type || (conn.relationship && conn.relationship.relationship_type);
+                    if (familyTypes.includes(relType)) return; // Skip family relationships
+                    
+                    let nextNode = null;
+                    if (conn.fromNode === current && nodes.includes(conn.toNode) && !groupVisited.has(conn.toNode.id)) {
+                        nextNode = conn.toNode;
+                    } else if (conn.toNode === current && nodes.includes(conn.fromNode) && !groupVisited.has(conn.fromNode.id)) {
+                        nextNode = conn.fromNode;
+                    }
+                    
+                    if (nextNode) {
+                        groupVisited.add(nextNode.id);
+                        queue.push(nextNode);
+                    }
+                });
             }
             
-            // Calculate cluster width for next cluster positioning
-            const clusterWidth = Math.max(nodeSpacing * 2, cluster.length * nodeSpacing);
-            currentX += clusterWidth + clusterSpacing;
+            if (group.length >= minSize) {
+                acquaintanceGroups.push({ members: group });
+            } else {
+                // Put back in the pool for step 3
+                group.forEach(node => visited.delete(node.id));
+            }
+        });
+        
+        return acquaintanceGroups;
+    }
+    
+    static identifySmallGroups(nodes, connections, familyTypes) {
+        const smallGroups = [];
+        const visited = new Set();
+        
+        nodes.forEach(node => {
+            if (visited.has(node.id)) return;
+            
+            const group = [];
+            const queue = [node];
+            const groupVisited = new Set([node.id]);
+            
+            while (queue.length > 0) {
+                const current = queue.shift();
+                group.push(current);
+                visited.add(current.id);
+                
+                // Find any connections (family or non-family)
+                connections.forEach(conn => {
+                    let nextNode = null;
+                    if (conn.fromNode === current && nodes.includes(conn.toNode) && !groupVisited.has(conn.toNode.id)) {
+                        nextNode = conn.toNode;
+                    } else if (conn.toNode === current && nodes.includes(conn.fromNode) && !groupVisited.has(conn.fromNode.id)) {
+                        nextNode = conn.fromNode;
+                    }
+                    
+                    if (nextNode) {
+                        groupVisited.add(nextNode.id);
+                        queue.push(nextNode);
+                    }
+                });
+            }
+            
+            if (group.length > 0) {
+                smallGroups.push({ members: group });
+            }
+        });
+        
+        return smallGroups;
+    }
+    
+    static findGroupPosition(existingGroups, canvasWidth, canvasHeight, minDistance) {
+        let attempts = 0;
+        let position;
+        
+        while (attempts < 100) {
+            position = {
+                x: 150 + Math.random() * (canvasWidth - 300),
+                y: 150 + Math.random() * (canvasHeight - 300)
+            };
+            
+            // Check distance from existing groups
+            let validPosition = true;
+            for (const group of existingGroups) {
+                const distance = Math.sqrt(
+                    Math.pow(position.x - group.center.x, 2) + 
+                    Math.pow(position.y - group.center.y, 2)
+                );
+                
+                if (distance < minDistance + group.radius) {
+                    validPosition = false;
+                    break;
+                }
+            }
+            
+            if (validPosition) break;
+            attempts++;
+        }
+        
+        // Fallback if no good position found
+        if (attempts >= 100) {
+            const angle = Math.random() * Math.PI * 2;
+            const radius = 200 + existingGroups.length * 50;
+            position = {
+                x: canvasWidth/2 + Math.cos(angle) * radius,
+                y: canvasHeight/2 + Math.sin(angle) * radius
+            };
+        }
+        
+        return position;
+    }
+    
+    static findOrganicPosition(existingGroups, canvasWidth, canvasHeight, minDistance) {
+        // For small groups, try to place them in gaps between larger groups
+        let attempts = 0;
+        let position;
+        
+        while (attempts < 50) {
+            position = {
+                x: 100 + Math.random() * (canvasWidth - 200),
+                y: 100 + Math.random() * (canvasHeight - 200)
+            };
+            
+            // Check if it's not too close to existing groups
+            let validPosition = true;
+            for (const group of existingGroups) {
+                const distance = Math.sqrt(
+                    Math.pow(position.x - group.center.x, 2) + 
+                    Math.pow(position.y - group.center.y, 2)
+                );
+                
+                if (distance < minDistance + group.radius * 0.7) { // Allow closer placement
+                    validPosition = false;
+                    break;
+                }
+            }
+            
+            if (validPosition) break;
+            attempts++;
+        }
+        
+        // More lenient fallback
+        if (attempts >= 50) {
+            position = {
+                x: 100 + Math.random() * (canvasWidth - 200),
+                y: 100 + Math.random() * (canvasHeight - 200)
+            };
+        }
+        
+        return position;
+    }
+    
+    static layoutTightGroup(members, connections, centerX, centerY, groupType) {
+        if (members.length === 1) {
+            members[0].targetX = centerX;
+            members[0].targetY = centerY;
+            return;
+        }
+        
+        const radius = Math.max(40, 25 + members.length * 8) * nodeDistanceScale;
+        
+        // Place members in tight formation
+        members.forEach((member, index) => {
+            const angle = (index / members.length) * Math.PI * 2;
+            member.targetX = centerX + Math.cos(angle) * radius + (Math.random() - 0.5) * 20;
+            member.targetY = centerY + Math.sin(angle) * radius + (Math.random() - 0.5) * 20;
+        });
+        
+        // Pull spouses closer together
+        this.adjustSpousePositions(members, connections, centerX, centerY);
+    }
+    
+    static layoutLooseGroup(members, connections, centerX, centerY, groupType) {
+        const radius = Math.max(60, 40 + members.length * 12) * nodeDistanceScale;
+        
+        // Place members in looser formation
+        members.forEach((member, index) => {
+            const angle = Math.random() * Math.PI * 2;
+            const distance = Math.random() * radius;
+            member.targetX = centerX + Math.cos(angle) * distance + (Math.random() - 0.5) * 40;
+            member.targetY = centerY + Math.sin(angle) * distance + (Math.random() - 0.5) * 40;
         });
     }
     
-    static layoutFamilyCluster(cluster, connections, startX, startY) {
-        // Find the oldest generation (grandparents, etc.)
-        const generations = new Map();
-        const familyTypes = ['parent', 'child', 'sibling', 'spouse', 'grandparent', 'grandchild'];
+    static layoutSmallGroup(members, connections, centerX, centerY) {
+        if (members.length === 1) {
+            members[0].targetX = centerX;
+            members[0].targetY = centerY;
+            return;
+        }
         
-        // Simple generation assignment based on relationship types
-        cluster.forEach(node => {
-            let generation = 0;
-            
-            connections.forEach(conn => {
-                if (!familyTypes.includes(conn.type)) return;
-                
-                if (conn.fromNode === node) {
-                    if (conn.type === 'parent') generation = Math.max(generation, 1);
-                    if (conn.type === 'grandparent') generation = Math.max(generation, 2);
-                } else if (conn.toNode === node) {
-                    if (conn.type === 'child') generation = Math.max(generation, -1);
-                    if (conn.type === 'grandchild') generation = Math.max(generation, -2);
+        const spacing = 50 * nodeDistanceScale;
+        
+        if (members.length === 2) {
+            members[0].targetX = centerX - spacing/2 + (Math.random() - 0.5) * 20;
+            members[0].targetY = centerY + (Math.random() - 0.5) * 20;
+            members[1].targetX = centerX + spacing/2 + (Math.random() - 0.5) * 20;
+            members[1].targetY = centerY + (Math.random() - 0.5) * 20;
+        } else {
+            // 3-4 people in small cluster
+            const radius = 35 * nodeDistanceScale;
+            members.forEach((member, index) => {
+                const angle = (index / members.length) * Math.PI * 2;
+                member.targetX = centerX + Math.cos(angle) * radius + (Math.random() - 0.5) * 25;
+                member.targetY = centerY + Math.sin(angle) * radius + (Math.random() - 0.5) * 25;
+            });
+        }
+    }
+    
+    static adjustSpousePositions(members, connections, centerX, centerY) {
+        // Find spouse pairs and move them closer together
+        const spousePairs = [];
+        
+        connections.forEach(conn => {
+            const relType = conn.type || (conn.relationship && conn.relationship.relationship_type);
+            if (['spouse', 'partner'].includes(relType)) {
+                if (members.includes(conn.fromNode) && members.includes(conn.toNode)) {
+                    spousePairs.push([conn.fromNode, conn.toNode]);
                 }
-            });
-            
-            generations.set(node.id, generation);
-        });
-        
-        // Group by generation
-        const generationGroups = new Map();
-        cluster.forEach(node => {
-            const gen = generations.get(node.id) || 0;
-            if (!generationGroups.has(gen)) {
-                generationGroups.set(gen, []);
             }
-            generationGroups.get(gen).push(node);
         });
         
-        // Position nodes by generation
-        const generationSpacing = 150;
-        const nodeSpacing = 100;
-        
-        // Sort generations (oldest first)
-        const sortedGenerations = Array.from(generationGroups.keys()).sort((a, b) => b - a);
-        
-        sortedGenerations.forEach((gen, index) => {
-            const genNodes = generationGroups.get(gen);
-            const y = startY + index * generationSpacing;
-            const totalWidth = (genNodes.length - 1) * nodeSpacing;
-            const genStartX = startX - totalWidth / 2;
+        spousePairs.forEach(([spouse1, spouse2]) => {
+            const midX = (spouse1.targetX + spouse2.targetX) / 2;
+            const midY = (spouse1.targetY + spouse2.targetY) / 2;
+            const offset = 15;
             
-            genNodes.forEach((node, nodeIndex) => {
-                node.targetX = genStartX + nodeIndex * nodeSpacing;
-                node.targetY = y;
-            });
+            spouse1.targetX = midX - offset + (Math.random() - 0.5) * 10;
+            spouse1.targetY = midY + (Math.random() - 0.5) * 10;
+            spouse2.targetX = midX + offset + (Math.random() - 0.5) * 10;
+            spouse2.targetY = midY + (Math.random() - 0.5) * 10;
         });
+    }
+    
+    static calculateGroupRadius(members, center) {
+        let maxDistance = 0;
+        members.forEach(member => {
+            const distance = Math.sqrt(
+                Math.pow(member.targetX - center.x, 2) + 
+                Math.pow(member.targetY - center.y, 2)
+            );
+            maxDistance = Math.max(maxDistance, distance);
+        });
+        return maxDistance + 50;
     }
 }
 
@@ -716,6 +1160,9 @@ function initializeVisualizer() {
     characterInfoPanel = document.getElementById('character-info-panel');
     loadingOverlay = document.getElementById('loading-overlay');
     
+    // Initialize dark mode
+    initializeDarkMode();
+    
     // Set up canvas
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
@@ -728,6 +1175,25 @@ function initializeVisualizer() {
     viewport.height = canvas.height;
     
     console.log('Relationship visualizer initialized');
+}
+
+/**
+ * Initialize dark mode for the relationship visualizer
+ */
+function initializeDarkMode() {
+    // Get dark mode state from main process
+    window.api.invoke('get-dark-mode').then(darkModeEnabled => {
+        isDarkMode = darkModeEnabled;
+        document.body.classList.toggle('dark-mode', isDarkMode);
+    }).catch(error => {
+        console.warn('Could not get dark mode state:', error);
+    });
+
+    // Listen for dark mode changes
+    window.api.receive('dark-mode-changed', (darkModeEnabled) => {
+        isDarkMode = darkModeEnabled;
+        document.body.classList.toggle('dark-mode', isDarkMode);
+    });
 }
 
 function resizeCanvas() {
@@ -1114,8 +1580,9 @@ function toggleDarkMode() {
 function applyLayout() {
     const layoutSelect = document.getElementById('layout-select');
     const layout = layoutSelect.value;
+    currentLayout = layout; // Track current layout for rendering
     
-            switch (layout) {
+    switch (layout) {
         case 'force':
             LayoutManager.applyForceLayout(filteredCharacters, filteredRelationships);
             break;
@@ -1501,6 +1968,11 @@ function render() {
     // Update character positions
     filteredCharacters.forEach(char => char.update(1/60));
     
+    // Draw family cluster boundaries if in family forest layout
+    if (currentLayout === 'family-forest' && window.familyClusters) {
+        drawFamilyClusterBoundaries();
+    }
+    
     // Draw relationships first (behind characters)
     filteredRelationships.forEach(rel => rel.draw(ctx, viewport));
     
@@ -1509,6 +1981,63 @@ function render() {
     
     // Continue animation loop
     animationFrame = requestAnimationFrame(render);
+}
+
+/**
+ * Draw visual boundaries around family clusters
+ */
+function drawFamilyClusterBoundaries() {
+    if (!window.familyClusters) return;
+    
+    ctx.save();
+    
+    window.familyClusters.forEach(cluster => {
+        if (cluster.members.length <= 1) return; // Skip single-member clusters
+        
+        const screenX = (cluster.center.x - viewport.x) * viewport.zoom;
+        const screenY = (cluster.center.y - viewport.y) * viewport.zoom;
+        const screenRadius = cluster.radius * viewport.zoom;
+        
+        // Skip if outside viewport
+        if (screenX < -screenRadius || screenX > viewport.width + screenRadius ||
+            screenY < -screenRadius || screenY > viewport.height + screenRadius) {
+            return;
+        }
+        
+        // Draw cluster boundary circle
+        ctx.strokeStyle = isDarkMode ? 'rgba(100, 149, 237, 0.4)' : 'rgba(70, 130, 180, 0.4)'; // Steel blue
+        ctx.lineWidth = 2 * viewport.zoom;
+        ctx.setLineDash([10 * viewport.zoom, 5 * viewport.zoom]); // Dashed line
+        ctx.globalAlpha = 0.6;
+        
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2);
+        ctx.stroke();
+        
+        // Draw cluster label
+        if (viewport.zoom > 0.5) { // Only show labels when zoomed in enough
+            ctx.fillStyle = isDarkMode ? 'rgba(200, 200, 200, 0.8)' : 'rgba(70, 130, 180, 0.8)';
+            ctx.font = `${Math.max(12, 14 * viewport.zoom)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            
+            const labelY = screenY - screenRadius - 20 * viewport.zoom;
+            const labelText = `Family Group (${cluster.members.length})`;
+            
+            // Draw label background
+            const textWidth = ctx.measureText(labelText).width;
+            ctx.fillStyle = isDarkMode ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)';
+            ctx.fillRect(screenX - textWidth/2 - 4, labelY - 8, textWidth + 8, 16);
+            
+            // Draw label text
+            ctx.fillStyle = isDarkMode ? 'rgba(200, 200, 200, 0.8)' : 'rgba(70, 130, 180, 0.8)';
+            ctx.fillText(labelText, screenX, labelY);
+        }
+    });
+    
+    // Reset line dash
+    ctx.setLineDash([]);
+    ctx.restore();
 }
 
 // ===== IPC Handlers =====

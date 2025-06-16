@@ -802,10 +802,6 @@ body.dark-mode .selected-character {
     border-color: #5d8f6c;
 }
 
-body.dark-mode .relationship-connector {
-    background: #666;
-}
-
 body.dark-mode .relationship-item {
     background: #3d3d3d;
     border-color: #555;

@@ -22,6 +22,7 @@
   
   /* Background Colors */
   --color-bg-primary: #f5e6d4;        /* Main parchment background */
+  --color-bg-primary-dark: #e5d6c4;        /* Main parchment background */
   --color-bg-secondary: #f9f5ed;      /* Card/panel backgrounds */
   --color-bg-tertiary: #fff8ef;       /* Modal/elevated surfaces */
   --color-bg-white: #ffffff;          /* Input/content backgrounds */

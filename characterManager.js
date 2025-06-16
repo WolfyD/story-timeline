@@ -295,8 +295,11 @@ async function updateRelationshipDisplay() {
 
     
     // Update selected character names
-    const char1 = allCharacters.find(c => c.id === selectedCharacters.values().next().value);
-    const char2 = allCharacters.find(c => c.id === selectedCharacters.values().next().value);
+    const selectedCharacterIds = Array.from(selectedCharacters);
+    const firstSelectedId = selectedCharacterIds[0];
+    const secondSelectedId = selectedCharacterIds[1];
+    const char1 = allCharacters.find(c => c.id === firstSelectedId);
+    const char2 = allCharacters.find(c => c.id === secondSelectedId);
     
     document.getElementById('selected-char-1').textContent = char1?.name || 'Unknown';
     document.getElementById('selected-char-2').textContent = char2?.name || 'Unknown';
@@ -312,9 +315,10 @@ async function loadRelationships() {
     if (selectedCharacters.size !== 2) return;
     
     try {
+        const selectedCharacterIds = Array.from(selectedCharacters);
         const result = await window.api.invoke('get-character-relationships-between', {
-            character1Id: selectedCharacters.values().next().value,
-            character2Id: selectedCharacters.values().next().value,
+            character1Id: selectedCharacterIds[0],
+            character2Id: selectedCharacterIds[1],
             timelineId: timelineId
         });
         
@@ -370,8 +374,9 @@ function createRelationshipItem(relationship) {
     let firstChar, secondChar, arrow;
     
     // Always display in selection order
-    const firstSelectedId = selectedCharacters.values().next().value;
-    const secondSelectedId = selectedCharacters.values().next().value;
+    const selectedCharacterIds = Array.from(selectedCharacters);
+    const firstSelectedId = selectedCharacterIds[0];
+    const secondSelectedId = selectedCharacterIds[1];
     firstChar = allCharacters.find(c => c.id === firstSelectedId);
     secondChar = allCharacters.find(c => c.id === secondSelectedId);
     
@@ -799,7 +804,7 @@ async function generateTestData() {
         
         // Generate 50 characters
         const characters = [];
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 80; i++) {
             const firstName = firstNames[Math.floor(Math.random() * firstNames.length)];
             const lastName = lastNames[Math.floor(Math.random() * lastNames.length)];
             const name = `${firstName} ${lastName}`;
@@ -830,7 +835,7 @@ async function generateTestData() {
         
         // Generate random relationships
         let relationshipsCreated = 0;
-        const maxRelationships = Math.floor(characters.length * 10); // About 125 relationships for 50 characters
+        const maxRelationships = Math.floor(characters.length * 3); // About 125 relationships for 50 characters
         
         for (let i = 0; i < maxRelationships; i++) {
             // Pick two random characters
@@ -855,11 +860,11 @@ async function generateTestData() {
             const rand = Math.random();
             let relationshipType, isBidirectional;
             
-            if (rand < 0.05) { // 2% chance of family relationship
+            if (rand < 0.02) { // 2% chance of family relationship
                 relationshipType = familyRelationships[Math.floor(Math.random() * familyRelationships.length)];
                 // Some family relationships are bidirectional
                 isBidirectional = ['sibling', 'spouse', 'cousin'].includes(relationshipType);
-            } else if (rand < 0.2) { // 8% chance of non-family relationship (10% - 2% = 8%)
+            } else if (rand < 0.1) { // 8% chance of non-family relationship (10% - 2% = 8%)
                 relationshipType = nonFamilyRelationships[Math.floor(Math.random() * nonFamilyRelationships.length)];
                 // Some non-family relationships are bidirectional
                 isBidirectional = ['friend', 'best-friend', 'colleague', 'ally', 'neighbor'].includes(relationshipType);

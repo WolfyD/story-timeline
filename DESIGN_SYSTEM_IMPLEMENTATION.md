@@ -103,6 +103,7 @@ button[type="submit"], .submit-button { /* unified button styles */ }
 --color-primary: #4b2e2e;           /* Main brown */
 --color-secondary: #8b7355;         /* Secondary brown */
 --color-bg-primary: #f5e6d4;        /* Parchment background */
+--color-bg-primary-dark: #e5d6c4;        /* Parchment background */
 --color-text-primary: #4b2e2e;      /* Main text */
 --color-border: #e8e0d0;            /* Default borders */
 ```
