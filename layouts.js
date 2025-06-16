@@ -33,7 +33,8 @@ class ForceLayout extends BaseLayout {
         const canvas = document.getElementById('relationship-canvas');
         if (!canvas) return;
 
-        const k = Math.sqrt(canvas.width * canvas.height / nodes.length); // Optimal distance
+        const distanceScale = window.nodeDistanceScale || 1.0;
+        const k = Math.sqrt(canvas.width * canvas.height / nodes.length) * distanceScale; // Optimal distance with scaling
         const stiffness = 0.05; // Spring stiffness
         const repulsion = 0.2; // Repulsion strength
         const damping = 0.9; // Damping factor
@@ -90,10 +91,12 @@ class CircularLayout extends BaseLayout {
     }
 
     static apply(nodes, centerX = 0, centerY = 0, radius = 200) {
+        const distanceScale = window.nodeDistanceScale || 1.0;
+        const scaledRadius = radius * distanceScale;
         const angleStep = (2 * Math.PI) / nodes.length;
         nodes.forEach((node, index) => {
-            node.targetX = centerX + radius * Math.cos(angleStep * index);
-            node.targetY = centerY + radius * Math.sin(angleStep * index);
+            node.targetX = centerX + scaledRadius * Math.cos(angleStep * index);
+            node.targetY = centerY + scaledRadius * Math.sin(angleStep * index);
         });
     }
 }
@@ -106,13 +109,14 @@ class GridLayout extends BaseLayout {
     }
 
     static apply(nodes, cols = null) {
+        const distanceScale = window.nodeDistanceScale || 1.0;
         const numNodes = nodes.length;
         if (!cols) {
             cols = Math.ceil(Math.sqrt(numNodes));
         }
         const rows = Math.ceil(numNodes / cols);
-        const cellWidth = 150;
-        const cellHeight = 150;
+        const cellWidth = 150 * distanceScale;
+        const cellHeight = 150 * distanceScale;
 
         nodes.forEach((node, index) => {
             const row = Math.floor(index / cols);
@@ -517,8 +521,10 @@ class RadiatingLayout extends BaseLayout {
         // This will hold the nodes of the previously placed ring to inform grouping
         let previousRingNodes = null;
 
+        const distanceScale = window.nodeDistanceScale || 1.0;
+        
         rings.forEach((ring, index) => {
-            const ringRadius = 150 + (ring.nodes.length * 5); // Base radius + per-node spacing
+            const ringRadius = (150 + (ring.nodes.length * 5)) * distanceScale; // Base radius + per-node spacing, scaled
             currentRadius += ringRadius;
 
             if (index === 0) {

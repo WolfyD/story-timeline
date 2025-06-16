@@ -50,6 +50,7 @@ let sortBy = 'date-desc';
 let activeFilters = [];
 let searchQuery = '';
 let isDarkMode = false;
+let timelineId = null;
 
 let item_types = {
     1: 'Event',
@@ -118,7 +119,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 /**
  * Initializes the archive window
  */
-function initializeArchive() {
+async function initializeArchive() {
     // Get all items from the main window
     window.api.send('getAllItems');
     // Get all stories
@@ -131,7 +132,14 @@ function initializeArchive() {
     window.api.send('getAllTags');
     // Get all characters
     window.api.send('getAllCharacters');
+
+    timelineId = await window.api.getCurrentTimelineId();
 }
+
+// Listen for timeline ID from main process
+window.api.receive('timeline-id', (id) => {
+    timelineId = id;
+});
 
 function sortItems() {
     let sort_by = document.getElementById('archive-sorting-select').value;
@@ -721,6 +729,18 @@ function displayCharacters() {
                     <i class="ri-delete-bin-line"></i>
                 </button>
             </div>
+
+            <div class="relationship-visualizer-buttons">
+                <button class="relationship-visualizer-button visualize-family-relationships" title="Visualize family relationships">
+                    <i class="ri-group-2-line"></i>
+                </button>
+                <button class="relationship-visualizer-button visualize-all-relationships" title="Visualize all relationships">
+                    <i class="ri-share-line"></i>
+                </button>
+                <button class="relationship-visualizer-button visualize-closest-relationships" title="Visualize closest relationships">
+                    <i class="ri-heart-line"></i>
+                </button>
+            </div>
             
             <div class="character-header">
                 <div class="archive-item-title">${character.name || 'Unnamed Character'}</div>
@@ -765,7 +785,67 @@ function displayCharacters() {
             deleteCharacterFromArchive(character);
         });
 
+        // Add click handlers for relationship visualizer buttons
+        const visualizeFamilyRelationshipsButton = characterElement.querySelector('.visualize-family-relationships');
+        const visualizeAllRelationshipsButton = characterElement.querySelector('.visualize-all-relationships');
+        const visualizeClosestRelationshipsButton = characterElement.querySelector('.visualize-closest-relationships');
+
+        
+
+        visualizeFamilyRelationshipsButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            visualizeFamilyRelationships(character);
+        });
+
+        visualizeAllRelationshipsButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            visualizeAllRelationships(character);
+        });
+
+        visualizeClosestRelationshipsButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            visualizeClosestRelationships(character);
+        });
+        
+        
+
         content.appendChild(characterElement);
+    });
+}
+
+async function visualizeFamilyRelationships(character) {
+    console.log('[archive.js] Visualizing family relationships for character:', character);
+    const characterGroup = await window.api.invoke('get-character-group', character.id, {onlyFamily: true});
+    
+    // Open visualizer with filtered data
+    window.api.send('open-relationship-visualizer-window-filtered', {
+        timelineId: timelineId,
+        focusCharacterId: character.id,
+        characterGroup: characterGroup
+    });
+}
+
+async function visualizeAllRelationships(character) {
+    console.log('[archive.js] Visualizing all relationships for character:', character);
+    const characterGroup = await window.api.invoke('get-character-group', character.id, {});
+    
+    // Open visualizer with filtered data
+    window.api.send('open-relationship-visualizer-window-filtered', {
+        timelineId: timelineId,
+        focusCharacterId: character.id,
+        characterGroup: characterGroup
+    });
+}
+
+async function visualizeClosestRelationships(character) {
+    console.log('[archive.js] Visualizing closest relationships for character:', character);
+    const characterGroup = await window.api.invoke('get-character-group', character.id, {importance: 75});
+    
+    // Open visualizer with filtered data
+    window.api.send('open-relationship-visualizer-window-filtered', {
+        timelineId: timelineId,
+        focusCharacterId: character.id,
+        characterGroup: characterGroup
     });
 }
 

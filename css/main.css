@@ -1583,6 +1583,16 @@ body.dark-mode .main-content-right p {
     color: #c0c0c0;
 }
 
+/* Dark mode display container and overview canvas */
+body.dark-mode #display-container {
+    background: #1e1e1e;
+}
+
+body.dark-mode #display-content {
+    background-color: #1a1a1a; /* Much darker background for the overview canvas */
+    color: #e0e0e0;
+}
+
 /* Dark mode timeline styles */
 body.dark-mode #timeline-container {
     background: #252525; /* Slightly different from general background for differentiation */

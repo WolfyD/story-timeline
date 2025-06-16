@@ -2415,6 +2415,14 @@ function setupIpcHandlers() {
   ipcMain.handle('add-character-relationship', async (event, relationship) => {
     try {
       const relationshipId = dbManager.addCharacterRelationship(relationship);
+      
+      // Broadcast relationship created event to all windows
+      BrowserWindow.getAllWindows().forEach(window => {
+        if (!window.isDestroyed()) {
+          window.webContents.send('relationship-created');
+        }
+      });
+      
       return { success: true, relationshipId };
     } catch (error) {
       console.error('[main.js] Error adding character relationship:', error);
@@ -2446,6 +2454,13 @@ function setupIpcHandlers() {
     try {
       const success = dbManager.updateCharacterRelationship(id, relationship);
       if (success) {
+        // Broadcast relationship updated event to all windows
+        BrowserWindow.getAllWindows().forEach(window => {
+          if (!window.isDestroyed()) {
+            window.webContents.send('relationship-updated');
+          }
+        });
+        
         return { success: true };
       } else {
         return { success: false, error: 'Relationship not found or update failed' };
@@ -2635,6 +2650,11 @@ function setupIpcHandlers() {
     createRelationshipVisualizerWindow(timelineId, focusCharacterId);
   });
 
+  ipcMain.on('open-relationship-visualizer-window-filtered', (event, data) => {
+    console.log('[main.js] IPC handler called: open-relationship-visualizer-window-filtered', data);
+    createRelationshipVisualizerWindowFiltered(data);
+  });
+
   // Character validation handlers
   ipcMain.handle('validate-relationship-type', async (event, relationshipType) => {
     try {
@@ -2666,6 +2686,13 @@ function setupIpcHandlers() {
       if (characterManagerWindow && !characterManagerWindow.isDestroyed()) {
         characterManagerWindow.webContents.send('refresh-data');
       }
+      
+      // Broadcast relationship created event to all windows
+      BrowserWindow.getAllWindows().forEach(window => {
+        if (!window.isDestroyed()) {
+          window.webContents.send('relationship-created');
+        }
+      });
       
       return { success: true, relationshipId };
     } catch (error) {
@@ -3232,5 +3259,78 @@ function createRelationshipVisualizerWindow(timelineId, focusCharacterId = null)
 
     } catch (error) {
         console.error('[main.js] Error creating relationship visualizer window:', error);
+    }
+}
+
+/**
+ * Creates the relationship visualizer window with filtered data
+ * @param {Object} data - Contains timelineId, focusCharacterId, and characterGroup
+ */
+function createRelationshipVisualizerWindowFiltered(data) {
+    console.log('[main.js] createRelationshipVisualizerWindowFiltered called with:', data);
+    
+    if (relationshipVisualizerWindow) {
+        console.log('[main.js] Relationship visualizer window already exists, focusing...');
+        relationshipVisualizerWindow.focus();
+        return;
+    }
+
+    try {
+        const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+        const windowWidth = 1400;
+        const windowHeight = 900;
+
+        console.log('[main.js] Creating filtered relationship visualizer window...');
+
+        relationshipVisualizerWindow = new BrowserWindow({
+            width: windowWidth,
+            height: windowHeight,
+            x: Math.floor((width - windowWidth) / 2),
+            y: Math.floor((height - windowHeight) / 2),
+            webPreferences: {
+                nodeIntegration: false,
+                contextIsolation: true,
+                preload: path.join(__dirname, 'preload.js'),
+            },
+            show: true,
+            autoHideMenuBar: true,
+            parent: mainWindow,
+            modal: false,
+            title: `Relationship Visualizer - ${data.characterGroup && data.characterGroup.length > 0 ? data.characterGroup[0].name + "'s Group" : 'Filtered View'}`
+        });
+
+        console.log('[main.js] BrowserWindow created successfully');
+
+        relationshipVisualizerWindow.webContents.on("before-input-event", (event, input) => {
+            if (input.key === "F12") {
+                relationshipVisualizerWindow.webContents.openDevTools();
+            }
+        });
+
+        relationshipVisualizerWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+            console.error('[main.js] Failed to load filtered relationship visualizer:', errorCode, errorDescription);
+        });
+
+        console.log('[main.js] Loading relationshipVisualizer.html...');
+        relationshipVisualizerWindow.loadFile('./markdown/relationshipVisualizer.html').then(() => {
+            console.log('[main.js] relationshipVisualizer.html loaded successfully');
+        }).catch((error) => {
+            console.error('[main.js] Error loading relationshipVisualizer.html:', error);
+        });
+
+        relationshipVisualizerWindow.once('ready-to-show', () => {
+            console.log('[main.js] Filtered relationship visualizer window ready to show');
+            relationshipVisualizerWindow.show();
+            // Send filtered initialization data to the window
+            relationshipVisualizerWindow.webContents.send('initialize-visualizer-filtered', data);
+        });
+
+        relationshipVisualizerWindow.on('closed', () => {
+            console.log('[main.js] Filtered relationship visualizer window closed');
+            relationshipVisualizerWindow = null;
+        });
+
+    } catch (error) {
+        console.error('[main.js] Error creating filtered relationship visualizer window:', error);
     }
 }

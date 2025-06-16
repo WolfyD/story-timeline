@@ -11,7 +11,7 @@ let characters = [];
 let connections = [];
 let nodes = [];
 let nodeMap = new Map();
-let currentLayout = 'family-forest'; // Default layout
+let currentLayout = 'force'; // Default layout
 let showGroupBoundaries = true;
 let relationshipData = [];
 
@@ -102,15 +102,27 @@ class CharacterNode {
     }
 
     update(deltaTime) {
-        // Spring-like force towards target position
-        const forceX = (this.targetX - this.x) * 0.01;
-        const forceY = (this.targetY - this.y) * 0.01;
+        // Check if this node is being dragged by user
+        const isBeingDragged = (draggedNode === this);
+        
+        if (!isBeingDragged) {
+            // For layout changes, use moderately faster spring force
+            const forceStrength = 0.04; // Faster than original 0.01, but not too fast
+            const forceX = (this.targetX - this.x) * forceStrength;
+            const forceY = (this.targetY - this.y) * forceStrength;
 
-        // Even higher damping for smoother movement
-        const damping = 0.75;
-        this.vx = (this.vx + forceX) * damping;
-        this.vy = (this.vy + forceY) * damping;
+            // Light damping for layout transitions
+            const damping = 0.82;
+            this.vx = (this.vx + forceX) * damping;
+            this.vy = (this.vy + forceY) * damping;
+        } else {
+            // When being dragged, apply light damping to maintain momentum/inertia
+            const damping = 0.92; // Higher value = more momentum/inertia
+            this.vx *= damping;
+            this.vy *= damping;
+        }
 
+        // Always update position based on velocity (for both dragging momentum and layout transitions)
         this.x += this.vx * deltaTime;
         this.y += this.vy * deltaTime;
     }
@@ -663,7 +675,33 @@ function initializeVisualizer() {
     const timelineId = new URLSearchParams(window.location.search).get('timelineId');
     const focusCharacterId = new URLSearchParams(window.location.search).get('focusCharacterId');
 
-    loadData(timelineId, focusCharacterId);
+    // Listen for filtered initialization
+    window.api.receive('initialize-visualizer-filtered', (data) => {
+        console.log("Received filtered initialization data:", data);
+        loadFilteredData(data);
+    });
+
+    // Listen for normal initialization
+    window.api.receive('initialize-visualizer', (data) => {
+        console.log("Received normal initialization data:", data);
+        loadData(data.timelineId, data.focusCharacterId);
+    });
+
+    // Listen for relationship updates
+    window.api.receive('relationship-created', () => {
+        console.log("Relationship created, refreshing canvas...");
+        refreshCanvas();
+    });
+
+    window.api.receive('relationship-updated', () => {
+        console.log("Relationship updated, refreshing canvas...");
+        refreshCanvas();
+    });
+
+    // Fallback to URL parameters if no IPC data received
+    if (timelineId) {
+        loadData(timelineId, focusCharacterId);
+    }
     
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
@@ -895,6 +933,18 @@ function handleKeyDown(e) {
         } else {
             selectCharacter(null); // Deselect character
             clearMultiSelection();
+        }
+    } else if (e.key === '+' || e.key === '=' || e.key === 'NumpadAdd') {
+        // Increase distance between selected nodes
+        if (selectedNodes.size >= 2) {
+            adjustSelectedNodesDistance(1.1); // Increase by 10%
+            e.preventDefault();
+        }
+    } else if (e.key === '-' || e.key === 'NumpadSubtract') {
+        // Decrease distance between selected nodes
+        if (selectedNodes.size >= 2) {
+            adjustSelectedNodesDistance(0.9); // Decrease by 10%
+            e.preventDefault();
         }
     }
 }
@@ -1158,35 +1208,35 @@ function resetView() {
 }
 
 function increaseDistance() {
-    window.nodeDistanceScale = (window.nodeDistanceScale || 1.0) * 1.2;
-    // No maximum limit
-    applyCurrentDistanceScale();
+    const currentScale = window.nodeDistanceScale || 1.0;
+    const currentPercentage = Math.round(currentScale * 100);
+    
+    // Increase by 20% increments, maximum 10000%
+    const newPercentage = Math.min(10000, currentPercentage + 20);
+    window.nodeDistanceScale = newPercentage / 100;
+    
+    // Re-apply the current layout with the new distance scale
+    applyLayout();
     updateDistanceDisplay();
 }
 
 function decreaseDistance() {
-    window.nodeDistanceScale = (window.nodeDistanceScale || 1.0) / 1.2;
-    // Minimum of 1.0
-    if (window.nodeDistanceScale < 1.0) {
-        window.nodeDistanceScale = 1.0;
-    }
-    applyCurrentDistanceScale();
+    const currentScale = window.nodeDistanceScale || 1.0;
+    const currentPercentage = Math.round(currentScale * 100);
+    
+    // Decrease by 20% increments, minimum 1%
+    const newPercentage = Math.max(1, currentPercentage - 20);
+    window.nodeDistanceScale = newPercentage / 100;
+    
+    // Re-apply the current layout with the new distance scale
+    applyLayout();
     updateDistanceDisplay();
 }
 
 function applyCurrentDistanceScale() {
-    const scale = window.nodeDistanceScale || 1.0;
-    
-    // Scale all node positions from center
-    const centerX = 0;
-    const centerY = 0;
-    
-    nodes.forEach(node => {
-        const dx = node.x - centerX;
-        const dy = node.y - centerY;
-        node.targetX = centerX + dx * scale;
-        node.targetY = centerY + dy * scale;
-    });
+    // This function is no longer needed since we re-apply layouts
+    // The distance scaling is now handled in the layout algorithms themselves
+    // by multiplying their base distances by window.nodeDistanceScale
 }
 
 function updateDistanceDisplay() {
@@ -1413,9 +1463,39 @@ function updateMultiSelectionInfo() {
     if (statusRight && selectedNodes.size > 0) {
         const selectedInfo = document.getElementById('selected-info');
         if (selectedInfo) {
-            selectedInfo.textContent = `${selectedNodes.size} characters selected`;
+            let text = `${selectedNodes.size} characters selected`;
+            if (selectedNodes.size >= 2) {
+                text += ' (Use +/- keys to adjust distance)';
+            }
+            selectedInfo.textContent = text;
         }
     }
+}
+
+function adjustSelectedNodesDistance(scaleFactor) {
+    if (selectedNodes.size < 2) return;
+    
+    const selectedCharacters = Array.from(selectedNodes).map(id => nodeMap.get(id)).filter(n => n);
+    
+    // Calculate center point of selected nodes
+    const centerX = selectedCharacters.reduce((sum, node) => sum + node.x, 0) / selectedCharacters.length;
+    const centerY = selectedCharacters.reduce((sum, node) => sum + node.y, 0) / selectedCharacters.length;
+    
+    // Adjust each selected node's position relative to the center
+    selectedCharacters.forEach(node => {
+        const dx = node.x - centerX;
+        const dy = node.y - centerY;
+        
+        // Scale the distance from center
+        const newDx = dx * scaleFactor;
+        const newDy = dy * scaleFactor;
+        
+        // Update both current position and target position
+        node.x = centerX + newDx;
+        node.y = centerY + newDy;
+        node.targetX = node.x;
+        node.targetY = node.y;
+    });
 }
 
 function showContextMenu(x, y, character) {
@@ -1430,8 +1510,14 @@ function showContextMenu(x, y, character) {
     menu.style.top = `${y}px`;
     menu.classList.remove('hidden');
 
-    // Populate menu based on whether a character was clicked
+    // Check if we have exactly 2 characters selected for relationship creation
+    const hasTwoSelected = selectedNodes.size === 2;
+    const selectedCharacters = Array.from(selectedNodes).map(id => nodeMap.get(id)).filter(n => n);
+
+    // Show/hide menu items based on context
     const characterItems = menu.querySelectorAll('.character-item');
+    const multiSelectItems = menu.querySelectorAll('.multi-select-item');
+    
     characterItems.forEach(item => {
         item.style.display = character ? 'block' : 'none';
         item.onclick = (e) => {
@@ -1454,12 +1540,28 @@ function showContextMenu(x, y, character) {
         };
     });
 
+    // Handle multi-select items (only show when exactly 2 characters are selected)
+    multiSelectItems.forEach(item => {
+        item.style.display = hasTwoSelected ? 'block' : 'none';
+        item.onclick = (e) => {
+            const action = e.currentTarget.dataset.action;
+            switch (action) {
+                case 'add-relationship-between':
+                    if (selectedCharacters.length === 2) {
+                        addRelationshipBetween(selectedCharacters[0], selectedCharacters[1]);
+                    }
+                    break;
+            }
+            menu.classList.add('hidden');
+        };
+    });
+
     const addCharacterItem = menu.querySelector('[data-action="add-character"]');
     if (addCharacterItem) {
         addCharacterItem.onclick = () => {
-            addCharacter();
-            menu.classList.add('hidden');
-        };
+        addCharacter();
+        menu.classList.add('hidden');
+    };
     }
 }
 
@@ -1481,6 +1583,11 @@ function createContextMenuItems(menu) {
         <div class="context-menu-item character-item" data-action="delete">
             <i class="ri-delete-bin-line"></i>
             Delete Character
+        </div>
+        <div class="context-menu-separator multi-select-item"></div>
+        <div class="context-menu-item multi-select-item" data-action="add-relationship-between">
+            <i class="ri-links-line"></i>
+            Add Relationship Between Selected
         </div>
         <div class="context-menu-separator"></div>
         <div class="context-menu-item" data-action="add-character">
@@ -1603,11 +1710,101 @@ async function loadData(timelineId, focusCharacterId) {
         }
         
         updateFocusCharacterDisplay();
+        
+        // Initialize distance scale if not set
+        if (!window.nodeDistanceScale) {
+            window.nodeDistanceScale = 1.0;
+        }
         updateDistanceDisplay();
         applyLayout();
 
     } catch (error) {
         console.error("Error loading data:", error);
+    } finally {
+        showLoading(false);
+        updateStatusBar();
+    }
+}
+
+async function loadFilteredData(data) {
+    showLoading(true);
+    try {
+        console.log("Loading filtered data:", data);
+        
+        // The data structure is: { timelineId, focusCharacterId, characterGroup: { success: true, group: [...] } }
+        const characterGroupData = data.characterGroup;
+        if (!characterGroupData || !characterGroupData.success || !Array.isArray(characterGroupData.group)) {
+            console.error("Invalid character group data structure:", characterGroupData);
+            showLoading(false);
+            return;
+        }
+
+        const characterGroupArray = characterGroupData.group;
+        console.log("Character group array:", characterGroupArray);
+
+        // Extract characters from the group data
+        const characters = characterGroupArray.map(item => item.character);
+        
+        // We need to get the actual relationships from the database since the group data 
+        // contains relationship metadata but not the full relationship objects
+        const characterIds = characters.map(c => c.id);
+        
+        // Get all relationships between these characters
+        const relationshipData = await window.api.invoke('get-all-character-relationships-for-timeline', data.timelineId);
+        
+        if (!relationshipData || !relationshipData.success) {
+            console.error("Failed to load relationship data:", relationshipData);
+            showLoading(false);
+            return;
+        }
+        
+        // Filter relationships to only include those between characters in our group
+        const filteredRelationships = relationshipData.relationships.filter(rel => 
+            characterIds.includes(rel.character_1_id) && characterIds.includes(rel.character_2_id)
+        );
+
+        console.log("Filtered characters:", characters.length);
+        console.log("Filtered relationships:", filteredRelationships.length);
+
+        // Create nodes from filtered characters
+        nodes = characters.map(c => new CharacterNode(c));
+        nodeMap = new Map(nodes.map(n => [n.id, n]));
+        
+        // Process relationships
+        const processedRels = processRelationshipsForBidirectional(filteredRelationships, characters);
+        
+        connections = processedRels
+            .map(rel => {
+                const fromNode = nodeMap.get(rel.character_1_id);
+                const toNode = nodeMap.get(rel.character_2_id);
+                if (fromNode && toNode) {
+                    return new RelationshipConnection(rel, fromNode, toNode);
+                }
+                return null;
+            })
+            .filter(c => c !== null);
+
+        // Set focus character
+        if (data.focusCharacterId) {
+            focusCharacter = nodeMap.get(data.focusCharacterId);
+            selectedNode = focusCharacter;
+            if (focusCharacter) {
+                updateCharacterInfoPanel();
+                centerOnCharacter(focusCharacter);
+            }
+        }
+        
+        updateFocusCharacterDisplay();
+        
+        // Initialize distance scale if not set
+        if (!window.nodeDistanceScale) {
+            window.nodeDistanceScale = 1.0;
+        }
+        updateDistanceDisplay();
+        applyLayout();
+
+    } catch (error) {
+        console.error("Error loading filtered data:", error);
     } finally {
         showLoading(false);
         updateStatusBar();
@@ -1650,6 +1847,16 @@ function addRelationship(characterNode) {
     window.api.send('open-relationship-editor-window', relationshipData);
 }
 
+function addRelationshipBetween(character1, character2) {
+    const relationshipData = {
+        character1: character1.character, // Use the full character object
+        character2: character2.character, // Use the full character object
+        timelineId: new URLSearchParams(window.location.search).get('timelineId'),
+        isEdit: false
+    };
+    window.api.send('open-relationship-editor-window', relationshipData);
+}
+
 function deleteCharacter(characterNode) {
     // Confirmation dialog could be added here
     window.api.invoke('delete-character', characterNode.id).then(result => {
@@ -1663,8 +1870,24 @@ function deleteCharacter(characterNode) {
     });
 }
 
+function refreshCanvas() {
+    // Store current layout and focus character
+    const currentLayoutType = currentLayout;
+    const currentFocusCharacter = focusCharacter;
+    
+    // Reload data without changing layout
+    const timelineId = new URLSearchParams(window.location.search).get('timelineId');
+    const focusCharacterId = currentFocusCharacter ? currentFocusCharacter.id : null;
+    
+    loadData(timelineId, focusCharacterId).then(() => {
+        // Restore layout type (loadData might reset it)
+        currentLayout = currentLayoutType;
+        // Layout will be applied automatically in loadData
+    });
+}
+
 function closeWindow() {
-    window.api.send('close-window');
+    window.close();
 }
 
 // ===== Render Loop =====

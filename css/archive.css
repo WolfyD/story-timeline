@@ -374,7 +374,7 @@ button:disabled {
     margin-right: 110px;
 }
 
-.archive-item-buttons, .archive-story-buttons, .archive-tag-buttons, .media-item-buttons, .archive-character-buttons {
+.archive-item-buttons, .archive-story-buttons, .archive-tag-buttons, .media-item-buttons, .archive-character-buttons, .relationship-visualizer-buttons {
     position: absolute;
     top: 15px;
     right: 18px;
@@ -389,11 +389,17 @@ button:disabled {
     bottom: 15px !important;
 }
 
-.archive-item:hover .archive-item-buttons, .archive-story:hover .archive-story-buttons, .archive-tag:hover .archive-tag-buttons, .media-item:hover .media-item-buttons, .archive-character:hover .archive-character-buttons {
+.relationship-visualizer-buttons {
+    top: auto !important;
+    bottom: 15px !important;
+    right: 200px !important;
+}
+
+.archive-item:hover .archive-item-buttons, .archive-story:hover .archive-story-buttons, .archive-tag:hover .archive-tag-buttons, .media-item:hover .media-item-buttons, .archive-character:hover .archive-character-buttons, .archive-character:hover .relationship-visualizer-buttons {
     opacity: 1;
 }
 
-.archive-item-button, .archive-story-button, .archive-tag-button, .media-item-button, .archive-character-button {
+.archive-item-button, .archive-story-button, .archive-tag-button, .media-item-button, .archive-character-button, .relationship-visualizer-button {
     background: none;
     border: none;
     padding: 4px;
@@ -405,11 +411,11 @@ button:disabled {
     justify-content: center;
 }
 
-.archive-item-button:hover, .archive-story-button:hover, .archive-tag-button:hover, .media-item-button:hover, .archive-character-button:hover {
+.archive-item-button:hover, .archive-story-button:hover, .archive-tag-button:hover, .media-item-button:hover, .archive-character-button:hover, .relationship-visualizer-button:hover {
     color: #fff8ef;
 }
 
-.archive-item-button i, .archive-story-button i, .archive-tag-button i, .media-item-button i, .archive-character-button i {
+.archive-item-button i, .archive-story-button i, .archive-tag-button i, .media-item-button i, .archive-character-button i, .relationship-visualizer-button i {
     font-size: 18px;
 }
 

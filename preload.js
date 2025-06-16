@@ -71,6 +71,7 @@ contextBridge.exposeInMainWorld('api', {
             'getAllCharacterReferences',
             'open-relationship-editor-window',
             'open-relationship-visualizer-window',
+            'open-relationship-visualizer-window-filtered',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.send(channel, ...args);
@@ -197,7 +198,10 @@ contextBridge.exposeInMainWorld('api', {
             'refresh-data',
             'character-created',
             'character-updated',
+            'relationship-created',
+            'relationship-updated',
             'initialize-visualizer',
+            'initialize-visualizer-filtered',
         ];
         if (validChannels.includes(channel)) {
             ipcRenderer.on(channel, (event, ...args) => func(...args));

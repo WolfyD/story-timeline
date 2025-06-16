@@ -493,7 +493,7 @@ function openAddCharacterWindow() {
 /**
  * Opens the relationship visualizer window
  */
-function openRelationshipVisualizer() {
+async function openRelationshipVisualizer() {
     console.log('[characterManager.js] Opening relationship visualizer for timeline:', timelineId);
     
     if (!timelineId) {
@@ -504,7 +504,27 @@ function openRelationshipVisualizer() {
     // Get the currently selected character as focus (if any)
     const focusCharacterId = selectedCharacters.size === 1 ? selectedCharacters.values().next().value : null;
     
-    window.api.send('open-relationship-visualizer-window', timelineId, focusCharacterId);
+    if (focusCharacterId) {
+        // Use filtered data when a character is selected
+        try {
+            const characterGroup = await window.api.invoke('get-character-group', focusCharacterId, {});
+            console.log('[characterManager.js] Character group data:', characterGroup);
+            
+            // Open visualizer with filtered data
+            window.api.send('open-relationship-visualizer-window-filtered', {
+                timelineId: timelineId,
+                focusCharacterId: focusCharacterId,
+                characterGroup: characterGroup
+            });
+        } catch (error) {
+            console.error('[characterManager.js] Error getting character group:', error);
+            // Fallback to normal visualizer
+            window.api.send('open-relationship-visualizer-window', timelineId, focusCharacterId);
+        }
+    } else {
+        // No character selected, open normal visualizer
+        window.api.send('open-relationship-visualizer-window', timelineId, focusCharacterId);
+    }
 }
 
 /**
