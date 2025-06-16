@@ -127,6 +127,8 @@ contextBridge.exposeInMainWorld('api', {
             'create-character-relationship',
             'refresh-character-manager',
             'get-character-group',
+            'get-all-characters-for-timeline',
+            'get-all-character-relationships-for-timeline',
         ];
         if (validChannels.includes(channel)) {
             return await ipcRenderer.invoke(channel, ...args);

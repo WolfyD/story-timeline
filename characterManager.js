@@ -835,7 +835,7 @@ async function generateTestData() {
         
         // Generate random relationships
         let relationshipsCreated = 0;
-        const maxRelationships = Math.floor(characters.length * 3); // About 125 relationships for 50 characters
+        const maxRelationships = Math.floor(characters.length * 13); // About 125 relationships for 50 characters
         
         for (let i = 0; i < maxRelationships; i++) {
             // Pick two random characters
@@ -860,11 +860,11 @@ async function generateTestData() {
             const rand = Math.random();
             let relationshipType, isBidirectional;
             
-            if (rand < 0.02) { // 2% chance of family relationship
+            if (rand < 0.1) { // 2% chance of family relationship
                 relationshipType = familyRelationships[Math.floor(Math.random() * familyRelationships.length)];
                 // Some family relationships are bidirectional
                 isBidirectional = ['sibling', 'spouse', 'cousin'].includes(relationshipType);
-            } else if (rand < 0.1) { // 8% chance of non-family relationship (10% - 2% = 8%)
+            } else if (rand < 0.5) { // 8% chance of non-family relationship (10% - 2% = 8%)
                 relationshipType = nonFamilyRelationships[Math.floor(Math.random() * nonFamilyRelationships.length)];
                 // Some non-family relationships are bidirectional
                 isBidirectional = ['friend', 'best-friend', 'colleague', 'ally', 'neighbor'].includes(relationshipType);

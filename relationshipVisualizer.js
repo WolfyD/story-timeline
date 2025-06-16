@@ -1,308 +1,227 @@
 /**
- * Relationship Visualizer
+ * relationshipVisualizer.js
  * 
- * A canvas-based interactive relationship visualization system for characters.
- * Features:
- * - Infinite 2D canvas with pan and zoom
- * - Multiple layout algorithms (force, circular, hierarchical, grid)
- * - Interactive character nodes with drag and drop
- * - Relationship connections with different styles
- * - Context menus and character info panels
- * - Search and filtering capabilities
+ * This script handles the rendering and interaction for the relationship visualizer canvas.
+ * It includes classes for character nodes, relationship connections, and layout management.
  */
 
-// ===== Global State =====
+// Global variables
 let canvas, ctx;
-let timelineId = null;
-let focusCharacterId = null;
+let characters = [];
+let connections = [];
+let nodes = [];
+let nodeMap = new Map();
+let currentLayout = 'family-forest'; // Default layout
+let showGroupBoundaries = true;
+let relationshipData = [];
 
-// Image cache for character images
-let imageCache = new Map();
-
-// Viewport state
 let viewport = {
     x: 0,
     y: 0,
-    zoom: 1,
-    width: 0,
-    height: 0
+    zoom: 0.1, // Start more zoomed out
+    minZoom: 0.05,
+    maxZoom: 2.0
 };
 
-// Data
-let characters = [];
-let relationships = [];
-let filteredCharacters = [];
-let filteredRelationships = [];
-
-// Interaction state
-let isDragging = false;
-let dragTarget = null;
+let dragging = false;
 let lastMousePos = { x: 0, y: 0 };
-let selectedCharacter = null;
-let hoveredCharacter = null;
-let highlightedPath = [];
-let breadcrumbPath = [];
+let draggedNode = null;
+let hoveredNode = null;
+let selectedNode = null;
+let selectedNodes = new Set(); // For multi-selection
+let isSelecting = false;
+let selectionStart = { x: 0, y: 0 };
+let selectionEnd = { x: 0, y: 0 };
+let ctrlPressed = false;
 
-// Layout state
-let currentLayout = 'force';
-let layoutAnimating = false;
-let animationFrame = null;
-let nodeDistanceScale = 1.0;
-let isDarkMode = false;
+// Focus character and path highlighting
+let focusCharacter = null;
+let currentPath = null;
+let pathConnections = new Set();
 
-// UI elements
-let contextMenu, characterInfoPanel, loadingOverlay;
+const nodeDistanceScale = 1.0; // Can be adjusted by user controls
 
-// ===== Character Node Class =====
+// ===== Classes =====
+
 class CharacterNode {
     constructor(character) {
-        this.character = character;
         this.id = character.id;
+        this.character = character;
         this.name = character.name;
-        this.x = Math.random() * 800 + 100;
-        this.y = Math.random() * 600 + 100;
+        this.x = Math.random() * 1000 - 500;
+        this.y = Math.random() * 1000 - 500;
         this.targetX = this.x;
         this.targetY = this.y;
-        this.vx = 0;
-        this.vy = 0;
-        this.radius = 35; // Fixed radius for all characters
+        this.radius = this.calculateRadius();
         this.color = character.color || this.generateColor();
-        this.selected = false;
-        this.hovered = false;
-        this.isInitiating = false;
-        this.connections = [];
         this.image = null;
         this.imageLoaded = false;
-        
-        // Load character image if available
-        if (character.images && character.images.length > 0 && character.images[0].file_path) {
-            this.loadImage(character.images[0].file_path);
+        if (character.image_path) {
+            this.loadImage(character.image_path);
         }
+
+        // Physics properties
+        this.vx = 0;
+        this.vy = 0;
+        this.mass = 1 + (character.importance || 5);
+
+        // Highlighting
+        this.isHighlighted = false;
+        this.highlightColor = 'rgba(255, 255, 0, 0.7)';
     }
 
     calculateRadius() {
-        // Return fixed radius - no longer variable based on importance
-        return 35;
+        return 20 + (this.character.importance || 5) * 2;
     }
 
     loadImage(imagePath) {
-        // Check cache first
-        if (imageCache.has(imagePath)) {
-            const cachedImage = imageCache.get(imagePath);
-            if (cachedImage.complete) {
-                this.image = cachedImage;
-                this.imageLoaded = true;
-                return;
-            }
-        }
-
-        // Load new image
-        const img = new Image();
-        img.onload = () => {
-            this.image = img;
+        this.image = new Image();
+        this.image.src = imagePath;
+        this.image.onload = () => {
             this.imageLoaded = true;
-            imageCache.set(imagePath, img);
+            render(); // Redraw once image is loaded
         };
-        img.onerror = () => {
-            console.warn(`Failed to load character image: ${imagePath}`);
-            this.imageLoaded = false;
+        this.image.onerror = () => {
+            console.error(`Failed to load image for ${this.name} at ${imagePath}`);
+            this.image = null;
         };
-        
-        // Convert relative path to full path if needed
-        if (imagePath.startsWith('images/')) {
-            img.src = `../${imagePath}`;
-        } else {
-            img.src = imagePath;
-        }
     }
 
     generateColor() {
-        const colors = ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'];
-        return colors[Math.abs(this.name.charCodeAt(0)) % colors.length];
+        // Simple hash function for consistent color based on name
+        let hash = 0;
+        for (let i = 0; i < this.name.length; i++) {
+            hash = this.name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+        let color = '#';
+        for (let i = 0; i < 3; i++) {
+            let value = (hash >> (i * 8)) & 0xFF;
+            color += ('00' + value.toString(16)).substr(-2);
+        }
+        return color;
     }
 
     update(deltaTime) {
-        // Smooth movement towards target position
-        const ease = 0.1;
-        this.vx += (this.targetX - this.x) * ease;
-        this.vy += (this.targetY - this.y) * ease;
-        
-        // Apply velocity with damping
-        this.vx *= 0.8;
-        this.vy *= 0.8;
-        
+        // Spring-like force towards target position
+        const forceX = (this.targetX - this.x) * 0.01;
+        const forceY = (this.targetY - this.y) * 0.01;
+
+        // Even higher damping for smoother movement
+        const damping = 0.75;
+        this.vx = (this.vx + forceX) * damping;
+        this.vy = (this.vy + forceY) * damping;
+
         this.x += this.vx * deltaTime;
         this.y += this.vy * deltaTime;
     }
 
     draw(ctx, viewport) {
-        const screenX = (this.x - viewport.x) * viewport.zoom;
-        const screenY = (this.y - viewport.y) * viewport.zoom;
+        const screenPos = this.getScreenPosition(viewport);
         const screenRadius = this.radius * viewport.zoom;
 
-        // Skip if outside viewport
-        if (screenX < -screenRadius || screenX > viewport.width + screenRadius ||
-            screenY < -screenRadius || screenY > viewport.height + screenRadius) {
-            return;
+        if (screenRadius < 2) return; // Don't draw if too small to see
+
+        // Draw highlight circle with glow effect for path nodes
+        if (this.isHighlighted || selectedNode === this) {
+            if (this.isPathNode) {
+                // Draw glow effect for path nodes
+                ctx.save();
+                ctx.shadowColor = this.highlightColor;
+                ctx.shadowBlur = 15 * viewport.zoom;
+                ctx.beginPath();
+                ctx.arc(screenPos.x, screenPos.y, screenRadius + 12 * viewport.zoom, 0, Math.PI * 2);
+                ctx.fillStyle = this.highlightColor;
+                ctx.fill();
+                ctx.restore();
+            } else {
+                // Regular highlight
+                ctx.beginPath();
+                ctx.arc(screenPos.x, screenPos.y, screenRadius + 8 * viewport.zoom, 0, Math.PI * 2);
+                ctx.fillStyle = this.highlightColor;
+                ctx.fill();
+            }
         }
 
-        ctx.save();
+        // Draw main node circle
+        ctx.beginPath();
+        ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
 
-        // Draw initiating character highlight
-        if (this.isInitiating) {
-            ctx.strokeStyle = '#FFD700';
-            ctx.lineWidth = 4;
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, screenRadius + 8, 0, Math.PI * 2);
-            ctx.stroke();
-            
-            // Add golden glow
-            ctx.shadowColor = '#FFD700';
-            ctx.shadowBlur = 20;
-        }
-
-        // Draw selection ring
-        if (this.selected && !this.isInitiating) {
-            ctx.strokeStyle = '#4a90e2';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, screenRadius + 5, 0, Math.PI * 2);
-            ctx.stroke();
-        }
-
-        // Draw hover effect
-        if (this.hovered && !this.isInitiating) {
-            ctx.shadowColor = this.color;
-            ctx.shadowBlur = 15;
-        }
-
-        // Draw character image or circle
+        // Image clipping
         if (this.imageLoaded && this.image) {
-            // Draw circular clipped image
             ctx.save();
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2);
             ctx.clip();
-            
-            // Draw image to fit within circle
-            const imageSize = screenRadius * 2;
-            ctx.drawImage(
-                this.image, 
-                screenX - screenRadius, 
-                screenY - screenRadius, 
-                imageSize, 
-                imageSize
-            );
+            try {
+                ctx.drawImage(
+                    this.image,
+                    screenPos.x - screenRadius,
+                    screenPos.y - screenRadius,
+                    screenRadius * 2,
+                    screenRadius * 2
+                );
+            } catch (e) {
+                console.error("Error drawing image:", e);
+                this.image = null; // Prevent future errors
+                ctx.fillStyle = this.color;
+                ctx.fill();
+            }
             ctx.restore();
-            
-            // Draw border around image
-            ctx.strokeStyle = this.pathHighlighted ? '#FF4500' : '#4b2e2e';
-            ctx.lineWidth = this.pathHighlighted ? 3 : 2;
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2);
-            ctx.stroke();
         } else {
-            // Draw character circle (fallback when no image)
             ctx.fillStyle = this.color;
-            ctx.strokeStyle = this.pathHighlighted ? '#FF4500' : '#4b2e2e';
-            ctx.lineWidth = this.pathHighlighted ? 3 : 2;
-            ctx.beginPath();
-            ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2);
             ctx.fill();
-            ctx.stroke();
         }
 
-        // Draw character name
-        ctx.fillStyle = isDarkMode ? '#e0e0e0' : '#4b2e2e';
-        ctx.font = `${Math.max(12, 14 * viewport.zoom)}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        // Draw name with background for readability
-        const textY = screenY + screenRadius + 20;
-        const textWidth = ctx.measureText(this.name).width;
-        
-        ctx.fillStyle = isDarkMode ? 'rgba(30, 30, 30, 0.9)' : 'rgba(255, 248, 239, 0.9)';
-        ctx.fillRect(screenX - textWidth/2 - 4, textY - 8, textWidth + 8, 16);
-        
-        ctx.fillStyle = isDarkMode ? '#e0e0e0' : '#4b2e2e';
-        ctx.fillText(this.name, screenX, textY);
+        // Draw border
+        ctx.strokeStyle = '#333';
+        ctx.lineWidth = 2 * viewport.zoom;
+        ctx.stroke();
 
-        ctx.restore();
+        // Draw name label
+        if (viewport.zoom > 0.3) {
+            ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#FFF' : '#000';
+            ctx.font = `${Math.max(12, 16 * viewport.zoom)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(this.name, screenPos.x, screenPos.y + screenRadius + 15 * viewport.zoom);
+        }
     }
 
     containsPoint(x, y) {
-        const dx = x - this.x;
-        const dy = y - this.y;
-        return dx * dx + dy * dy <= this.radius * this.radius;
+        const screenPos = this.getScreenPosition(viewport);
+        const dist = Math.hypot(x - screenPos.x, y - screenPos.y);
+        return dist <= this.radius * viewport.zoom;
     }
 
     getScreenPosition(viewport) {
         return {
-            x: (this.x - viewport.x) * viewport.zoom,
-            y: (this.y - viewport.y) * viewport.zoom
+            x: (this.x - viewport.x) * viewport.zoom + canvas.width / 2,
+            y: (this.y - viewport.y) * viewport.zoom + canvas.height / 2
         };
     }
 }
 
-// ===== Relationship Connection Class =====
 class RelationshipConnection {
     constructor(relationship, fromNode, toNode) {
+        this.id = relationship.id;
         this.relationship = relationship;
+        this.type = relationship.relationship_type;
         this.fromNode = fromNode;
         this.toNode = toNode;
-        this.type = relationship.relationship_type;
-        this.strength = relationship.strength || 5;
-        this.bidirectional = relationship.bidirectional || false;
+        this.isBidirectional = relationship.is_bidirectional;
+
         this.color = this.getTypeColor();
-        this.width = Math.max(1, this.strength / 2);
-        this.modifiers = relationship.modifiers || [];
-        this.notes = relationship.notes || '';
+
+        // Highlighting
+        this.isHighlighted = false;
+        this.highlightColor = 'rgba(255, 255, 0, 0.9)';
     }
 
     getTypeColor() {
-        const familyTypes = ['parent', 'child', 'sibling', 'spouse', 'partner', 'grandparent', 'grandchild', 
-                           'uncle', 'aunt', 'cousin', 'nephew', 'niece', 'step-parent', 'step-child', 
-                           'step-sibling', 'half-sibling', 'adoptive-parent', 'adoptive-child'];
-        
-        const relType = this.type || (this.relationship && this.relationship.relationship_type);
-        
-        // Family relationships - warmer colors
-        if (familyTypes.includes(relType)) {
-            const familyColors = {
-                'parent': '#E74C3C',      // Red
-                'child': '#E74C3C',       // Red
-                'sibling': '#F39C12',     // Orange
-                'spouse': '#E91E63',      // Pink
-                'partner': '#E91E63',     // Pink
-                'grandparent': '#8E44AD', // Purple
-                'grandchild': '#8E44AD',  // Purple
-                'uncle': '#D35400',       // Dark orange
-                'aunt': '#D35400',        // Dark orange
-                'cousin': '#F1C40F',      // Yellow
-                'nephew': '#D35400',      // Dark orange
-                'niece': '#D35400',       // Dark orange
-                'default_family': '#E74C3C'
-            };
-            return familyColors[relType] || familyColors.default_family;
-        }
-        
-        // Non-family relationships - cooler colors
-        const typeColors = {
-            'friend': '#27AE60',          // Green
-            'best-friend': '#2ECC71',     // Light green
-            'enemy': '#C0392B',           // Dark red
-            'rival': '#E67E22',           // Orange-red
-            'ally': '#3498DB',            // Blue
-            'colleague': '#34495E',       // Dark blue-gray
-            'mentor': '#9B59B6',          // Purple
-            'student': '#9B59B6',         // Purple
-            'neighbor': '#95A5A6',        // Gray
-            'acquaintance': '#BDC3C7',    // Light gray
-            'default': '#7F8C8D'          // Medium gray
-        };
-        
-        return typeColors[relType] || typeColors.default;
+        const type = this.type;
+        if (this.isFamilyRelationship()) return '#D32F2F'; // Red for family
+        if (type === 'friend' || type === 'best-friend' || type === 'ally') return '#388E3C'; // Green for positive
+        if (type === 'enemy' || type === 'rival') return '#E64A19'; // Orange for negative
+        if (type === 'romantic' || type === 'ex-romantic') return '#C2185B'; // Pink for romantic
+        return '#7B1FA2'; // Purple for others
     }
 
     isFamilyRelationship() {
@@ -317,1291 +236,1012 @@ class RelationshipConnection {
     draw(ctx, viewport) {
         const fromScreen = this.fromNode.getScreenPosition(viewport);
         const toScreen = this.toNode.getScreenPosition(viewport);
-
-        ctx.save();
         
-        // Enhanced styling based on relationship type and highlighting
-        const isFamily = this.isFamilyRelationship();
-        const baseColor = this.getTypeColor();
-        ctx.strokeStyle = this.pathHighlighted ? '#FF4500' : baseColor;
+        // --- CRITICAL SAFEGUARD ---
+        // Do not attempt to draw if coordinates are invalid. This prevents GPU artifacts.
+        if (!fromScreen || !toScreen || 
+            !isFinite(fromScreen.x) || !isFinite(fromScreen.y) ||
+            !isFinite(toScreen.x) || !isFinite(toScreen.y)) {
+            return; 
+        }
         
-        // Different line styles for family vs non-family
-        if (isFamily) {
-            // Family relationships: solid, thicker lines
-            const strengthWidth = Math.max(2, Math.min(6, this.strength / 2));
-            ctx.lineWidth = (this.pathHighlighted ? strengthWidth + 2 : strengthWidth) * viewport.zoom;
-            ctx.globalAlpha = this.pathHighlighted ? 0.9 : 0.8;
-        } else {
-            // Non-family relationships: thinner, more transparent
-            const strengthWidth = Math.max(1, Math.min(4, this.strength / 3));
-            ctx.lineWidth = (this.pathHighlighted ? strengthWidth + 2 : strengthWidth) * viewport.zoom;
-            ctx.globalAlpha = this.pathHighlighted ? 0.9 : 0.6;
-            
-            // Dashed line for non-family relationships
-            ctx.setLineDash([8 * viewport.zoom, 4 * viewport.zoom]);
+        // Special handling for radiating layout
+        if (currentLayout === 'radiating' && window.radiatingPaths) {
+            const pathKey1 = `${this.fromNode.id}-${this.toNode.id}`;
+            const pathKey2 = `${this.toNode.id}-${this.fromNode.id}`;
+            if (!window.radiatingPaths.has(pathKey1) && !window.radiatingPaths.has(pathKey2)) {
+                return; // Don't draw connections that are not part of the main radiating paths
+            }
         }
 
-        // Family relationships stay within clusters, non-family can be longer
-        const shouldCurve = !isFamily && this.shouldCurveAroundNodes();
+        ctx.save();
+
+        const lineWidth = this.isHighlighted ? (this.isPathConnection ? 6 * viewport.zoom : 4 * viewport.zoom) : 2 * viewport.zoom;
+        const lineCap = 'round';
+        const color = this.isHighlighted ? this.highlightColor : this.color;
         
-        if (shouldCurve) {
+        // Add glow effect for path connections
+        if (this.isPathConnection) {
+            ctx.shadowColor = color;
+            ctx.shadowBlur = 10 * viewport.zoom;
+        }
+        
+        ctx.strokeStyle = color;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = lineCap;
+
+        if (this.shouldCurveAroundNodes()) {
             this.drawCurvedConnection(ctx, fromScreen, toScreen, viewport.zoom);
         } else {
             this.drawStraightConnection(ctx, fromScreen, toScreen, viewport.zoom);
         }
 
-        // Draw relationship type label for important relationships
-        if (this.strength >= 7 || this.pathHighlighted) {
+        // Draw relationship label only if this connection is highlighted (part of a path)
+        if (viewport.zoom > 0.3 && this.isHighlighted) {
             this.drawRelationshipLabel(ctx, fromScreen, toScreen, viewport.zoom);
         }
 
         ctx.restore();
     }
-
+    
     shouldCurveAroundNodes() {
-        // Curve longer non-family connections to avoid clusters
-        const lineLength = Math.sqrt(
-            Math.pow(this.toNode.x - this.fromNode.x, 2) + 
-            Math.pow(this.toNode.y - this.fromNode.y, 2)
-        );
+        // Check if there are any nodes between the start and end points
+        return this.hasObstacleNodes();
+    }
+    
+    hasObstacleNodes() {
+        const fromPos = this.fromNode.getScreenPosition(viewport);
+        const toPos = this.toNode.getScreenPosition(viewport);
+        const threshold = 30 * viewport.zoom; // Minimum distance to consider as obstacle
         
-        // Curve if it's a long connection (likely between different family clusters)
-        return lineLength > 200;
+        for (let node of nodes) {
+            if (node === this.fromNode || node === this.toNode) continue;
+            
+            const nodePos = node.getScreenPosition(viewport);
+            const distance = this.distanceFromPointToLineSegment(
+                nodePos.x, nodePos.y, 
+                fromPos.x, fromPos.y, 
+                toPos.x, toPos.y
+            );
+            
+            if (distance < node.radius * viewport.zoom + threshold) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    distanceFromPointToLineSegment(px, py, x1, y1, x2, y2) {
+        const l2 = Math.pow(x1 - x2, 2) + Math.pow(y1 - y2, 2);
+        if (l2 === 0) return Math.hypot(px - x1, py - y1);
+        let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+        t = Math.max(0, Math.min(1, t));
+        const
+            x = x1 + t * (x2 - x1),
+            y = y1 + t * (y2 - y1);
+        return Math.hypot(px - x, py - y);
     }
 
     drawStraightConnection(ctx, fromScreen, toScreen, zoom) {
-        // Calculate arrow position (offset from node edge)
-        const dx = toScreen.x - fromScreen.x;
-        const dy = toScreen.y - fromScreen.y;
-        const length = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(toScreen.y - fromScreen.y, toScreen.x - fromScreen.x);
+        const arrowSize = Math.max(12, 18 * zoom);
         
-        if (length === 0) return;
-        
-        const unitX = dx / length;
-        const unitY = dy / length;
-        
-        // Offset from node edges
+        // Calculate arrow positions at line ends, offset by node radius
         const fromRadius = this.fromNode.radius * zoom;
         const toRadius = this.toNode.radius * zoom;
         
-        const startX = fromScreen.x + unitX * fromRadius;
-        const startY = fromScreen.y + unitY * fromRadius;
-        const endX = toScreen.x - unitX * toRadius;
-        const endY = toScreen.y - unitY * toRadius;
-
-        // Draw line
+        const dx = Math.cos(angle);
+        const dy = Math.sin(angle);
+        
+        const startX = fromScreen.x + dx * fromRadius;
+        const startY = fromScreen.y + dy * fromRadius;
+        const endX = toScreen.x - dx * (toRadius + arrowSize);
+        const endY = toScreen.y - dy * (toRadius + arrowSize);
+        
+        // Draw the line
         ctx.beginPath();
         ctx.moveTo(startX, startY);
         ctx.lineTo(endX, endY);
         ctx.stroke();
 
-        // Draw arrow head
-        this.drawArrowHead(ctx, endX, endY, unitX, unitY, zoom);
-        
-        // Draw bidirectional arrow if needed
-        if (this.bidirectional) {
-            this.drawArrowHead(ctx, startX, startY, -unitX, -unitY, zoom);
+        if (this.isBidirectional) {
+            // Arrow at end (pointing to toNode)
+            this.drawArrow(ctx, endX + dx * arrowSize, endY + dy * arrowSize, angle, zoom);
+            // Arrow at start (pointing to fromNode)
+            const startArrowX = startX - dx * arrowSize;
+            const startArrowY = startY - dy * arrowSize;
+            this.drawArrow(ctx, startArrowX, startArrowY, angle + Math.PI, zoom);
+        } else {
+            // Single arrow at end
+            this.drawArrow(ctx, endX + dx * arrowSize, endY + dy * arrowSize, angle, zoom);
         }
     }
 
     drawCurvedConnection(ctx, fromScreen, toScreen, zoom) {
-        // Calculate control point for curve
-        const midX = (fromScreen.x + toScreen.x) / 2;
-        const midY = (fromScreen.y + toScreen.y) / 2;
-        
-        // Perpendicular offset for curve
-        const dx = toScreen.x - fromScreen.x;
-        const dy = toScreen.y - fromScreen.y;
-        const length = Math.sqrt(dx * dx + dy * dy);
-        
-        if (length === 0) return;
-        
-        // Curve offset (perpendicular to the line)
-        const curveOffset = Math.min(50, length * 0.2);
-        const perpX = -dy / length * curveOffset;
-        const perpY = dx / length * curveOffset;
-        
-        const controlX = midX + perpX;
-        const controlY = midY + perpY;
-        
-        // Calculate start and end points (offset from node edges)
-        const unitX = dx / length;
-        const unitY = dy / length;
-        
+        const
+            dx = toScreen.x - fromScreen.x,
+            dy = toScreen.y - fromScreen.y,
+            dist = Math.hypot(dx, dy);
+
+        // Control point for the quadratic curve
+        const
+            midX = (fromScreen.x + toScreen.x) / 2,
+            midY = (fromScreen.y + toScreen.y) / 2,
+            // Perpendicular vector
+            perpX = -dy / dist,
+            perpY = dx / dist;
+
+        const curveAmount = dist * 0.2; // Adjust for more/less curve
+
+        const
+            cpX = midX + perpX * curveAmount,
+            cpY = midY + perpY * curveAmount;
+
+        // Calculate start and end points offset by node radius
         const fromRadius = this.fromNode.radius * zoom;
         const toRadius = this.toNode.radius * zoom;
         
-        const startX = fromScreen.x + unitX * fromRadius;
-        const startY = fromScreen.y + unitY * fromRadius;
-        const endX = toScreen.x - unitX * toRadius;
-        const endY = toScreen.y - unitY * toRadius;
+        // Get tangent at start and end for proper offset
+        const startTangentX = 2 * (cpX - fromScreen.x);
+        const startTangentY = 2 * (cpY - fromScreen.y);
+        const startTangentLength = Math.hypot(startTangentX, startTangentY);
+        const startOffsetX = (startTangentX / startTangentLength) * fromRadius;
+        const startOffsetY = (startTangentY / startTangentLength) * fromRadius;
+        
+        const endTangentX = 2 * (toScreen.x - cpX);
+        const endTangentY = 2 * (toScreen.y - cpY);
+        const endTangentLength = Math.hypot(endTangentX, endTangentY);
+        const endOffsetX = (endTangentX / endTangentLength) * toRadius;
+        const endOffsetY = (endTangentY / endTangentLength) * toRadius;
 
-        // Draw curved line
+        const startX = fromScreen.x + startOffsetX;
+        const startY = fromScreen.y + startOffsetY;
+        const endX = toScreen.x - endOffsetX;
+        const endY = toScreen.y - endOffsetY;
+
         ctx.beginPath();
         ctx.moveTo(startX, startY);
-        ctx.quadraticCurveTo(controlX, controlY, endX, endY);
+        ctx.quadraticCurveTo(cpX, cpY, endX, endY);
         ctx.stroke();
 
-        // Calculate arrow direction at the end of the curve
-        const t = 0.9; // Point near the end for direction calculation
-        const curveEndX = (1-t)*(1-t)*startX + 2*(1-t)*t*controlX + t*t*endX;
-        const curveEndY = (1-t)*(1-t)*startY + 2*(1-t)*t*controlY + t*t*endY;
+        // Arrows at curve ends
+        const arrowSize = Math.max(12, 18 * zoom);
         
-        const arrowDx = endX - curveEndX;
-        const arrowDy = endY - curveEndY;
-        const arrowLength = Math.sqrt(arrowDx * arrowDx + arrowDy * arrowDy);
-        
-        if (arrowLength > 0) {
-            const arrowUnitX = arrowDx / arrowLength;
-            const arrowUnitY = arrowDy / arrowLength;
-            this.drawArrowHead(ctx, endX, endY, arrowUnitX, arrowUnitY, zoom);
-        }
-        
-        // Draw bidirectional arrow if needed
-        if (this.bidirectional) {
-            const t2 = 0.1; // Point near the start for direction calculation
-            const curveStartX = (1-t2)*(1-t2)*startX + 2*(1-t2)*t2*controlX + t2*t2*endX;
-            const curveStartY = (1-t2)*(1-t2)*startY + 2*(1-t2)*t2*controlY + t2*t2*endY;
+        if (this.isBidirectional) {
+            // Arrow at end
+            const endAngle = Math.atan2(endTangentY, endTangentX);
+            this.drawArrow(ctx, endX, endY, endAngle, zoom);
             
-            const arrowDx2 = startX - curveStartX;
-            const arrowDy2 = startY - curveStartY;
-            const arrowLength2 = Math.sqrt(arrowDx2 * arrowDx2 + arrowDy2 * arrowDy2);
-            
-            if (arrowLength2 > 0) {
-                const arrowUnitX2 = arrowDx2 / arrowLength2;
-                const arrowUnitY2 = arrowDy2 / arrowLength2;
-                this.drawArrowHead(ctx, startX, startY, arrowUnitX2, arrowUnitY2, zoom);
-            }
+            // Arrow at start
+            const startAngle = Math.atan2(-startTangentY, -startTangentX);
+            this.drawArrow(ctx, startX, startY, startAngle, zoom);
+        } else {
+            // Single arrow at end
+            const endAngle = Math.atan2(endTangentY, endTangentX);
+            this.drawArrow(ctx, endX, endY, endAngle, zoom);
         }
     }
 
     drawArrowHead(ctx, x, y, dirX, dirY, zoom) {
-        const relType = this.type || (this.relationship && this.relationship.relationship_type);
-        const isFamily = this.isFamilyRelationship();
-        
-        // Different arrow styles for different relationship types
-        let arrowLength = 15 * zoom;
-        let arrowAngle = Math.PI / 6;
-        
-        if (isFamily) {
-            // Family relationships: larger, more prominent arrows
-            arrowLength = this.bidirectional ? 20 * zoom : 18 * zoom;
-            arrowAngle = Math.PI / 5; // Slightly wider
-        } else {
-            // Non-family relationships: smaller, subtler arrows
-            arrowLength = this.bidirectional ? 16 * zoom : 14 * zoom;
-            arrowAngle = Math.PI / 7; // Narrower
-        }
-        
-        const angle = Math.atan2(dirY, dirX);
-
-        ctx.save();
-        
-        // Special arrow styles for specific relationships
-        if (['spouse', 'partner'].includes(relType)) {
-            // Heart-like arrow for romantic relationships
-            this.drawHeartArrow(ctx, x, y, angle, zoom);
-        } else if (['enemy', 'rival'].includes(relType)) {
-            // Sharp, aggressive arrow for antagonistic relationships
-            arrowLength *= 1.3;
-            arrowAngle = Math.PI / 4;
-            ctx.lineWidth = ctx.lineWidth * 1.5;
-        }
-        
-        // Draw standard arrow
+        const arrowSize = 10 * zoom;
         ctx.beginPath();
         ctx.moveTo(x, y);
-        ctx.lineTo(
-            x - arrowLength * Math.cos(angle - arrowAngle),
-            y - arrowLength * Math.sin(angle - arrowAngle)
-        );
-        ctx.moveTo(x, y);
-        ctx.lineTo(
-            x - arrowLength * Math.cos(angle + arrowAngle),
-            y - arrowLength * Math.sin(angle + arrowAngle)
-        );
-        ctx.stroke();
-        
-        ctx.restore();
+        ctx.lineTo(x - dirX * arrowSize + dirY * arrowSize / 2, y - dirY * arrowSize - dirX * arrowSize / 2);
+        ctx.lineTo(x - dirX * arrowSize - dirY * arrowSize / 2, y - dirY * arrowSize + dirX * arrowSize / 2);
+        ctx.closePath();
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fill();
     }
     
-    drawHeartArrow(ctx, x, y, angle, zoom) {
-        const size = 12 * zoom;
+
+
+    drawRelationshipLabel(ctx, fromScreen, toScreen, zoom) {
+        const midX = (fromScreen.x + toScreen.x) / 2;
+        const midY = (fromScreen.y + toScreen.y) / 2;
+        let text = this.type;
+        if (this.relationship.custom_relationship_type) {
+            text = this.relationship.custom_relationship_type;
+        }
+
+        // Draw background for better readability
+        ctx.font = `${Math.max(10, 12 * zoom)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        const textWidth = ctx.measureText(text).width;
+        const padding = 4 * zoom;
+        
+        // Background
+        ctx.fillStyle = document.body.classList.contains('dark-mode') ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)';
+        ctx.fillRect(midX - textWidth/2 - padding, midY - 15 * zoom - 8 * zoom, textWidth + padding * 2, 16 * zoom);
+        
+        // Text
+        ctx.fillStyle = document.body.classList.contains('dark-mode') ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)';
+        ctx.fillText(text, midX, midY - 15 * zoom);
+    }
+
+    drawArrow(ctx, x, y, angle, zoom) {
+        const arrowSize = Math.max(12, 18 * zoom);
         
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle);
         
-        // Draw a simple heart shape
+        if (this.type === 'romantic' || this.type === 'ex-romantic') {
+            this.drawHeartArrow(ctx, arrowSize, this.type === 'ex-romantic');
+        } else if (this.isFamilyRelationship()) {
+            this.drawFamilyArrow(ctx, arrowSize);
+        } else if (this.type === 'enemy' || this.type === 'rival') {
+            this.drawHostileArrow(ctx, arrowSize);
+        } else if (this.type === 'friend' || this.type === 'best-friend' || this.type === 'ally') {
+            this.drawFriendlyArrow(ctx, arrowSize);
+        } else {
+            this.drawDefaultArrow(ctx, arrowSize);
+        }
+        
+        ctx.restore();
+    }
+
+    drawDefaultArrow(ctx, size) {
+        // Modern sleek arrow design
         ctx.beginPath();
-        ctx.moveTo(0, -size/3);
-        ctx.bezierCurveTo(-size/2, -size, -size, -size/2, -size/2, 0);
-        ctx.bezierCurveTo(-size/4, size/4, 0, size/2, 0, size/3);
-        ctx.bezierCurveTo(0, size/2, size/4, size/4, size/2, 0);
-        ctx.bezierCurveTo(size, -size/2, size/2, -size, 0, -size/3);
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-size * 0.8, -size * 0.3);
+        ctx.lineTo(-size * 0.6, 0);
+        ctx.lineTo(-size * 0.8, size * 0.3);
+        ctx.closePath();
         ctx.fillStyle = ctx.strokeStyle;
         ctx.fill();
         
-        ctx.restore();
+        // Add subtle outline for better visibility
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
     }
 
-    drawRelationshipLabel(ctx, fromScreen, toScreen, zoom) {
-        const midX = (fromScreen.x + toScreen.x) / 2;
-        const midY = (fromScreen.y + toScreen.y) / 2;
+    drawFamilyArrow(ctx, size) {
+        // House-shaped arrow for family relationships
+        ctx.fillStyle = ctx.strokeStyle;
         
-        ctx.save();
-        ctx.fillStyle = this.pathHighlighted ? '#FF4500' : '#4b2e2e';
-        ctx.font = `${Math.max(10, 12 * zoom)}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        
-        // Add bidirectional indicator to text
-        const text = this.bidirectional ? `↔ ${this.type}` : this.type;
-        const textWidth = ctx.measureText(text).width;
-        const padding = 4;
-        
-        // Use different background color for bidirectional relationships
-        const bgColor = this.bidirectional ? 'rgba(255, 235, 200, 0.95)' : 'rgba(255, 248, 239, 0.9)';
-        ctx.fillStyle = bgColor;
-        ctx.fillRect(midX - textWidth/2 - padding, midY - 8, textWidth + padding*2, 16);
-        
-        // Use different text color for bidirectional relationships
-        const textColor = this.bidirectional ? 
-            (this.pathHighlighted ? '#FF4500' : '#8B4513') : 
-            (this.pathHighlighted ? '#FF4500' : '#4b2e2e');
-        ctx.fillStyle = textColor;
-        ctx.fillText(text, midX, midY);
-        
-        ctx.restore();
-    }
-
-    drawArrow(ctx, from, to, zoom) {
-        const angle = Math.atan2(to.y - from.y, to.x - from.x);
-        const arrowLength = 15 * zoom;
-        const arrowAngle = Math.PI / 6;
-
-        const endX = to.x - Math.cos(angle) * (this.toNode.radius * zoom + 5);
-        const endY = to.y - Math.sin(angle) * (this.toNode.radius * zoom + 5);
-
+        // Draw house shape
         ctx.beginPath();
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(
-            endX - arrowLength * Math.cos(angle - arrowAngle),
-            endY - arrowLength * Math.sin(angle - arrowAngle)
-        );
-        ctx.moveTo(endX, endY);
-        ctx.lineTo(
-            endX - arrowLength * Math.cos(angle + arrowAngle),
-            endY - arrowLength * Math.sin(angle + arrowAngle)
-        );
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-size * 0.4, -size * 0.3);
+        ctx.lineTo(-size * 0.8, -size * 0.3);
+        ctx.lineTo(-size, 0);
+        ctx.lineTo(-size * 0.8, size * 0.3);
+        ctx.lineTo(-size * 0.4, size * 0.3);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Add roof triangle
+        ctx.beginPath();
+        ctx.moveTo(-size * 0.4, -size * 0.3);
+        ctx.lineTo(-size * 0.6, -size * 0.5);
+        ctx.lineTo(-size * 0.8, -size * 0.3);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Add outline
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    drawFriendlyArrow(ctx, size) {
+        // Smiley face arrow for friendship
+        ctx.fillStyle = ctx.strokeStyle;
+        
+        // Draw circular base
+        ctx.beginPath();
+        ctx.arc(-size * 0.6, 0, size * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Draw arrow point
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-size * 0.3, -size * 0.2);
+        ctx.lineTo(-size * 0.3, size * 0.2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Add smiley face details
+        ctx.fillStyle = 'white';
+        // Eyes
+        ctx.beginPath();
+        ctx.arc(-size * 0.7, -size * 0.1, size * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(-size * 0.5, -size * 0.1, size * 0.05, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // Smile
+        ctx.strokeStyle = 'white';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(-size * 0.6, 0, size * 0.15, 0.2, Math.PI - 0.2);
+        ctx.stroke();
+    }
+
+    drawHostileArrow(ctx, size) {
+        // Lightning bolt arrow for hostile relationships
+        ctx.fillStyle = ctx.strokeStyle;
+        
+        // Draw lightning bolt shape
+        ctx.beginPath();
+        ctx.moveTo(0, 0);
+        ctx.lineTo(-size * 0.3, -size * 0.4);
+        ctx.lineTo(-size * 0.5, -size * 0.2);
+        ctx.lineTo(-size * 0.7, -size * 0.6);
+        ctx.lineTo(-size, -size * 0.1);
+        ctx.lineTo(-size * 0.7, 0);
+        ctx.lineTo(-size * 0.5, size * 0.4);
+        ctx.lineTo(-size * 0.3, size * 0.2);
+        ctx.closePath();
+        ctx.fill();
+        
+        // Add glow effect for menacing look
+        ctx.shadowColor = '#ff0000';
+        ctx.shadowBlur = 5;
+        ctx.fill();
+        
+        // Reset shadow
+        ctx.shadowBlur = 0;
+        
+        // Add outline
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.5)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+    }
+
+    drawHeartArrow(ctx, size, isBroken = false) {
+        const heartColor = isBroken ? '#8B4B8C' : '#E91E63';
+        ctx.fillStyle = heartColor;
+        
+        // More refined heart shape
+        ctx.beginPath();
+        ctx.moveTo(0, size * 0.2);
+        
+        // Left lobe
+        ctx.bezierCurveTo(-size * 0.3, -size * 0.2, -size * 0.6, -size * 0.2, -size * 0.6, size * 0.1);
+        ctx.bezierCurveTo(-size * 0.6, size * 0.3, -size * 0.3, size * 0.5, 0, size * 0.7);
+        
+        // Right lobe
+        ctx.bezierCurveTo(size * 0.3, size * 0.5, size * 0.6, size * 0.3, size * 0.6, size * 0.1);
+        ctx.bezierCurveTo(size * 0.6, -size * 0.2, size * 0.3, -size * 0.2, 0, size * 0.2);
+        
+        ctx.fill();
+        
+        // Add shine effect
+        if (!isBroken) {
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.beginPath();
+            ctx.ellipse(-size * 0.3, size * 0.1, size * 0.15, size * 0.1, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        // If broken relationship, add dramatic crack
+        if (isBroken) {
+            ctx.strokeStyle = '#2C2C2C';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.2, -size * 0.1);
+            ctx.lineTo(size * 0.3, size * 0.4);
+            ctx.moveTo(-size * 0.3, size * 0.1);
+            ctx.lineTo(size * 0.2, size * 0.5);
+            ctx.stroke();
+            
+            // Add jagged edges to crack
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.1, 0);
+            ctx.lineTo(-size * 0.05, size * 0.05);
+            ctx.lineTo(0, size * 0.1);
+            ctx.lineTo(size * 0.05, size * 0.15);
+            ctx.stroke();
+        }
+        
+        // Add outline
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+        ctx.lineWidth = 1;
         ctx.stroke();
     }
 }
 
-// ===== Layout Algorithms =====
-class LayoutManager {
-    static applyForceLayout(nodes, connections, iterations = 100) {
-        const repulsionStrength = 1000 * nodeDistanceScale;
-        const attractionStrength = 0.1;
-        const damping = 0.9;
-
-        for (let iter = 0; iter < iterations; iter++) {
-            // Apply repulsion between all nodes
-            for (let i = 0; i < nodes.length; i++) {
-                for (let j = i + 1; j < nodes.length; j++) {
-                    const dx = nodes[j].x - nodes[i].x;
-                    const dy = nodes[j].y - nodes[i].y;
-                    const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-                    
-                    const force = repulsionStrength / (distance * distance);
-                    const fx = (dx / distance) * force;
-                    const fy = (dy / distance) * force;
-                    
-                    nodes[i].vx -= fx;
-                    nodes[i].vy -= fy;
-                    nodes[j].vx += fx;
-                    nodes[j].vy += fy;
-                }
-            }
-
-            // Apply attraction along connections
-            connections.forEach(conn => {
-                const dx = conn.toNode.x - conn.fromNode.x;
-                const dy = conn.toNode.y - conn.fromNode.y;
-                const distance = Math.sqrt(dx * dx + dy * dy) || 1;
-                
-                const force = distance * attractionStrength;
-                const fx = (dx / distance) * force;
-                const fy = (dy / distance) * force;
-                
-                conn.fromNode.vx += fx;
-                conn.fromNode.vy += fy;
-                conn.toNode.vx -= fx;
-                conn.toNode.vy -= fy;
-            });
-
-            // Update positions
-            nodes.forEach(node => {
-                node.x += node.vx;
-                node.y += node.vy;
-                node.vx *= damping;
-                node.vy *= damping;
-            });
-        }
-
-        // Set target positions
-        nodes.forEach(node => {
-            node.targetX = node.x;
-            node.targetY = node.y;
-        });
-    }
-
-    static applyCircularLayout(nodes, centerX = 400, centerY = 300, radius = 200) {
-        const angleStep = (Math.PI * 2) / nodes.length;
-        const scaledRadius = radius * nodeDistanceScale;
-        
-        nodes.forEach((node, index) => {
-            const angle = index * angleStep;
-            node.targetX = centerX + Math.cos(angle) * scaledRadius;
-            node.targetY = centerY + Math.sin(angle) * scaledRadius;
-        });
-    }
-
-    static applyGridLayout(nodes, cols = null) {
-        if (!cols) {
-            cols = Math.ceil(Math.sqrt(nodes.length));
-        }
-        
-        const spacing = 150 * nodeDistanceScale;
-        const startX = 100;
-        const startY = 100;
-        
-        nodes.forEach((node, index) => {
-            const row = Math.floor(index / cols);
-            const col = index % cols;
-            node.targetX = startX + col * spacing;
-            node.targetY = startY + row * spacing;
-        });
-    }
-
-    static applyHierarchicalLayout(nodes, connections, focusNode = null) {
-        if (!focusNode && nodes.length > 0) {
-            focusNode = nodes[0];
-        }
-        
-        if (!focusNode) return;
-
-        const levels = new Map();
-        const visited = new Set();
-        
-        // BFS to assign levels
-        const queue = [{ node: focusNode, level: 0 }];
-        levels.set(focusNode.id, 0);
-        visited.add(focusNode.id);
-        
-        while (queue.length > 0) {
-            const { node, level } = queue.shift();
-            
-            // Find connected nodes
-            connections.forEach(conn => {
-                let nextNode = null;
-                if (conn.fromNode === node && !visited.has(conn.toNode.id)) {
-                    nextNode = conn.toNode;
-                } else if (conn.toNode === node && !visited.has(conn.fromNode.id)) {
-                    nextNode = conn.fromNode;
-                }
-                
-                if (nextNode) {
-                    levels.set(nextNode.id, level + 1);
-                    visited.add(nextNode.id);
-                    queue.push({ node: nextNode, level: level + 1 });
-                }
-            });
-        }
-        
-        // Position nodes by level
-        const levelGroups = new Map();
-        nodes.forEach(node => {
-            const level = levels.get(node.id) || 0;
-            if (!levelGroups.has(level)) {
-                levelGroups.set(level, []);
-            }
-            levelGroups.get(level).push(node);
-        });
-        
-        const levelSpacing = 200 * nodeDistanceScale;
-        const nodeSpacing = 150 * nodeDistanceScale;
-        
-        levelGroups.forEach((levelNodes, level) => {
-            const y = 100 + level * levelSpacing;
-            const totalWidth = (levelNodes.length - 1) * nodeSpacing;
-            const startX = 400 - totalWidth / 2;
-            
-            levelNodes.forEach((node, index) => {
-                node.targetX = startX + index * nodeSpacing;
-                node.targetY = y;
-            });
-        });
-    }
-
-    static applyFamilyForestLayout(nodes, connections) {
-        console.log('Starting 3-step Family Forest layout...');
-        
-        const familyTypes = ['parent', 'child', 'sibling', 'spouse', 'partner', 'grandparent', 'grandchild', 
-                           'uncle', 'aunt', 'cousin', 'nephew', 'niece', 'step-parent', 'step-child', 
-                           'step-sibling', 'half-sibling', 'adoptive-parent', 'adoptive-child'];
-        
-        const canvasWidth = 1200;
-        const canvasHeight = 800;
-        const allGroups = [];
-        const processedNodes = new Set();
-        
-        // STEP 1: Identify and place family groups
-        console.log('Step 1: Processing family groups...');
-        const familyGroups = this.identifyFamilyGroups(nodes, connections, familyTypes);
-        
-        familyGroups.forEach((group, index) => {
-            const groupSize = group.members.length;
-            const baseDistance = Math.max(200, 150 + groupSize * 20 + nodes.length * 2);
-            
-            // Find a good position for this family group
-            const position = this.findGroupPosition(allGroups, canvasWidth, canvasHeight, baseDistance);
-            
-            // Layout family members tightly
-            this.layoutTightGroup(group.members, connections, position.x, position.y, 'family');
-            
-            allGroups.push({
-                type: 'family',
-                members: group.members,
-                center: position,
-                radius: this.calculateGroupRadius(group.members, position)
-            });
-            
-            group.members.forEach(node => processedNodes.add(node.id));
-            console.log(`  Family group ${index + 1}: ${groupSize} members at (${Math.round(position.x)}, ${Math.round(position.y)})`);
-        });
-        
-        // STEP 2: Identify and place acquaintance groups (5+ people)
-        console.log('Step 2: Processing acquaintance groups...');
-        const remainingNodes = nodes.filter(node => !processedNodes.has(node.id));
-        const acquaintanceGroups = this.identifyAcquaintanceGroups(remainingNodes, connections, familyTypes, 5);
-        
-        acquaintanceGroups.forEach((group, index) => {
-            const groupSize = group.members.length;
-            const baseDistance = Math.max(150, 100 + groupSize * 15);
-            
-            // Find position between/around family groups
-            const position = this.findGroupPosition(allGroups, canvasWidth, canvasHeight, baseDistance);
-            
-            // Layout acquaintances more loosely
-            this.layoutLooseGroup(group.members, connections, position.x, position.y, 'acquaintance');
-            
-            allGroups.push({
-                type: 'acquaintance',
-                members: group.members,
-                center: position,
-                radius: this.calculateGroupRadius(group.members, position)
-            });
-            
-            group.members.forEach(node => processedNodes.add(node.id));
-            console.log(`  Acquaintance group ${index + 1}: ${groupSize} members at (${Math.round(position.x)}, ${Math.round(position.y)})`);
-        });
-        
-        // STEP 3: Sprinkle the rest organically
-        console.log('Step 3: Sprinkling remaining characters...');
-        const finalRemainingNodes = nodes.filter(node => !processedNodes.has(node.id));
-        const smallGroups = this.identifySmallGroups(finalRemainingNodes, connections, familyTypes);
-        
-        smallGroups.forEach((group, index) => {
-            const groupSize = group.members.length;
-            const baseDistance = groupSize === 1 ? 80 : 100;
-            
-            // Find organic positions among existing groups
-            const position = this.findOrganicPosition(allGroups, canvasWidth, canvasHeight, baseDistance);
-            
-            if (groupSize === 1) {
-                // Single character
-                group.members[0].targetX = position.x + (Math.random() - 0.5) * 30;
-                group.members[0].targetY = position.y + (Math.random() - 0.5) * 30;
-            } else {
-                // Small group (2-4 people)
-                this.layoutSmallGroup(group.members, connections, position.x, position.y);
-            }
-            
-            allGroups.push({
-                type: 'small',
-                members: group.members,
-                center: position,
-                radius: groupSize === 1 ? 40 : this.calculateGroupRadius(group.members, position)
-            });
-            
-            console.log(`  Small group ${index + 1}: ${groupSize} members at (${Math.round(position.x)}, ${Math.round(position.y)})`);
-        });
-        
-        // Store all groups for rendering
-        window.familyClusters = allGroups.filter(g => g.type === 'family');
-        window.allGroups = allGroups; // Store all groups for potential future use
-        
-        console.log(`Family Forest layout complete: ${familyGroups.length} families, ${acquaintanceGroups.length} acquaintance groups, ${smallGroups.length} small groups`);
-    }
-    
-    static identifyFamilyGroups(nodes, connections, familyTypes) {
-        const familyGroups = [];
-        const visited = new Set();
-        
-        nodes.forEach(node => {
-            if (visited.has(node.id)) return;
-            
-            const group = [];
-            const queue = [node];
-            const groupVisited = new Set([node.id]);
-            
-            while (queue.length > 0) {
-                const current = queue.shift();
-                group.push(current);
-                visited.add(current.id);
-                
-                // Find family connections
-                connections.forEach(conn => {
-                    const relType = conn.type || (conn.relationship && conn.relationship.relationship_type);
-                    if (!familyTypes.includes(relType)) return;
-                    
-                    let nextNode = null;
-                    if (conn.fromNode === current && !groupVisited.has(conn.toNode.id)) {
-                        nextNode = conn.toNode;
-                    } else if (conn.toNode === current && !groupVisited.has(conn.fromNode.id)) {
-                        nextNode = conn.fromNode;
-                    }
-                    
-                    if (nextNode) {
-                        groupVisited.add(nextNode.id);
-                        queue.push(nextNode);
-                    }
-                });
-            }
-            
-            if (group.length > 0) {
-                familyGroups.push({ members: group });
-            }
-        });
-        
-        return familyGroups;
-    }
-    
-    static identifyAcquaintanceGroups(nodes, connections, familyTypes, minSize) {
-        const acquaintanceGroups = [];
-        const visited = new Set();
-        
-        nodes.forEach(node => {
-            if (visited.has(node.id)) return;
-            
-            const group = [];
-            const queue = [node];
-            const groupVisited = new Set([node.id]);
-            
-            while (queue.length > 0) {
-                const current = queue.shift();
-                group.push(current);
-                visited.add(current.id);
-                
-                // Find non-family connections
-                connections.forEach(conn => {
-                    const relType = conn.type || (conn.relationship && conn.relationship.relationship_type);
-                    if (familyTypes.includes(relType)) return; // Skip family relationships
-                    
-                    let nextNode = null;
-                    if (conn.fromNode === current && nodes.includes(conn.toNode) && !groupVisited.has(conn.toNode.id)) {
-                        nextNode = conn.toNode;
-                    } else if (conn.toNode === current && nodes.includes(conn.fromNode) && !groupVisited.has(conn.fromNode.id)) {
-                        nextNode = conn.fromNode;
-                    }
-                    
-                    if (nextNode) {
-                        groupVisited.add(nextNode.id);
-                        queue.push(nextNode);
-                    }
-                });
-            }
-            
-            if (group.length >= minSize) {
-                acquaintanceGroups.push({ members: group });
-            } else {
-                // Put back in the pool for step 3
-                group.forEach(node => visited.delete(node.id));
-            }
-        });
-        
-        return acquaintanceGroups;
-    }
-    
-    static identifySmallGroups(nodes, connections, familyTypes) {
-        const smallGroups = [];
-        const visited = new Set();
-        
-        nodes.forEach(node => {
-            if (visited.has(node.id)) return;
-            
-            const group = [];
-            const queue = [node];
-            const groupVisited = new Set([node.id]);
-            
-            while (queue.length > 0) {
-                const current = queue.shift();
-                group.push(current);
-                visited.add(current.id);
-                
-                // Find any connections (family or non-family)
-                connections.forEach(conn => {
-                    let nextNode = null;
-                    if (conn.fromNode === current && nodes.includes(conn.toNode) && !groupVisited.has(conn.toNode.id)) {
-                        nextNode = conn.toNode;
-                    } else if (conn.toNode === current && nodes.includes(conn.fromNode) && !groupVisited.has(conn.fromNode.id)) {
-                        nextNode = conn.fromNode;
-                    }
-                    
-                    if (nextNode) {
-                        groupVisited.add(nextNode.id);
-                        queue.push(nextNode);
-                    }
-                });
-            }
-            
-            if (group.length > 0) {
-                smallGroups.push({ members: group });
-            }
-        });
-        
-        return smallGroups;
-    }
-    
-    static findGroupPosition(existingGroups, canvasWidth, canvasHeight, minDistance) {
-        let attempts = 0;
-        let position;
-        
-        while (attempts < 100) {
-            position = {
-                x: 150 + Math.random() * (canvasWidth - 300),
-                y: 150 + Math.random() * (canvasHeight - 300)
-            };
-            
-            // Check distance from existing groups
-            let validPosition = true;
-            for (const group of existingGroups) {
-                const distance = Math.sqrt(
-                    Math.pow(position.x - group.center.x, 2) + 
-                    Math.pow(position.y - group.center.y, 2)
-                );
-                
-                if (distance < minDistance + group.radius) {
-                    validPosition = false;
-                    break;
-                }
-            }
-            
-            if (validPosition) break;
-            attempts++;
-        }
-        
-        // Fallback if no good position found
-        if (attempts >= 100) {
-            const angle = Math.random() * Math.PI * 2;
-            const radius = 200 + existingGroups.length * 50;
-            position = {
-                x: canvasWidth/2 + Math.cos(angle) * radius,
-                y: canvasHeight/2 + Math.sin(angle) * radius
-            };
-        }
-        
-        return position;
-    }
-    
-    static findOrganicPosition(existingGroups, canvasWidth, canvasHeight, minDistance) {
-        // For small groups, try to place them in gaps between larger groups
-        let attempts = 0;
-        let position;
-        
-        while (attempts < 50) {
-            position = {
-                x: 100 + Math.random() * (canvasWidth - 200),
-                y: 100 + Math.random() * (canvasHeight - 200)
-            };
-            
-            // Check if it's not too close to existing groups
-            let validPosition = true;
-            for (const group of existingGroups) {
-                const distance = Math.sqrt(
-                    Math.pow(position.x - group.center.x, 2) + 
-                    Math.pow(position.y - group.center.y, 2)
-                );
-                
-                if (distance < minDistance + group.radius * 0.7) { // Allow closer placement
-                    validPosition = false;
-                    break;
-                }
-            }
-            
-            if (validPosition) break;
-            attempts++;
-        }
-        
-        // More lenient fallback
-        if (attempts >= 50) {
-            position = {
-                x: 100 + Math.random() * (canvasWidth - 200),
-                y: 100 + Math.random() * (canvasHeight - 200)
-            };
-        }
-        
-        return position;
-    }
-    
-    static layoutTightGroup(members, connections, centerX, centerY, groupType) {
-        if (members.length === 1) {
-            members[0].targetX = centerX;
-            members[0].targetY = centerY;
-            return;
-        }
-        
-        const radius = Math.max(40, 25 + members.length * 8) * nodeDistanceScale;
-        
-        // Place members in tight formation
-        members.forEach((member, index) => {
-            const angle = (index / members.length) * Math.PI * 2;
-            member.targetX = centerX + Math.cos(angle) * radius + (Math.random() - 0.5) * 20;
-            member.targetY = centerY + Math.sin(angle) * radius + (Math.random() - 0.5) * 20;
-        });
-        
-        // Pull spouses closer together
-        this.adjustSpousePositions(members, connections, centerX, centerY);
-    }
-    
-    static layoutLooseGroup(members, connections, centerX, centerY, groupType) {
-        const radius = Math.max(60, 40 + members.length * 12) * nodeDistanceScale;
-        
-        // Place members in looser formation
-        members.forEach((member, index) => {
-            const angle = Math.random() * Math.PI * 2;
-            const distance = Math.random() * radius;
-            member.targetX = centerX + Math.cos(angle) * distance + (Math.random() - 0.5) * 40;
-            member.targetY = centerY + Math.sin(angle) * distance + (Math.random() - 0.5) * 40;
-        });
-    }
-    
-    static layoutSmallGroup(members, connections, centerX, centerY) {
-        if (members.length === 1) {
-            members[0].targetX = centerX;
-            members[0].targetY = centerY;
-            return;
-        }
-        
-        const spacing = 50 * nodeDistanceScale;
-        
-        if (members.length === 2) {
-            members[0].targetX = centerX - spacing/2 + (Math.random() - 0.5) * 20;
-            members[0].targetY = centerY + (Math.random() - 0.5) * 20;
-            members[1].targetX = centerX + spacing/2 + (Math.random() - 0.5) * 20;
-            members[1].targetY = centerY + (Math.random() - 0.5) * 20;
-        } else {
-            // 3-4 people in small cluster
-            const radius = 35 * nodeDistanceScale;
-            members.forEach((member, index) => {
-                const angle = (index / members.length) * Math.PI * 2;
-                member.targetX = centerX + Math.cos(angle) * radius + (Math.random() - 0.5) * 25;
-                member.targetY = centerY + Math.sin(angle) * radius + (Math.random() - 0.5) * 25;
-            });
-        }
-    }
-    
-    static adjustSpousePositions(members, connections, centerX, centerY) {
-        // Find spouse pairs and move them closer together
-        const spousePairs = [];
-        
-        connections.forEach(conn => {
-            const relType = conn.type || (conn.relationship && conn.relationship.relationship_type);
-            if (['spouse', 'partner'].includes(relType)) {
-                if (members.includes(conn.fromNode) && members.includes(conn.toNode)) {
-                    spousePairs.push([conn.fromNode, conn.toNode]);
-                }
-            }
-        });
-        
-        spousePairs.forEach(([spouse1, spouse2]) => {
-            const midX = (spouse1.targetX + spouse2.targetX) / 2;
-            const midY = (spouse1.targetY + spouse2.targetY) / 2;
-            const offset = 15;
-            
-            spouse1.targetX = midX - offset + (Math.random() - 0.5) * 10;
-            spouse1.targetY = midY + (Math.random() - 0.5) * 10;
-            spouse2.targetX = midX + offset + (Math.random() - 0.5) * 10;
-            spouse2.targetY = midY + (Math.random() - 0.5) * 10;
-        });
-    }
-    
-    static calculateGroupRadius(members, center) {
-        let maxDistance = 0;
-        members.forEach(member => {
-            const distance = Math.sqrt(
-                Math.pow(member.targetX - center.x, 2) + 
-                Math.pow(member.targetY - center.y, 2)
-            );
-            maxDistance = Math.max(maxDistance, distance);
-        });
-        return maxDistance + 50;
-    }
-}
+// ===== Layout Manager (Removed - Now using separate layout classes) =====
 
 // ===== Initialization =====
 function initializeVisualizer() {
+    console.log("Initializing Relationship Visualizer");
     canvas = document.getElementById('relationship-canvas');
+    if (!canvas) {
+        console.error("Canvas element not found!");
+        return;
+    }
     ctx = canvas.getContext('2d');
+
+    const timelineId = new URLSearchParams(window.location.search).get('timelineId');
+    const focusCharacterId = new URLSearchParams(window.location.search).get('focusCharacterId');
+
+    loadData(timelineId, focusCharacterId);
     
-    // Get UI elements
-    contextMenu = document.getElementById('context-menu');
-    characterInfoPanel = document.getElementById('character-info-panel');
-    loadingOverlay = document.getElementById('loading-overlay');
-    
-    // Initialize dark mode
-    initializeDarkMode();
-    
-    // Set up canvas
     resizeCanvas();
     window.addEventListener('resize', resizeCanvas);
     
-    // Set up event listeners
     setupEventListeners();
     
-    // Initialize viewport
-    viewport.width = canvas.width;
-    viewport.height = canvas.height;
-    
-    console.log('Relationship visualizer initialized');
+    initializeDarkMode();
+
+    // Start render loop
+    render();
 }
 
-/**
- * Initialize dark mode for the relationship visualizer
- */
 function initializeDarkMode() {
-    // Get dark mode state from main process
-    window.api.invoke('get-dark-mode').then(darkModeEnabled => {
-        isDarkMode = darkModeEnabled;
-        document.body.classList.toggle('dark-mode', isDarkMode);
-    }).catch(error => {
-        console.warn('Could not get dark mode state:', error);
-    });
-
-    // Listen for dark mode changes
-    window.api.receive('dark-mode-changed', (darkModeEnabled) => {
-        isDarkMode = darkModeEnabled;
-        document.body.classList.toggle('dark-mode', isDarkMode);
+    const darkMode = window.api.invoke('get-setting', 'darkMode');
+    darkMode.then(enabled => {
+        document.body.classList.toggle('dark-mode', enabled);
+        const darkModeToggle = document.getElementById('dark-mode-toggle');
+        if (darkModeToggle) {
+            const icon = darkModeToggle.querySelector('i');
+            if (icon) {
+                icon.className = enabled ? 'ri-sun-line' : 'ri-moon-line';
+            }
+        }
     });
 }
 
 function resizeCanvas() {
-    const container = canvas.parentElement;
+    const container = document.querySelector('.canvas-container');
     canvas.width = container.clientWidth;
     canvas.height = container.clientHeight;
-    viewport.width = canvas.width;
-    viewport.height = canvas.height;
+    render();
 }
 
-// ===== Event Handlers =====
 function setupEventListeners() {
-    // Canvas mouse events
     canvas.addEventListener('mousedown', handleMouseDown);
     canvas.addEventListener('mousemove', handleMouseMove);
     canvas.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('wheel', handleWheel);
+    canvas.addEventListener('mouseleave', handleMouseUp); // End drag if mouse leaves
+    canvas.addEventListener('wheel', handleWheel, { passive: false });
     canvas.addEventListener('contextmenu', handleContextMenu);
-    
-    // UI controls
-    document.getElementById('zoom-in-btn').addEventListener('click', () => zoomIn());
-    document.getElementById('zoom-out-btn').addEventListener('click', () => zoomOut());
-    document.getElementById('reset-view-btn').addEventListener('click', () => resetView());
-    document.getElementById('center-focus-btn').addEventListener('click', () => centerOnFocus());
-    document.getElementById('apply-layout-btn').addEventListener('click', () => applyLayout());
-    document.getElementById('close-btn').addEventListener('click', () => closeWindow());
-    
-    // Distance controls
-    document.getElementById('increase-distance-btn').addEventListener('click', () => increaseDistance());
-    document.getElementById('decrease-distance-btn').addEventListener('click', () => decreaseDistance());
-    
-    // Dark mode toggle
-    document.getElementById('dark-mode-toggle').addEventListener('click', () => toggleDarkMode());
-    
-    // Layout selector
-    document.getElementById('layout-select').addEventListener('change', (e) => {
-        currentLayout = e.target.value;
-    });
-    
-    // Search and filter
-    document.getElementById('search-characters').addEventListener('input', handleSearch);
-    document.getElementById('relationship-filter').addEventListener('change', handleFilter);
-    
-    // Character info panel
-    document.getElementById('close-info-panel').addEventListener('click', () => {
-        characterInfoPanel.classList.add('hidden');
-    });
-    
-    // Global events
     document.addEventListener('click', handleGlobalClick);
     document.addEventListener('keydown', handleKeyDown);
-}
+    document.addEventListener('keyup', handleKeyUp);
 
-function handleMouseDown(e) {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    // Toolbar controls
+    document.getElementById('zoom-in-btn')?.addEventListener('click', zoomIn);
+    document.getElementById('zoom-out-btn')?.addEventListener('click', zoomOut);
+    document.getElementById('reset-view-btn')?.addEventListener('click', resetView);
+    document.getElementById('center-focus-btn')?.addEventListener('click', centerOnFocus);
+    document.getElementById('close-btn')?.addEventListener('click', closeWindow);
+    document.getElementById('dark-mode-toggle')?.addEventListener('click', toggleDarkMode);
     
-    // Convert to world coordinates
-    const worldX = viewport.x + mouseX / viewport.zoom;
-    const worldY = viewport.y + mouseY / viewport.zoom;
+    // Distance controls
+    document.getElementById('increase-distance-btn')?.addEventListener('click', increaseDistance);
+    document.getElementById('decrease-distance-btn')?.addEventListener('click', decreaseDistance);
+    document.getElementById('apply-layout-btn')?.addEventListener('click', applyLayout);
     
-    // Check for character selection
-    const clickedCharacter = findCharacterAt(worldX, worldY);
-    
-    if (clickedCharacter) {
-        if (e.button === 0) { // Left click
-            selectCharacter(clickedCharacter);
-            dragTarget = clickedCharacter;
-            isDragging = true;
-        }
-    } else {
-        // Start panning
-        if (e.button === 0) {
-            isDragging = true;
-            dragTarget = null;
-            selectedCharacter = null;
-            updateCharacterInfoPanel();
-        }
+    const layoutSelect = document.getElementById('layout-select');
+    if (layoutSelect) {
+        // Set initial value
+        layoutSelect.value = currentLayout;
+        
+        layoutSelect.addEventListener('change', (e) => {
+            currentLayout = e.target.value;
+            applyLayout();
+        });
     }
     
-    lastMousePos = { x: mouseX, y: mouseY };
-    e.preventDefault();
+    const searchInput = document.getElementById('search-characters');
+    if (searchInput) {
+        searchInput.addEventListener('input', handleSearch);
+    }
+
+    const filterSelect = document.getElementById('relationship-filter');
+    if (filterSelect) {
+        filterSelect.addEventListener('change', handleFilter);
+    }
+
+    // Info panel close button
+    const closeInfoPanel = document.getElementById('close-info-panel');
+    if (closeInfoPanel) {
+        closeInfoPanel.addEventListener('click', () => {
+            selectCharacter(null);
+        });
+    }
+    
+    // Focus character display click
+    const focusDisplay = document.getElementById('focus-character-display');
+    if (focusDisplay) {
+        focusDisplay.addEventListener('click', () => {
+            if (focusCharacter) {
+                viewport.zoom = 1.0;
+                centerOnCharacter(focusCharacter);
+            }
+        });
+    }
+}
+
+// ===== Event Handlers =====
+
+function handleMouseDown(e) {
+    if (e.button === 0) { // Left-click
+        const mousePos = { x: e.offsetX, y: e.offsetY };
+        const clickedNode = findCharacterAt(mousePos.x, mousePos.y);
+
+        if (ctrlPressed && !clickedNode) {
+            // Start selection rectangle
+            isSelecting = true;
+            selectionStart = { x: mousePos.x, y: mousePos.y };
+            selectionEnd = { x: mousePos.x, y: mousePos.y };
+        } else if (clickedNode) {
+            draggedNode = clickedNode;
+            selectCharacter(clickedNode);
+        } else {
+            dragging = true;
+            draggedNode = null;
+            if (!ctrlPressed) {
+                clearMultiSelection();
+            }
+        }
+        lastMousePos = mousePos;
+
+        // Hide context menu
+        const contextMenu = document.getElementById('context-menu');
+        contextMenu.classList.add('hidden');
+    }
 }
 
 function handleMouseMove(e) {
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
+    const mousePos = { x: e.offsetX, y: e.offsetY };
     
-    if (isDragging) {
-        const deltaX = mouseX - lastMousePos.x;
-        const deltaY = mouseY - lastMousePos.y;
+    if (isSelecting) {
+        // Update selection rectangle
+        selectionEnd = { x: mousePos.x, y: mousePos.y };
+    } else if (draggedNode) {
+        // Dragging a node (and all selected nodes if multiple are selected)
+        const dx = (mousePos.x - lastMousePos.x) / viewport.zoom;
+        const dy = (mousePos.y - lastMousePos.y) / viewport.zoom;
         
-        if (dragTarget) {
-            // Drag character
-            dragTarget.x += deltaX / viewport.zoom;
-            dragTarget.y += deltaY / viewport.zoom;
-            dragTarget.targetX = dragTarget.x;
-            dragTarget.targetY = dragTarget.y;
-        } else {
-            // Pan viewport
-            viewport.x -= deltaX / viewport.zoom;
-            viewport.y -= deltaY / viewport.zoom;
+        // Move the primary dragged node
+        draggedNode.x += dx;
+        draggedNode.y += dy;
+        draggedNode.targetX = draggedNode.x;
+        draggedNode.targetY = draggedNode.y;
+        
+        // Move all other selected nodes if multi-selection is active
+        if (selectedNodes.size > 1) {
+            selectedNodes.forEach(nodeId => {
+                const node = nodeMap.get(nodeId);
+                if (node && node !== draggedNode) {
+                    node.x += dx;
+                    node.y += dy;
+                    node.targetX = node.x;
+                    node.targetY = node.y;
+                }
+            });
         }
+    } else if (dragging) {
+        // Panning the canvas
+        const dx = (mousePos.x - lastMousePos.x) / viewport.zoom;
+        const dy = (mousePos.y - lastMousePos.y) / viewport.zoom;
+        viewport.x -= dx;
+        viewport.y -= dy;
     } else {
-        // Handle hover
-        const worldX = viewport.x + mouseX / viewport.zoom;
-        const worldY = viewport.y + mouseY / viewport.zoom;
-        
-        const hoveredChar = findCharacterAt(worldX, worldY);
-        
-        if (hoveredChar !== hoveredCharacter) {
-            if (hoveredCharacter) {
-                hoveredCharacter.hovered = false;
-            }
-            hoveredCharacter = hoveredChar;
-            if (hoveredCharacter) {
-                hoveredCharacter.hovered = true;
-                canvas.style.cursor = 'pointer';
-            } else {
-                canvas.style.cursor = 'grab';
-            }
-        }
+        // Hovering
+        hoveredNode = findCharacterAt(mousePos.x, mousePos.y);
+        canvas.style.cursor = ctrlPressed ? 'crosshair' : (hoveredNode ? 'pointer' : 'grab');
     }
-    
-    lastMousePos = { x: mouseX, y: mouseY };
-    updateStatusBar();
+
+    lastMousePos = mousePos;
 }
 
 function handleMouseUp(e) {
-    isDragging = false;
-    dragTarget = null;
-    canvas.style.cursor = hoveredCharacter ? 'pointer' : 'grab';
+    if (isSelecting) {
+        finishSelection();
+    } else if (dragging) {
+        canvas.style.cursor = ctrlPressed ? 'crosshair' : 'grab';
+    }
+    dragging = false;
+    draggedNode = null;
+    isSelecting = false;
 }
 
 function handleWheel(e) {
     e.preventDefault();
+    const zoomFactor = 1.1;
+    const oldZoom = viewport.zoom;
+
+    if (e.deltaY < 0) {
+        // Zoom in
+        viewport.zoom = Math.min(viewport.maxZoom, viewport.zoom * zoomFactor);
+    } else {
+        // Zoom out
+        viewport.zoom = Math.max(viewport.minZoom, viewport.zoom / zoomFactor);
+    }
+
+    // Zoom towards the mouse cursor
+    const mouseX = e.offsetX;
+    const mouseY = e.offsetY;
+    const worldX = (mouseX - canvas.width / 2) / oldZoom + viewport.x;
+    const worldY = (mouseY - canvas.height / 2) / oldZoom + viewport.y;
     
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    
-    const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-    const newZoom = Math.max(0.1, Math.min(5, viewport.zoom * zoomFactor));
-    
-    // Zoom towards mouse position
-    const worldX = viewport.x + mouseX / viewport.zoom;
-    const worldY = viewport.y + mouseY / viewport.zoom;
-    
-    viewport.zoom = newZoom;
-    
-    viewport.x = worldX - mouseX / viewport.zoom;
-    viewport.y = worldY - mouseY / viewport.zoom;
-    
-    updateStatusBar();
+    viewport.x = worldX - (mouseX - canvas.width / 2) / viewport.zoom;
+    viewport.y = worldY - (mouseY - canvas.height / 2) / viewport.zoom;
 }
 
 function handleContextMenu(e) {
     e.preventDefault();
-    
-    const rect = canvas.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const mouseY = e.clientY - rect.top;
-    const worldX = viewport.x + mouseX / viewport.zoom;
-    const worldY = viewport.y + mouseY / viewport.zoom;
-    
-    const clickedCharacter = findCharacterAt(worldX, worldY);
-    
-    showContextMenu(e.clientX, e.clientY, clickedCharacter);
+    const mousePos = { x: e.offsetX, y: e.offsetY };
+    const character = findCharacterAt(mousePos.x, mousePos.y);
+    showContextMenu(e.clientX, e.clientY, character);
 }
 
 function handleGlobalClick(e) {
-    // Hide context menu if clicking outside
+    const contextMenu = document.getElementById('context-menu');
     if (!contextMenu.contains(e.target)) {
         contextMenu.classList.add('hidden');
     }
 }
 
 function handleKeyDown(e) {
-    switch (e.key) {
-        case 'Escape':
-            selectedCharacter = null;
-            characterInfoPanel.classList.add('hidden');
+    if (e.key === 'Control') {
+        ctrlPressed = true;
+        canvas.style.cursor = 'crosshair';
+    } else if (e.key === 'Escape') {
+        const contextMenu = document.getElementById('context-menu');
+        if (!contextMenu.classList.contains('hidden')) {
             contextMenu.classList.add('hidden');
-            break;
-        case 'Delete':
-            if (selectedCharacter) {
-                // TODO: Implement character deletion
-                console.log('Delete character:', selectedCharacter.name);
-            }
-            break;
-        case 'f':
-        case 'F':
-            if (selectedCharacter) {
-                centerOnCharacter(selectedCharacter);
-            }
-            break;
+        } else {
+            selectCharacter(null); // Deselect character
+            clearMultiSelection();
+        }
     }
 }
 
-// ===== Utility Functions =====
+function handleKeyUp(e) {
+    if (e.key === 'Control') {
+        ctrlPressed = false;
+        canvas.style.cursor = hoveredNode ? 'pointer' : 'grab';
+        if (isSelecting) {
+            finishSelection();
+        }
+    }
+}
+
+// ===== Interaction Logic =====
+
 function findCharacterAt(x, y) {
-    for (let i = filteredCharacters.length - 1; i >= 0; i--) {
-        if (filteredCharacters[i].containsPoint(x, y)) {
-            return filteredCharacters[i];
+    // Iterate backwards so we find the top-most node
+    for (let i = nodes.length - 1; i >= 0; i--) {
+        if (nodes[i].containsPoint(x, y)) {
+            return nodes[i];
         }
     }
     return null;
 }
 
 function selectCharacter(character) {
-    if (selectedCharacter) {
-        selectedCharacter.selected = false;
-    }
-    selectedCharacter = character;
-    character.selected = true;
+    if (selectedNode === character) return;
     
-    // Find path from initiating character to selected character
-    const initiatingChar = characters.find(c => c.isInitiating);
-    if (initiatingChar && character !== initiatingChar) {
-        const path = findShortestPath(initiatingChar, character);
-        highlightPath(path);
-        updateBreadcrumb(path);
-    } else {
-        clearPathHighlight();
-        clearBreadcrumb();
+    selectedNode = character;
+
+    // Clear previous highlights
+    clearPathHighlight();
+
+    if (character) {
+        character.isHighlighted = true;
+        
+        // If we have a focus character and it's different from selected, show path
+        if (focusCharacter && focusCharacter.id !== character.id) {
+            highlightPathToCharacter(focusCharacter, character);
+        } else {
+            // Just highlight direct connections
+            connections.forEach(conn => {
+                if (conn.fromNode.id === character.id || conn.toNode.id === character.id) {
+                    conn.isHighlighted = true;
+                    conn.fromNode.isHighlighted = true;
+                    conn.toNode.isHighlighted = true;
+                }
+            });
+        }
     }
-    
+
     updateCharacterInfoPanel();
     updateStatusBar();
 }
 
-// ===== Path Finding =====
+function highlightPathToCharacter(fromChar, toChar) {
+    clearPathHighlight();
+    if (!fromChar || !toChar) return;
+
+    const path = findShortestPath(fromChar, toChar);
+    if (path) {
+        highlightPath(path);
+        updateBreadcrumb(path);
+    } else {
+        // If no path, just highlight direct relationship if it exists
+        highlightDirectRelationship(fromChar, toChar);
+    }
+}
+
+function highlightDirectRelationship(char1, char2) {
+    connections.forEach(conn => {
+        if ((conn.fromNode.id === char1.id && conn.toNode.id === char2.id) ||
+            (conn.fromNode.id === char2.id && conn.toNode.id === char1.id)) {
+            conn.isHighlighted = true;
+        }
+    });
+}
+
 function findShortestPath(startNode, endNode) {
-    if (startNode === endNode) return [startNode];
-    
     const queue = [[startNode]];
     const visited = new Set([startNode.id]);
-    
+
     while (queue.length > 0) {
         const path = queue.shift();
-        const currentNode = path[path.length - 1];
-        
-        // Get connected characters
-        const connections = relationships.filter(rel => 
-            rel.fromNode === currentNode || rel.toNode === currentNode
-        );
-        
-        for (const connection of connections) {
-            const nextNode = connection.fromNode === currentNode ? connection.toNode : connection.fromNode;
-            
-            if (nextNode === endNode) {
-                return [...path, nextNode];
-            }
-            
-            if (!visited.has(nextNode.id)) {
-                visited.add(nextNode.id);
-                queue.push([...path, nextNode]);
-            }
+        const lastNode = path[path.length - 1];
+
+        if (lastNode.id === endNode.id) {
+            return path;
         }
+
+        connections.forEach(conn => {
+            let neighbor = null;
+            if (conn.fromNode.id === lastNode.id) neighbor = conn.toNode;
+            if (conn.toNode.id === lastNode.id) neighbor = conn.fromNode;
+
+            if (neighbor && !visited.has(neighbor.id)) {
+                visited.add(neighbor.id);
+                const newPath = [...path, neighbor];
+                queue.push(newPath);
+            }
+        });
     }
-    
-    return []; // No path found
+    return null; // No path found
 }
 
 function highlightPath(path) {
-    // Clear previous highlights
-    clearPathHighlight();
-    
-    if (path.length < 2) return;
-    
-    // Highlight characters in path
-    path.forEach(char => {
-        if (!char.isInitiating) {
-            char.pathHighlighted = true;
+    const pathNodeIds = new Set(path.map(n => n.id));
+    currentPath = path;
+    pathConnections.clear();
+
+    nodes.forEach(n => {
+        if (pathNodeIds.has(n.id)) {
+            n.isHighlighted = true;
+            // Special path highlighting with glow effect
+            n.highlightColor = 'rgba(0, 255, 255, 0.8)'; // Cyan highlight for path
+            n.isPathNode = true;
         }
     });
-    
-    // Highlight relationships in path
+
     for (let i = 0; i < path.length - 1; i++) {
-        const fromChar = path[i];
-        const toChar = path[i + 1];
-        
-        const connection = relationships.find(rel => 
-            (rel.fromNode === fromChar && rel.toNode === toChar) ||
-            (rel.fromNode === toChar && rel.toNode === fromChar)
-        );
-        
-        if (connection) {
-            connection.pathHighlighted = true;
-        }
+        const node1Id = path[i].id;
+        const node2Id = path[i + 1].id;
+        connections.forEach(conn => {
+            if ((conn.fromNode.id === node1Id && conn.toNode.id === node2Id) ||
+                (conn.fromNode.id === node2Id && conn.toNode.id === node1Id)) {
+                conn.isHighlighted = true;
+                // Special path connection highlighting with glow
+                conn.highlightColor = 'rgba(0, 255, 255, 1.0)'; // Bright cyan for path
+                conn.isPathConnection = true;
+                pathConnections.add(conn);
+            }
+        });
     }
-    
-    highlightedPath = path;
 }
 
 function clearPathHighlight() {
-    characters.forEach(char => char.pathHighlighted = false);
-    relationships.forEach(rel => rel.pathHighlighted = false);
-    highlightedPath = [];
+    nodes.forEach(n => {
+        n.isHighlighted = false;
+        n.highlightColor = 'rgba(255, 255, 0, 0.7)'; // Reset to default
+        n.isPathNode = false;
+    });
+    connections.forEach(c => {
+        c.isHighlighted = false;
+        c.highlightColor = 'rgba(255, 255, 0, 0.9)'; // Reset to default
+        c.isPathConnection = false;
+    });
+    currentPath = null;
+    pathConnections.clear();
+    clearBreadcrumb();
 }
 
 function updateBreadcrumb(path) {
-    const breadcrumbElement = document.getElementById('breadcrumb-path');
-    if (path.length > 1) {
-        const breadcrumbText = path.map(char => char.name).join(' → ');
-        breadcrumbElement.textContent = breadcrumbText;
-        breadcrumbElement.style.display = 'block';
-    } else {
-        clearBreadcrumb();
-    }
-    breadcrumbPath = path;
+    // Store the path for canvas rendering
+    currentPath = path;
+}
+
+function findRelationshipBetween(node1, node2) {
+    return connections.find(conn => 
+        (conn.fromNode.id === node1.id && conn.toNode.id === node2.id) ||
+        (conn.fromNode.id === node2.id && conn.toNode.id === node1.id)
+    );
 }
 
 function clearBreadcrumb() {
-    const breadcrumbElement = document.getElementById('breadcrumb-path');
-    breadcrumbElement.textContent = '';
-    breadcrumbElement.style.display = 'none';
-    breadcrumbPath = [];
+    currentPath = null;
+}
+
+function drawCanvasBreadcrumb(ctx) {
+    if (!currentPath || currentPath.length < 2) return;
+    
+    const startX = 20;
+    const startY = canvas.height - 60;
+    const fontSize = 14;
+    const arrowSpacing = 10;
+    
+    ctx.save();
+    ctx.font = `${fontSize}px Arial`;
+    ctx.textBaseline = 'middle';
+    
+    let currentX = startX;
+    
+    // Draw background
+    const totalWidth = calculateBreadcrumbWidth(ctx, currentPath);
+    ctx.fillStyle = document.body.classList.contains('dark-mode') ? 'rgba(45, 45, 45, 0.9)' : 'rgba(255, 255, 255, 0.9)';
+    ctx.fillRect(startX - 10, startY - 20, totalWidth + 20, 40);
+    ctx.strokeStyle = document.body.classList.contains('dark-mode') ? '#404040' : '#ccc';
+    ctx.strokeRect(startX - 10, startY - 20, totalWidth + 20, 40);
+    
+    currentPath.forEach((node, index) => {
+        // Draw character name
+        ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#e0e0e0' : '#333';
+        ctx.fillText(node.name, currentX, startY);
+        currentX += ctx.measureText(node.name).width + arrowSpacing;
+        
+        // Draw arrow and relationship type if not the last item
+        if (index < currentPath.length - 1) {
+            const nextNode = currentPath[index + 1];
+            const relationship = findRelationshipBetween(node, nextNode);
+            
+            // Draw arrow
+            ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#ff6347' : '#FF4500';
+            ctx.fillText('→', currentX, startY);
+            currentX += ctx.measureText('→').width + arrowSpacing;
+            
+            // Draw relationship type below arrow
+            if (relationship) {
+                ctx.save();
+                ctx.font = `${fontSize - 2}px Arial`;
+                ctx.fillStyle = document.body.classList.contains('dark-mode') ? '#aaa' : '#666';
+                const relText = relationship.type;
+                const relWidth = ctx.measureText(relText).width;
+                ctx.fillText(relText, currentX - ctx.measureText('→').width - arrowSpacing - relWidth/2, startY + 15);
+                ctx.restore();
+            }
+        }
+    });
+    
+    ctx.restore();
+}
+
+function calculateBreadcrumbWidth(ctx, path) {
+    let width = 0;
+    const arrowSpacing = 10;
+    
+    path.forEach((node, index) => {
+        width += ctx.measureText(node.name).width + arrowSpacing;
+        if (index < path.length - 1) {
+            width += ctx.measureText('→').width + arrowSpacing;
+        }
+    });
+    
+    return width;
 }
 
 function centerOnCharacter(character) {
-    viewport.x = character.x - viewport.width / (2 * viewport.zoom);
-    viewport.y = character.y - viewport.height / (2 * viewport.zoom);
+    if (character) {
+        viewport.x = character.x;
+        viewport.y = character.y;
+    }
 }
 
 function centerOnFocus() {
-    if (focusCharacterId) {
-        const focusChar = filteredCharacters.find(c => c.id === focusCharacterId);
-        if (focusChar) {
-            centerOnCharacter(focusChar);
-        }
+    if (selectedNode) {
+        centerOnCharacter(selectedNode);
     }
 }
 
 function zoomIn() {
-    viewport.zoom = Math.min(5, viewport.zoom * 1.2);
-    updateStatusBar();
+    viewport.zoom = Math.min(viewport.maxZoom, viewport.zoom * 1.2);
 }
 
 function zoomOut() {
-    viewport.zoom = Math.max(0.1, viewport.zoom / 1.2);
-    updateStatusBar();
+    viewport.zoom = Math.max(viewport.minZoom, viewport.zoom / 1.2);
 }
 
 function resetView() {
     viewport.x = 0;
     viewport.y = 0;
-    viewport.zoom = 1;
-    updateStatusBar();
+    viewport.zoom = 0.1;
 }
 
 function increaseDistance() {
-    nodeDistanceScale = Math.min(3.0, nodeDistanceScale + 0.2);
+    window.nodeDistanceScale = (window.nodeDistanceScale || 1.0) * 1.2;
+    // No maximum limit
+    applyCurrentDistanceScale();
     updateDistanceDisplay();
-    applyLayout();
 }
 
 function decreaseDistance() {
-    nodeDistanceScale = Math.max(0.2, nodeDistanceScale - 0.2);
+    window.nodeDistanceScale = (window.nodeDistanceScale || 1.0) / 1.2;
+    // Minimum of 1.0
+    if (window.nodeDistanceScale < 1.0) {
+        window.nodeDistanceScale = 1.0;
+    }
+    applyCurrentDistanceScale();
     updateDistanceDisplay();
-    applyLayout();
+}
+
+function applyCurrentDistanceScale() {
+    const scale = window.nodeDistanceScale || 1.0;
+    
+    // Scale all node positions from center
+    const centerX = 0;
+    const centerY = 0;
+    
+    nodes.forEach(node => {
+        const dx = node.x - centerX;
+        const dy = node.y - centerY;
+        node.targetX = centerX + dx * scale;
+        node.targetY = centerY + dy * scale;
+    });
 }
 
 function updateDistanceDisplay() {
-    const percentage = Math.round(nodeDistanceScale * 100);
-    document.getElementById('distance-display').textContent = `${percentage}%`;
+    const distanceDisplay = document.getElementById('distance-display');
+    if (distanceDisplay) {
+        const scale = window.nodeDistanceScale || 1.0;
+        distanceDisplay.textContent = `${Math.round(scale * 100)}%`;
+    }
 }
 
 function toggleDarkMode() {
-    isDarkMode = !isDarkMode;
+    const isDarkMode = !document.body.classList.contains('dark-mode');
     document.body.classList.toggle('dark-mode', isDarkMode);
-    
-    // Update the icon
-    const icon = document.querySelector('#dark-mode-toggle i');
-    if (isDarkMode) {
-        icon.className = 'ri-sun-line';
-    } else {
-        icon.className = 'ri-moon-line';
+    const darkModeToggle = document.getElementById('dark-mode-toggle');
+    if (darkModeToggle) {
+        const icon = darkModeToggle.querySelector('i');
+        if (icon) {
+            icon.className = isDarkMode ? 'ri-sun-line' : 'ri-moon-line';
+        }
     }
+    window.api.send('set-setting', { key: 'darkMode', value: isDarkMode });
 }
 
 function applyLayout() {
-    const layoutSelect = document.getElementById('layout-select');
-    const layout = layoutSelect.value;
-    currentLayout = layout; // Track current layout for rendering
+    if (nodes.length === 0) return;
     
-    switch (layout) {
-        case 'force':
-            LayoutManager.applyForceLayout(filteredCharacters, filteredRelationships);
-            break;
-        case 'circular':
-            LayoutManager.applyCircularLayout(filteredCharacters, 400, 300, 200);
-            break;
-        case 'grid':
-            LayoutManager.applyGridLayout(filteredCharacters);
-            break;
-        case 'hierarchical':
-            const focusNode = focusCharacterId ? 
-                filteredCharacters.find(c => c.id === focusCharacterId) : null;
-            LayoutManager.applyHierarchicalLayout(filteredCharacters, filteredRelationships, focusNode);
-            break;
-        case 'family-forest':
-            LayoutManager.applyFamilyForestLayout(filteredCharacters, filteredRelationships);
-            break;
-    }
+    showLoading(true);
+    
+    // Use a timeout to allow the loading screen to render before blocking the main thread
+    setTimeout(() => {
+        switch (currentLayout) {
+            case 'force':
+                ForceLayout.apply(nodes, connections);
+                break;
+            case 'circular':
+                CircularLayout.apply(nodes);
+                break;
+            case 'grid':
+                GridLayout.apply(nodes);
+                break;
+            case 'hierarchical':
+                HierarchicalLayout.apply(nodes, connections, selectedNode);
+                break;
+            case 'family-forest':
+                FamilyForestLayout.apply(nodes, connections);
+                break;
+            case 'radiating':
+                RadiatingLayout.apply(nodes, connections, selectedNode);
+                break;
+        }
+        showLoading(false);
+    }, 50);
 }
+
+// ===== Data Handling and UI Updates =====
 
 function handleSearch(e) {
     const query = e.target.value.toLowerCase();
@@ -1609,454 +1249,541 @@ function handleSearch(e) {
 }
 
 function handleFilter(e) {
-    const relationshipType = e.target.value;
-    const searchQuery = document.getElementById('search-characters').value.toLowerCase();
-    filterData(searchQuery, relationshipType);
+    const type = e.target.value;
+    filterData(document.getElementById('search-characters').value.toLowerCase(), type);
 }
 
 function filterData(searchQuery, relationshipType) {
-    // Filter characters
-    filteredCharacters = characters.filter(char => {
-        return !searchQuery || char.name.toLowerCase().includes(searchQuery);
+    nodes.forEach(n => n.isDimmed = true);
+    connections.forEach(c => c.isDimmed = true);
+
+    if (!searchQuery && !relationshipType) {
+        nodes.forEach(n => n.isDimmed = false);
+        connections.forEach(c => c.isDimmed = false);
+        render();
+        return;
+    }
+
+    const matchedNodes = new Set();
+
+    nodes.forEach(node => {
+        if (node.name.toLowerCase().includes(searchQuery)) {
+            matchedNodes.add(node.id);
+        }
     });
-    
-    // Filter relationships
-    filteredRelationships = relationships.filter(rel => {
-        let typeMatch = true;
-        
-        if (relationshipType !== 'all') {
-            // Map relationship types to categories
-            const relType = rel.type.toLowerCase();
-            switch (relationshipType) {
-                case 'family':
-                    typeMatch = ['parent', 'child', 'sibling', 'spouse', 'grandparent', 'grandchild', 
-                               'uncle', 'aunt', 'cousin', 'nephew', 'niece'].some(t => relType.includes(t));
-                    break;
-                case 'romantic':
-                    typeMatch = ['spouse', 'partner', 'lover', 'romantic', 'boyfriend', 'girlfriend', 
-                               'husband', 'wife'].some(t => relType.includes(t));
-                    break;
-                case 'friendship':
-                    typeMatch = ['friend', 'ally', 'companion', 'buddy', 'pal'].some(t => relType.includes(t));
-                    break;
-                case 'professional':
-                    typeMatch = ['colleague', 'boss', 'employee', 'mentor', 'student', 'teacher', 
-                               'coworker', 'business'].some(t => relType.includes(t));
-                    break;
-                case 'antagonistic':
-                    typeMatch = ['enemy', 'rival', 'antagonist', 'opponent', 'foe', 'nemesis'].some(t => relType.includes(t));
-                    break;
-                default:
-                    typeMatch = rel.type === relationshipType;
+
+    connections.forEach(conn => {
+        const typeMatch = !relationshipType || conn.type === relationshipType;
+        if (typeMatch) {
+            if (matchedNodes.has(conn.fromNode.id) || matchedNodes.has(conn.toNode.id)) {
+                matchedNodes.add(conn.fromNode.id);
+                matchedNodes.add(conn.toNode.id);
             }
         }
-        
-        const charMatch = filteredCharacters.some(c => c.id === rel.fromNode.id) &&
-                         filteredCharacters.some(c => c.id === rel.toNode.id);
-        return typeMatch && charMatch;
     });
-    
-    updateStatusBar();
+
+    nodes.forEach(n => n.isDimmed = !matchedNodes.has(n.id));
+    connections.forEach(c => {
+        c.isDimmed = !(matchedNodes.has(c.fromNode.id) && matchedNodes.has(c.toNode.id));
+    });
+
+    render();
 }
 
-// ===== UI Updates =====
 function updateStatusBar() {
-    document.getElementById('character-count').textContent = `${filteredCharacters.length} characters`;
-    document.getElementById('relationship-count').textContent = `${filteredRelationships.length} relationships`;
+    document.getElementById('character-count').textContent = `${nodes.length} characters`;
+    document.getElementById('relationship-count').textContent = `${connections.length} relationships`;
     document.getElementById('view-coordinates').textContent = `View: (${Math.round(viewport.x)}, ${Math.round(viewport.y)})`;
     document.getElementById('zoom-level').textContent = `Zoom: ${Math.round(viewport.zoom * 100)}%`;
-    
-    if (selectedCharacter) {
-        document.getElementById('selected-info').textContent = `Selected: ${selectedCharacter.name}`;
-    } else {
-        document.getElementById('selected-info').textContent = 'No selection';
-    }
+    document.getElementById('selected-info').textContent = selectedNode ? selectedNode.name : 'No selection';
 }
 
 function updateCharacterInfoPanel() {
-    if (!selectedCharacter) {
-        characterInfoPanel.classList.add('hidden');
+    const panel = document.getElementById('character-info-panel');
+    if (!selectedNode) {
+        panel.classList.add('hidden');
         return;
     }
-    
-    const char = selectedCharacter.character;
-    
-    document.getElementById('panel-character-name').textContent = char.name;
-    
-    const detailsDiv = document.getElementById('panel-character-details');
-    detailsDiv.innerHTML = `
-        <div class="character-detail">
-            <div class="detail-label">Race:</div>
-            <div class="detail-value">${char.race || 'Unknown'}</div>
-        </div>
-        <div class="character-detail">
-            <div class="detail-label">Importance:</div>
-            <div class="detail-value">${char.importance || 5}/10</div>
-        </div>
-        <div class="character-detail">
-            <div class="detail-label">Birth Year:</div>
-            <div class="detail-value">${char.birth_year || 'Unknown'}</div>
-        </div>
-        <div class="character-detail">
-            <div class="detail-label">Description:</div>
-            <div class="detail-value">${char.description || 'No description available'}</div>
-        </div>
-    `;
-    
-    // Show relationships
-    const relationshipsDiv = document.getElementById('panel-relationships');
-    const charRelationships = relationships.filter(rel => 
-        rel.fromNode.id === char.id || rel.toNode.id === char.id
-    );
-    
-    if (charRelationships.length > 0) {
-        relationshipsDiv.innerHTML = '<h4>Relationships</h4>' + 
-            charRelationships.map(rel => {
-                const otherChar = rel.fromNode.id === char.id ? rel.toNode : rel.fromNode;
-                const bidirectionalIndicator = rel.bidirectional ? ' ↔' : '';
-                const strengthIndicator = rel.strength ? ` (${rel.strength}/10)` : '';
-                return `
-                    <div class="relationship-item">
-                        <div class="relationship-type">${rel.type}${bidirectionalIndicator}${strengthIndicator}</div>
-                        <div class="relationship-target">${otherChar.name}</div>
-                        ${rel.notes ? `<div class="relationship-notes">${rel.notes}</div>` : ''}
-                    </div>
-                `;
-            }).join('');
-    } else {
-        relationshipsDiv.innerHTML = '<h4>Relationships</h4><p>No relationships found</p>';
+
+    panel.classList.remove('hidden');
+
+    // Update character name
+    const nameElement = document.getElementById('panel-character-name');
+    if (nameElement) {
+        nameElement.textContent = selectedNode.name;
+    }
+
+    // Update character details
+    const detailsContainer = document.getElementById('panel-character-details');
+    if (detailsContainer) {
+        detailsContainer.innerHTML = `
+            <div class="character-detail">
+                <span class="detail-label">ID:</span>
+                <span class="detail-value">${selectedNode.id}</span>
+            </div>
+            <div class="character-detail">
+                <span class="detail-label">Race:</span>
+                <span class="detail-value">${selectedNode.character.race || 'N/A'}</span>
+            </div>
+            <div class="character-detail">
+                <span class="detail-label">Birth Year:</span>
+                <span class="detail-value">${selectedNode.character.birth_year || 'Unknown'}</span>
+            </div>
+            <div class="character-detail">
+                <span class="detail-label">Importance:</span>
+                <span class="detail-value">${selectedNode.character.importance || 'N/A'}</span>
+            </div>
+        `;
     }
     
-    characterInfoPanel.classList.remove('hidden');
+    // Update relationships
+    const relationshipsContainer = document.getElementById('panel-relationships');
+    if (relationshipsContainer) {
+        const directConnections = connections.filter(c => c.fromNode.id === selectedNode.id || c.toNode.id === selectedNode.id);
+
+        if (directConnections.length === 0) {
+            relationshipsContainer.innerHTML = '<h4>Relationships</h4><p>No direct relationships.</p>';
+        } else {
+            let relationshipsHTML = '<h4>Relationships</h4>';
+            directConnections.forEach(conn => {
+                const otherNode = conn.fromNode.id === selectedNode.id ? conn.toNode : conn.fromNode;
+                const direction = conn.isBidirectional ? '↔' : (conn.fromNode.id === selectedNode.id ? '→' : '←');
+                
+                relationshipsHTML += `
+                    <div class="relationship-item" onclick="selectAndCenterCharacter('${otherNode.id}')">
+                        <span class="relationship-type">${direction}</span>
+                        <span class="relationship-target">${conn.type}: ${otherNode.name}</span>
+                    </div>
+                `;
+            });
+            relationshipsContainer.innerHTML = relationshipsHTML;
+        }
+    }
+}
+
+// Helper function for relationship clicking
+function selectAndCenterCharacter(characterId) {
+    const character = nodes.find(n => n.id === characterId);
+    if (character) {
+        selectCharacter(character);
+        centerOnCharacter(character);
+    }
+}
+
+// Multi-selection functions
+function finishSelection() {
+    const rect = getSelectionRect();
+    const selectedInRect = nodes.filter(node => {
+        const screenPos = node.getScreenPosition(viewport);
+        return screenPos.x >= rect.left && screenPos.x <= rect.right &&
+               screenPos.y >= rect.top && screenPos.y <= rect.bottom;
+    });
+    
+    selectedNodes.clear();
+    selectedInRect.forEach(node => {
+        selectedNodes.add(node.id);
+        node.isHighlighted = true;
+    });
+    
+    if (selectedNodes.size > 0) {
+        updateMultiSelectionInfo();
+    }
+}
+
+function clearMultiSelection() {
+    selectedNodes.clear();
+    nodes.forEach(node => {
+        if (node !== selectedNode) {
+            node.isHighlighted = false;
+        }
+    });
+}
+
+function getSelectionRect() {
+    return {
+        left: Math.min(selectionStart.x, selectionEnd.x),
+        right: Math.max(selectionStart.x, selectionEnd.x),
+        top: Math.min(selectionStart.y, selectionEnd.y),
+        bottom: Math.max(selectionStart.y, selectionEnd.y)
+    };
+}
+
+function updateMultiSelectionInfo() {
+    const statusRight = document.querySelector('.status-right');
+    if (statusRight && selectedNodes.size > 0) {
+        const selectedInfo = document.getElementById('selected-info');
+        if (selectedInfo) {
+            selectedInfo.textContent = `${selectedNodes.size} characters selected`;
+        }
+    }
 }
 
 function showContextMenu(x, y, character) {
-    const menuItems = [];
+    const menu = document.getElementById('context-menu');
     
-    if (character) {
-        menuItems.push(
-            { icon: 'ri-information-line', text: 'View Details', action: () => selectCharacter(character) },
-            { icon: 'ri-edit-line', text: 'Edit Character', action: () => editCharacter(character) },
-            { icon: 'ri-focus-3-line', text: 'Center on Character', action: () => centerOnCharacter(character) },
-            { separator: true },
-            { icon: 'ri-links-line', text: 'Add Relationship', action: () => addRelationship(character) },
-            { separator: true },
-            { icon: 'ri-delete-bin-line', text: 'Delete Character', action: () => deleteCharacter(character) }
-        );
-    } else {
-        menuItems.push(
-            { icon: 'ri-add-line', text: 'Add Character', action: () => addCharacter() },
-            { separator: true },
-            { icon: 'ri-refresh-line', text: 'Apply Layout', action: () => applyLayout() },
-            { icon: 'ri-focus-3-line', text: 'Reset View', action: () => resetView() }
-        );
+    // Create context menu items if they don't exist
+    if (menu.children.length === 0) {
+        createContextMenuItems(menu);
     }
     
-    contextMenu.innerHTML = menuItems.map(item => {
-        if (item.separator) {
-            return '<div class="context-menu-separator"></div>';
-        }
-        return `
-            <div class="context-menu-item" data-action="${item.text}">
-                <i class="${item.icon}"></i>
-                ${item.text}
-            </div>
-        `;
-    }).join('');
-    
-    // Add click handlers
-    contextMenu.querySelectorAll('.context-menu-item').forEach((item, index) => {
-        const menuItem = menuItems.filter(m => !m.separator)[index];
-        if (menuItem) {
-            item.addEventListener('click', () => {
-                menuItem.action();
-                contextMenu.classList.add('hidden');
-            });
-        }
+    menu.style.left = `${x}px`;
+    menu.style.top = `${y}px`;
+    menu.classList.remove('hidden');
+
+    // Populate menu based on whether a character was clicked
+    const characterItems = menu.querySelectorAll('.character-item');
+    characterItems.forEach(item => {
+        item.style.display = character ? 'block' : 'none';
+        item.onclick = (e) => {
+            const action = e.currentTarget.dataset.action;
+            switch (action) {
+                case 'set-focus':
+                    setFocusCharacter(character);
+                    break;
+                case 'edit':
+                    editCharacter(character);
+                    break;
+                case 'delete':
+                    deleteCharacter(character);
+                    break;
+                case 'add-relationship':
+                    addRelationship(character);
+                    break;
+            }
+            menu.classList.add('hidden');
+        };
     });
-    
-    contextMenu.style.left = `${x}px`;
-    contextMenu.style.top = `${y}px`;
-    contextMenu.classList.remove('hidden');
+
+    const addCharacterItem = menu.querySelector('[data-action="add-character"]');
+    if (addCharacterItem) {
+        addCharacterItem.onclick = () => {
+            addCharacter();
+            menu.classList.add('hidden');
+        };
+    }
 }
 
-// ===== Relationship Processing =====
+function createContextMenuItems(menu) {
+    menu.innerHTML = `
+        <div class="context-menu-item character-item" data-action="set-focus">
+            <i class="ri-focus-3-line"></i>
+            Set as Focus Character
+        </div>
+        <div class="context-menu-item character-item" data-action="edit">
+            <i class="ri-edit-line"></i>
+            Edit Character
+        </div>
+        <div class="context-menu-item character-item" data-action="add-relationship">
+            <i class="ri-links-line"></i>
+            Add Relationship
+        </div>
+        <div class="context-menu-separator character-item"></div>
+        <div class="context-menu-item character-item" data-action="delete">
+            <i class="ri-delete-bin-line"></i>
+            Delete Character
+        </div>
+        <div class="context-menu-separator"></div>
+        <div class="context-menu-item" data-action="add-character">
+            <i class="ri-user-add-line"></i>
+            Add New Character
+        </div>
+    `;
+}
+
+function setFocusCharacter(character) {
+    if (!character) return;
+    
+    // Update URL without reloading
+    const url = new URL(window.location);
+    url.searchParams.set('focusCharacterId', character.id);
+    window.history.replaceState({}, '', url.href);
+    
+    // Set focus character and update display
+    focusCharacter = character;
+    selectedNode = character;
+    
+    // Clear previous path highlighting
+    clearPathHighlight();
+    
+    // Update displays
+    updateFocusCharacterDisplay();
+    updateCharacterInfoPanel();
+    centerOnCharacter(character);
+    
+    // Re-highlight if another character is selected
+    if (selectedNode && selectedNode !== focusCharacter) {
+        highlightPathToCharacter(focusCharacter, selectedNode);
+    }
+}
+
 function processRelationshipsForBidirectional(relationshipData, characters) {
-    const relationshipMap = new Map();
-    const processedRelationships = [];
-    
-    // First pass: create a map of all relationships by character pairs
+    const characterMap = new Map(characters.map(c => [c.id, c]));
+    const processedRels = [];
+    const handledPairs = new Set();
+
     relationshipData.forEach(rel => {
-        const char1 = rel.character_1_id;
-        const char2 = rel.character_2_id;
-        
-        // Create a consistent key for the character pair (smaller ID first)
-        const pairKey = char1 < char2 ? `${char1}-${char2}` : `${char2}-${char1}`;
-        
-        if (!relationshipMap.has(pairKey)) {
-            relationshipMap.set(pairKey, []);
-        }
-        relationshipMap.get(pairKey).push(rel);
-    });
-    
-    // Second pass: process relationships and detect bidirectional ones
-    const processedPairs = new Set();
-    
-    relationshipData.forEach(rel => {
-        const char1 = rel.character_1_id;
-        const char2 = rel.character_2_id;
-        const pairKey = char1 < char2 ? `${char1}-${char2}` : `${char2}-${char1}`;
-        
-        // Skip if we've already processed this pair
-        if (processedPairs.has(pairKey)) {
-            return;
+        const key1 = `${rel.character_1_id}-${rel.character_2_id}`;
+        const key2 = `${rel.character_2_id}-${rel.character_1_id}`;
+
+        if (handledPairs.has(key1) || handledPairs.has(key2)) {
+            return; // Already handled this pair
         }
         
-        const fromNode = characters.find(c => c.id === char1);
-        const toNode = characters.find(c => c.id === char2);
-        
-        if (!fromNode || !toNode) {
-            return;
-        }
-        
-        const pairRelationships = relationshipMap.get(pairKey);
-        
-        // Check if there are relationships in both directions
-        const forwardRel = pairRelationships.find(r => r.character_1_id === char1 && r.character_2_id === char2);
-        const reverseRel = pairRelationships.find(r => r.character_1_id === char2 && r.character_2_id === char1);
-        
-        if (forwardRel && reverseRel) {
-            // Bidirectional relationship - create one connection with bidirectional flag
-            const primaryRel = forwardRel; // Use the first one as primary
-            primaryRel.bidirectional = true;
-            
-            // Combine notes if both have them
-            if (reverseRel.notes && forwardRel.notes !== reverseRel.notes) {
-                primaryRel.notes = `${forwardRel.notes} | ${reverseRel.notes}`;
-            } else if (reverseRel.notes && !forwardRel.notes) {
-                primaryRel.notes = reverseRel.notes;
-            }
-            
-            // Use the higher strength if different
-            if (reverseRel.strength && reverseRel.strength > (forwardRel.strength || 0)) {
-                primaryRel.strength = reverseRel.strength;
-            }
-            
-            processedRelationships.push(new RelationshipConnection(primaryRel, fromNode, toNode));
+        if (rel.is_bidirectional) {
+            processedRels.push(rel);
+            handledPairs.add(key1);
+            handledPairs.add(key2);
         } else {
-            // Unidirectional relationship(s)
-            pairRelationships.forEach(singleRel => {
-                const relFromNode = characters.find(c => c.id === singleRel.character_1_id);
-                const relToNode = characters.find(c => c.id === singleRel.character_2_id);
-                
-                if (relFromNode && relToNode) {
-                    singleRel.bidirectional = false;
-                    processedRelationships.push(new RelationshipConnection(singleRel, relFromNode, relToNode));
-                }
-            });
+            // Check for a reverse relationship
+            const reverseRel = relationshipData.find(
+                r => r.character_1_id === rel.character_2_id && 
+                     r.character_2_id === rel.character_1_id &&
+                     !r.is_bidirectional // ensure we don't match with another non-bidirectional
+            );
+
+            if (reverseRel) {
+                // Found a pair, create a synthetic bidirectional relationship for display
+                const combinedRel = {
+                    ...rel, // Take properties from the first one
+                    id: `${rel.id}-${reverseRel.id}`,
+                    relationship_type: `${rel.relationship_type} / ${reverseRel.relationship_type}`,
+                    is_bidirectional: true,
+                };
+                processedRels.push(combinedRel);
+                handledPairs.add(key1);
+                handledPairs.add(key2);
+            } else {
+                // No reverse relationship, just add it as is
+                processedRels.push(rel);
+            }
         }
-        
-        processedPairs.add(pairKey);
     });
-    
-    return processedRelationships;
+
+    return processedRels;
 }
 
-// ===== Data Loading =====
 async function loadData(timelineId, focusCharacterId) {
     showLoading(true);
-    
     try {
+        const characterData = await window.api.invoke('get-all-characters-for-timeline', timelineId);
+        relationshipData = await window.api.invoke('get-all-character-relationships-for-timeline', timelineId);
+
+        if (!characterData || !characterData.success || !relationshipData || !relationshipData.success) {
+            console.error("Failed to load data:", 
+                (characterData ? characterData.error : "characterData is undefined or null"), 
+                (relationshipData ? relationshipData.error : "relationshipData is undefined or null")
+            );
+            showLoading(false);
+            return;
+        }
+
+        nodes = characterData.characters.map(c => new CharacterNode(c));
+        nodeMap = new Map(nodes.map(n => [n.id, n]));
+        
+        const processedRels = processRelationshipsForBidirectional(relationshipData.relationships, characterData.characters);
+        
+        connections = processedRels
+            .map(rel => {
+                const fromNode = nodeMap.get(rel.character_1_id);
+                const toNode = nodeMap.get(rel.character_2_id);
+                if (fromNode && toNode) {
+                    return new RelationshipConnection(rel, fromNode, toNode);
+                }
+                return null;
+            })
+            .filter(c => c !== null);
+
         if (focusCharacterId) {
-            // Load character group for focused character
-            const groupResult = await window.api.invoke('get-character-group', focusCharacterId, {});
-            if (groupResult.success) {
-                // Extract characters from the group result
-                const groupCharacters = groupResult.group.map(item => item.character);
-                characters = groupCharacters.map(char => new CharacterNode(char));
-                
-                // Set the focus character as initiating node
-                const focusNode = characters.find(c => c.id === focusCharacterId);
-                if (focusNode) {
-                    focusNode.isInitiating = true;
-                    focusNode.selected = true;
-                    selectedCharacter = focusNode;
-                    document.getElementById('focus-character-display').textContent = `Focus: ${focusNode.name}`;
-                    centerOnCharacter(focusNode);
-                }
-                
-                // Load relationships between these characters
-                const relationshipsResult = await window.api.invoke('get-all-character-relationships', timelineId);
-                if (relationshipsResult.success) {
-                    // Filter relationships to only include characters in our group
-                    const characterIds = new Set(characters.map(c => c.id));
-                    const filteredRelationships = relationshipsResult.relationships
-                        .filter(rel => characterIds.has(rel.character_1_id) && characterIds.has(rel.character_2_id));
-                    
-                    // Process relationships and detect bidirectional ones
-                    relationships = processRelationshipsForBidirectional(filteredRelationships, characters);
-                }
-            }
-        } else {
-            // Fallback to loading all characters if no focus
-            const charactersResult = await window.api.invoke('get-all-characters', timelineId);
-            if (charactersResult.success) {
-                characters = charactersResult.characters.map(char => new CharacterNode(char));
-            }
-            
-            const relationshipsResult = await window.api.invoke('get-all-character-relationships', timelineId);
-            if (relationshipsResult.success) {
-                // Process relationships and detect bidirectional ones
-                relationships = processRelationshipsForBidirectional(relationshipsResult.relationships, characters);
+            focusCharacter = nodeMap.get(focusCharacterId);
+            selectedNode = focusCharacter;
+            if (focusCharacter) {
+                updateCharacterInfoPanel();
+                centerOnCharacter(focusCharacter);
             }
         }
         
-        // Set initial filtered data
-        filteredCharacters = [...characters];
-        filteredRelationships = [...relationships];
-        
-        // Initialize distance display
+        updateFocusCharacterDisplay();
         updateDistanceDisplay();
-        
-        // Apply initial layout
         applyLayout();
-        updateStatusBar();
-        
+
     } catch (error) {
-        console.error('Error loading data:', error);
+        console.error("Error loading data:", error);
     } finally {
         showLoading(false);
+        updateStatusBar();
+    }
+}
+
+function updateFocusCharacterDisplay() {
+    const focusDisplay = document.getElementById('focus-character-display');
+    if (focusDisplay) {
+        if (focusCharacter) {
+            focusDisplay.textContent = `Focus: ${focusCharacter.name}`;
+        } else {
+            focusDisplay.textContent = 'Focus: None';
+        }
     }
 }
 
 function showLoading(show) {
-    if (show) {
-        loadingOverlay.classList.remove('hidden');
-    } else {
-        loadingOverlay.classList.add('hidden');
-    }
+    const overlay = document.getElementById('loading-overlay');
+    overlay.classList.toggle('hidden', !show);
 }
 
-// ===== Character Actions =====
+// --- Actions from Context Menu ---
+
 function editCharacter(characterNode) {
     window.api.send('open-edit-character-window', characterNode.character);
 }
 
 function addCharacter() {
+    const timelineId = new URLSearchParams(window.location.search).get('timelineId');
     window.api.send('open-add-character-window', timelineId);
 }
 
 function addRelationship(characterNode) {
-    // TODO: Implement relationship creation
-    console.log('Add relationship for:', characterNode.name);
+    const relationshipData = {
+        character1Id: characterNode.id,
+        character1Name: characterNode.name,
+        timelineId: new URLSearchParams(window.location.search).get('timelineId')
+    };
+    window.api.send('open-relationship-editor-window', relationshipData);
 }
 
 function deleteCharacter(characterNode) {
-    // TODO: Implement character deletion
-    console.log('Delete character:', characterNode.name);
+    // Confirmation dialog could be added here
+    window.api.invoke('delete-character', characterNode.id).then(result => {
+        if (result.success) {
+            // Reload data
+            const timelineId = new URLSearchParams(window.location.search).get('timelineId');
+            loadData(timelineId, null);
+        } else {
+            console.error("Failed to delete character:", result.error);
+        }
+    });
 }
 
 function closeWindow() {
-    window.close();
+    window.api.send('close-window');
 }
 
 // ===== Render Loop =====
+
 function render() {
+    if (!ctx) return;
+    
     // Clear canvas
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    
-    // Update character positions
-    filteredCharacters.forEach(char => char.update(1/60));
-    
-    // Draw family cluster boundaries if in family forest layout
-    if (currentLayout === 'family-forest' && window.familyClusters) {
-        drawFamilyClusterBoundaries();
-    }
-    
-    // Draw relationships first (behind characters)
-    filteredRelationships.forEach(rel => rel.draw(ctx, viewport));
-    
-    // Draw characters
-    filteredCharacters.forEach(char => char.draw(ctx, viewport));
-    
-    // Continue animation loop
-    animationFrame = requestAnimationFrame(render);
-}
 
-/**
- * Draw visual boundaries around family clusters
- */
-function drawFamilyClusterBoundaries() {
-    if (!window.familyClusters) return;
-    
-    ctx.save();
-    
-    window.familyClusters.forEach(cluster => {
-        if (cluster.members.length <= 1) return; // Skip single-member clusters
-        
-        const screenX = (cluster.center.x - viewport.x) * viewport.zoom;
-        const screenY = (cluster.center.y - viewport.y) * viewport.zoom;
-        const screenRadius = cluster.radius * viewport.zoom;
-        
-        // Skip if outside viewport
-        if (screenX < -screenRadius || screenX > viewport.width + screenRadius ||
-            screenY < -screenRadius || screenY > viewport.height + screenRadius) {
-            return;
-        }
-        
-        // Draw cluster boundary circle
-        ctx.strokeStyle = isDarkMode ? 'rgba(100, 149, 237, 0.4)' : 'rgba(70, 130, 180, 0.4)'; // Steel blue
-        ctx.lineWidth = 2 * viewport.zoom;
-        ctx.setLineDash([10 * viewport.zoom, 5 * viewport.zoom]); // Dashed line
-        ctx.globalAlpha = 0.6;
-        
-        ctx.beginPath();
-        ctx.arc(screenX, screenY, screenRadius, 0, Math.PI * 2);
-        ctx.stroke();
-        
-        // Draw cluster label
-        if (viewport.zoom > 0.5) { // Only show labels when zoomed in enough
-            ctx.fillStyle = isDarkMode ? 'rgba(200, 200, 200, 0.8)' : 'rgba(70, 130, 180, 0.8)';
-            ctx.font = `${Math.max(12, 14 * viewport.zoom)}px Arial`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
-            
-            const labelY = screenY - screenRadius - 20 * viewport.zoom;
-            const labelText = `Family Group (${cluster.members.length})`;
-            
-            // Draw label background
-            const textWidth = ctx.measureText(labelText).width;
-            ctx.fillStyle = isDarkMode ? 'rgba(30, 30, 30, 0.8)' : 'rgba(255, 255, 255, 0.8)';
-            ctx.fillRect(screenX - textWidth/2 - 4, labelY - 8, textWidth + 8, 16);
-            
-            // Draw label text
-            ctx.fillStyle = isDarkMode ? 'rgba(200, 200, 200, 0.8)' : 'rgba(70, 130, 180, 0.8)';
-            ctx.fillText(labelText, screenX, labelY);
+    // Draw layout-specific background elements
+    if (currentLayout === 'family-forest') {
+        drawGroupBoundaries(window.visualizerGroups || []);
+    }
+    if (currentLayout === 'radiating') {
+        drawRadiatingRings();
+    }
+
+    // Draw connections
+    connections.forEach(conn => {
+        if (!conn.isDimmed) {
+            conn.draw(ctx, viewport);
         }
     });
+
+    // Draw nodes
+    nodes.forEach(node => {
+        if (!node.isDimmed) {
+            node.update(0.1); // Simple fixed delta time
+            node.draw(ctx, viewport);
+        }
+    });
+
+    // Draw selection rectangle
+    if (isSelecting) {
+        drawSelectionRectangle();
+    }
     
-    // Reset line dash
-    ctx.setLineDash([]);
+    // Draw canvas breadcrumb
+    drawCanvasBreadcrumb(ctx);
+    
+    updateStatusBar();
+
+    requestAnimationFrame(render);
+}
+
+function drawGroupBoundaries(groups) {
+    if (!ctx || !groups || groups.length === 0 || !showGroupBoundaries) return;
+
+    // Draw boundaries for each group
+    groups.forEach(group => {
+        if (!group.center || group.members.length < 2 || !isFinite(group.radius) || group.radius <= 0) return;
+
+        const screenPos = worldToScreen(group.center.x, group.center.y);
+        if (!isPointInViewport(screenPos, group.radius * viewport.zoom + 50)) return;
+
+        const screenRadius = group.radius * viewport.zoom;
+
+        ctx.save();
+        if (group.type === 'family') {
+            ctx.strokeStyle = 'rgba(0, 150, 255, 0.6)';
+            ctx.lineWidth = 3;
+            ctx.setLineDash([10, 10]);
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        } else if (group.type === 'acquaintance') {
+            ctx.fillStyle = 'rgba(128, 128, 128, 0.15)'; // A neutral, semi-transparent fill
+            ctx.beginPath();
+            ctx.arc(screenPos.x, screenPos.y, screenRadius, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        ctx.restore();
+    });
+}
+
+function drawRadiatingRings() {
+    if (currentLayout !== 'radiating' || !selectedNode) return;
+    // Implementation to draw concentric circles for the radiating layout tiers
+    // This is visual sugar and can be implemented if desired.
+}
+
+// Utility to convert world coordinates to screen coordinates
+function worldToScreen(worldX, worldY) {
+    return {
+        x: (worldX - viewport.x) * viewport.zoom + canvas.width / 2,
+        y: (worldY - viewport.y) * viewport.zoom + canvas.height / 2,
+    };
+}
+
+// Utility to check if a point is within the visible canvas area
+function isPointInViewport(point, buffer = 0) {
+    return (
+        point.x >= -buffer &&
+        point.x <= canvas.width + buffer &&
+        point.y >= -buffer &&
+        point.y <= canvas.height + buffer
+    );
+}
+
+function drawSelectionRectangle() {
+    if (!ctx) return;
+    
+    const rect = getSelectionRect();
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 150, 255, 0.8)';
+    ctx.fillStyle = 'rgba(0, 150, 255, 0.1)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    
+    const width = rect.right - rect.left;
+    const height = rect.bottom - rect.top;
+    
+    ctx.fillRect(rect.left, rect.top, width, height);
+    ctx.strokeRect(rect.left, rect.top, width, height);
+    
     ctx.restore();
 }
 
-// ===== IPC Handlers =====
-window.api.receive('initialize-visualizer', (data) => {
-    timelineId = data.timelineId;
-    focusCharacterId = data.focusCharacterId;
-    
-    loadData(timelineId, focusCharacterId);
-});
-
-// ===== Initialization =====
-document.addEventListener('DOMContentLoaded', () => {
-    initializeVisualizer();
-    render();
-});
-
-// Cleanup on window close
-window.addEventListener('beforeunload', () => {
-    if (animationFrame) {
-        cancelAnimationFrame(animationFrame);
-    }
-}); 
+// Entry point
+document.addEventListener('DOMContentLoaded', initializeVisualizer);

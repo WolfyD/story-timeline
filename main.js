@@ -2686,6 +2686,26 @@ function setupIpcHandlers() {
       return { success: false, error: error.message };
     }
   });
+
+  ipcMain.handle('get-all-characters-for-timeline', async (event, timelineId) => {
+    try {
+      const characters = dbManager.getAllCharacters(timelineId);
+      return { success: true, characters: characters };
+    } catch (error) {
+      console.error('Error getting characters for timeline:', error);
+      return { success: false, error: error.message };
+    }
+  });
+
+  ipcMain.handle('get-all-character-relationships-for-timeline', async (event, timelineId) => {
+    try {
+      const relationships = dbManager.getAllCharacterRelationships(timelineId);
+      return { success: true, relationships: relationships };
+    } catch (error) {
+      console.error('Error getting character relationships for timeline:', error);
+      return { success: false, error: error.message };
+    }
+  });
 }
 
 // ===== Application Lifecycle =====
