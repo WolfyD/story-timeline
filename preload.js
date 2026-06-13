@@ -101,6 +101,9 @@ contextBridge.exposeInMainWorld('api', {
             'get-all-pictures-debug',
             'analyze-filesystem-vs-database',
             'get-current-timeline-id',
+            'get-import-review-session',
+            'validate-import-review-data',
+            'finalize-import-review',
             'read-file',
             // Dark mode invoke channels
             'get-dark-mode',
@@ -162,6 +165,7 @@ contextBridge.exposeInMainWorld('api', {
             'import-timeline-data-confirm',
             'import-timeline-data-success',
             'import-timeline-data-error',
+            'import-timeline-data-review-required',
             'new-timeline',
             'quit-app',
             'timelines-list',

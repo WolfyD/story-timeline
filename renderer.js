@@ -1194,13 +1194,28 @@ window.api.receive('export-timeline-data-error', (error) => {
 });
 
 window.api.receive('import-timeline-data-confirm', ({ itemCount, filePath, data }) => {
-    if (confirm(`Importing ${itemCount} items to your timeline. Continue?`)) {
-        console.log("Sending confirm-import-timeline-data with data:", data);
-        window.api.send('confirm-import-timeline-data', { filePath, data });
+    if (!confirm(`Importing ${itemCount} items to your timeline. Continue?`)) {
+        return;
     }
+
+    const disableForeignKeyChecks = confirm(
+        'Disable foreign key checks for this import?\n\n' +
+        'Choose OK to disable checks temporarily (import is more permissive).\n' +
+        'Choose Cancel to keep checks ON (safer, but import may fail on FK issues).'
+    );
+
+    console.log("Sending confirm-import-timeline-data with data:", data);
+    window.api.send('confirm-import-timeline-data', {
+        filePath,
+        data,
+        options: { disableForeignKeyChecks }
+    });
 });
 
-window.api.receive('import-timeline-data-success', (importedData) => {
+window.api.receive('import-timeline-data-success', (payload) => {
+    const importedData = payload?.importedData || payload;
+    const foreignKeyReport = payload?.foreignKeyReport;
+
     // Update story index with new references
     Object.entries(importedData.storyReferences).forEach(([id, story]) => {
         storyIndex[id] = story;
@@ -1209,11 +1224,24 @@ window.api.receive('import-timeline-data-success', (importedData) => {
     
     // Refresh items to show imported data
     refreshAllItems();
-    showSuccess('Timeline data imported successfully');
+
+    if (foreignKeyReport?.violationCount > 0) {
+        const issueMessage = foreignKeyReport.truncated
+            ? `Timeline import completed with ${foreignKeyReport.violationCount} foreign key issue(s). Showing first 25 in the dev console.`
+            : `Timeline import completed with ${foreignKeyReport.violationCount} foreign key issue(s). Check the dev console for details.`;
+        window.showWarning(issueMessage, 12000);
+        console.warn('Foreign key check report after import:', foreignKeyReport);
+    } else {
+        showSuccess('Timeline data imported successfully');
+    }
 });
 
 window.api.receive('import-timeline-data-error', (error) => {
     showError(`Error importing timeline data: ${error}`);
+});
+
+window.api.receive('import-timeline-data-review-required', () => {
+    showWarning('Import paused: resolve unique ID conflicts in the Import Review window, then continue import.', 9000);
 });
 
 window.api.receive('app-version', (version) => {

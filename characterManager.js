@@ -592,14 +592,20 @@ function openRelationshipEditor() {
         return;
     }
     
-    // Get the character objects
-    const character1 = allCharacters.find(c => c.id === selectedCharacters.values().next().value);
-    const character2 = allCharacters.find(c => c.id === selectedCharacters.values().next().value);
+    // Get the character objects - convert Set to Array to access both values
+    const selectedCharacterIds = Array.from(selectedCharacters);
+    const character1 = allCharacters.find(c => c.id === selectedCharacterIds[0]);
+    const character2 = allCharacters.find(c => c.id === selectedCharacterIds[1]);
     
     if (!character1 || !character2) {
         showError('Error: Could not find selected characters.');
         return;
     }
+    
+    console.log('[characterManager.js] Opening relationship editor for:', {
+        character1: { id: character1.id, name: character1.name },
+        character2: { id: character2.id, name: character2.name }
+    });
     
     const relationshipData = {
         character1: character1,

@@ -146,6 +146,250 @@ let data = {
 };
 
 let splashWindow = null;
+let importReviewWindow = null;
+const pendingImportSessions = new Map();
+
+function cloneImportData(importData) {
+  return JSON.parse(JSON.stringify(importData));
+}
+
+function getImportItemId(item) {
+  if (!item || typeof item !== 'object') return '';
+  return String(item.id || item['story-id'] || '').trim();
+}
+
+function getExistingItemIds(itemIds) {
+  if (!itemIds || itemIds.length === 0) return new Set();
+
+  const existing = new Set();
+  const uniqueIds = Array.from(new Set(itemIds.filter(Boolean)));
+  const chunkSize = 400;
+
+  for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+    const chunk = uniqueIds.slice(i, i + chunkSize);
+    const placeholders = chunk.map(() => '?').join(',');
+    const rows = dbManager.db.prepare(`SELECT id FROM items WHERE id IN (${placeholders})`).all(...chunk);
+    for (const row of rows) {
+      existing.add(String(row.id));
+    }
+  }
+
+  return existing;
+}
+
+function analyzeImportUniqueIssues(importData) {
+  const issues = [];
+  const items = Array.isArray(importData?.items) ? importData.items : [];
+  const byId = new Map();
+  const ids = [];
+
+  items.forEach((item, index) => {
+    const itemId = getImportItemId(item);
+    if (!itemId) {
+      issues.push({
+        type: 'missing_id',
+        index,
+        itemId: '',
+        title: item?.title || '(untitled item)',
+        reason: 'Item is missing an ID.'
+      });
+      return;
+    }
+
+    ids.push(itemId);
+    if (!byId.has(itemId)) byId.set(itemId, []);
+    byId.get(itemId).push(index);
+  });
+
+  for (const [itemId, indexes] of byId.entries()) {
+    if (indexes.length > 1) {
+      for (const index of indexes) {
+        const item = items[index];
+        issues.push({
+          type: 'duplicate_in_import',
+          index,
+          itemId,
+          title: item?.title || '(untitled item)',
+          reason: `Duplicate ID in import payload (used ${indexes.length} times).`
+        });
+      }
+    }
+  }
+
+  const existingIds = getExistingItemIds(ids);
+  items.forEach((item, index) => {
+    const itemId = getImportItemId(item);
+    if (itemId && existingIds.has(itemId)) {
+      issues.push({
+        type: 'already_exists',
+        index,
+        itemId,
+        title: item?.title || '(untitled item)',
+        reason: 'ID already exists in this timeline database.'
+      });
+    }
+  });
+
+  const issueIndexes = new Set(issues.map((issue) => issue.index));
+  return {
+    issues,
+    issueIndexes: Array.from(issueIndexes),
+    issueCount: issues.length
+  };
+}
+
+async function importTimelineDataToDatabase(eventSender, importData, options = {}) {
+  let transactionStarted = false;
+  let fkChecksDisabled = false;
+
+  try {
+    if (!importData || !importData.items || !importData.storyReferences) {
+      throw new Error('Invalid import payload');
+    }
+
+    const disableForeignKeyChecks = !!options.disableForeignKeyChecks;
+
+    // Get current universe data for granularity
+    const universeData = dbManager.getUniverseData();
+    const currentGranularity = universeData ? universeData.granularity : 4;
+    const targetTimelineId = data.timeline_id || dbManager.currentTimelineId;
+
+    if (!targetTimelineId) {
+      throw new Error('No active timeline found. Open a timeline before importing.');
+    }
+
+    if (disableForeignKeyChecks) {
+      dbManager.db.exec('PRAGMA foreign_keys = OFF');
+      fkChecksDisabled = true;
+    }
+
+    dbManager.db.prepare('BEGIN').run();
+    transactionStarted = true;
+
+    // Import story references first
+    for (const [id, story] of Object.entries(importData.storyReferences)) {
+      await dbManager.addStory({ id, title: story.title, description: '' });
+    }
+
+    // Then import items
+    for (const item of importData.items) {
+      const normalizedItem = {
+        ...item,
+        // Always import into the currently open timeline.
+        timeline_id: targetTimelineId
+      };
+
+      if (normalizedItem.creation_granularity === undefined) {
+        normalizedItem.creation_granularity = currentGranularity;
+      }
+      await dbManager.addItem(normalizedItem);
+    }
+
+    dbManager.db.prepare('COMMIT').run();
+    transactionStarted = false;
+
+    if (fkChecksDisabled) {
+      dbManager.db.exec('PRAGMA foreign_keys = ON');
+      fkChecksDisabled = false;
+    }
+
+    const fkViolations = dbManager.db.prepare('PRAGMA foreign_key_check').all();
+    const foreignKeyReport = {
+      disabledDuringImport: disableForeignKeyChecks,
+      violationCount: fkViolations.length,
+      violations: fkViolations.slice(0, 25),
+      truncated: fkViolations.length > 25
+    };
+
+    const allItems = dbManager.getAllItems();
+    mainWindow.webContents.send('items', allItems);
+    eventSender.send('import-timeline-data-success', {
+      importedData: importData,
+      foreignKeyReport
+    });
+
+    return { success: true };
+  } catch (error) {
+    if (transactionStarted) {
+      try {
+        dbManager.db.prepare('ROLLBACK').run();
+      } catch (rollbackError) {
+        console.error('Import rollback error:', rollbackError);
+      }
+    }
+
+    if (fkChecksDisabled) {
+      try {
+        dbManager.db.exec('PRAGMA foreign_keys = ON');
+      } catch (pragmaError) {
+        console.error('Failed to re-enable foreign keys after import error:', pragmaError);
+      }
+    }
+
+    let enhancedErrorMessage = error.message;
+    try {
+      const fkViolations = dbManager.db.prepare('PRAGMA foreign_key_check').all();
+      if (fkViolations.length > 0) {
+        const preview = fkViolations
+          .slice(0, 5)
+          .map((v) => `${v.table}(rowid=${v.rowid}, parent=${v.parent})`)
+          .join('; ');
+        enhancedErrorMessage += ` | Foreign key issues detected: ${fkViolations.length}. Sample: ${preview}`;
+      }
+    } catch (diagnosticsError) {
+      console.error('Failed to run foreign key diagnostics:', diagnosticsError);
+    }
+
+    console.error('Import error:', error);
+    eventSender.send('import-timeline-data-error', enhancedErrorMessage);
+    return { success: false, error: enhancedErrorMessage };
+  }
+}
+
+function createImportReviewWindow(sessionId) {
+  if (importReviewWindow && !importReviewWindow.isDestroyed()) {
+    importReviewWindow.loadFile('./markdown/importReview.html', {
+      query: { sessionId }
+    });
+    importReviewWindow.focus();
+    return;
+  }
+
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+  const windowWidth = 1100;
+  const windowHeight = 760;
+
+  importReviewWindow = new BrowserWindow({
+    width: windowWidth,
+    height: windowHeight,
+    x: Math.floor((width - windowWidth) / 2),
+    y: Math.floor((height - windowHeight) / 2),
+    webPreferences: {
+      nodeIntegration: false,
+      contextIsolation: true,
+      preload: path.join(__dirname, 'preload.js'),
+    },
+    show: false,
+    autoHideMenuBar: true,
+    parent: mainWindow,
+    modal: true
+  });
+
+  importReviewWindow.loadFile('./markdown/importReview.html', {
+    query: { sessionId }
+  });
+
+  importReviewWindow.once('ready-to-show', () => {
+    importReviewWindow.show();
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('import-timeline-data-review-required');
+    }
+  });
+
+  importReviewWindow.on('closed', () => {
+    importReviewWindow = null;
+  });
+}
 
 // ===== Window Management =====
 /**
@@ -1393,35 +1637,99 @@ function setupIpcHandlers() {
   });
 
   // Add new handler for confirmed imports
-  ipcMain.on('confirm-import-timeline-data', async (event, { filePath, data }) => {
+  ipcMain.on('confirm-import-timeline-data', async (event, payload) => {
     try {
-        // Get current universe data for granularity
-        const universeData = dbManager.getUniverseData();
-        const currentGranularity = universeData ? universeData.granularity : 4;
+      const { data: importData, options = {} } = payload || {};
 
-        // Import story references first
-        for (const [id, story] of Object.entries(data.storyReferences)) {
-            await dbManager.addStory({ id, title: story.title, description: '' });
-        }
+      if (!importData || !importData.items || !importData.storyReferences) {
+        throw new Error('Invalid import payload');
+      }
 
-        // Then import items
-        for (const item of data.items) {
-            // Set creation_granularity if not present
-            if (item.creation_granularity === undefined) {
-                item.creation_granularity = currentGranularity;
-            }
-            await dbManager.addItem(item);
-        }
+      const uniqueIssueReport = analyzeImportUniqueIssues(importData);
+      if (uniqueIssueReport.issueCount > 0) {
+        const sessionId = uuidv4();
+        pendingImportSessions.set(sessionId, {
+          id: sessionId,
+          createdAt: Date.now(),
+          data: cloneImportData(importData),
+          options: { ...options },
+          report: uniqueIssueReport
+        });
 
-        // Get all updated items and send to renderer
-        const allItems = dbManager.getAllItems();
-        mainWindow.webContents.send('items', allItems);
-        
-        event.sender.send('import-timeline-data-success', data);
+        createImportReviewWindow(sessionId);
+        return;
+      }
+
+      await importTimelineDataToDatabase(event.sender, importData, options);
     } catch (error) {
-        console.error('Import error:', error);
-        event.sender.send('import-timeline-data-error', error.message);
+      console.error('Import error:', error);
+      event.sender.send('import-timeline-data-error', error.message);
     }
+  });
+
+  ipcMain.handle('get-import-review-session', async (_event, sessionId) => {
+    const session = pendingImportSessions.get(sessionId);
+    if (!session) {
+      throw new Error('Import review session not found or expired.');
+    }
+    return {
+      id: session.id,
+      createdAt: session.createdAt,
+      data: session.data,
+      options: session.options,
+      report: session.report
+    };
+  });
+
+  ipcMain.handle('validate-import-review-data', async (_event, { sessionId, data: reviewedData }) => {
+    const session = pendingImportSessions.get(sessionId);
+    if (!session) {
+      throw new Error('Import review session not found or expired.');
+    }
+    if (!reviewedData || !reviewedData.items || !reviewedData.storyReferences) {
+      throw new Error('Invalid reviewed import data.');
+    }
+
+    session.data = cloneImportData(reviewedData);
+    session.report = analyzeImportUniqueIssues(session.data);
+
+    return session.report;
+  });
+
+  ipcMain.handle('finalize-import-review', async (event, { sessionId, data: reviewedData }) => {
+    const session = pendingImportSessions.get(sessionId);
+    if (!session) {
+      throw new Error('Import review session not found or expired.');
+    }
+    if (!reviewedData || !reviewedData.items || !reviewedData.storyReferences) {
+      throw new Error('Invalid reviewed import data.');
+    }
+
+    session.data = cloneImportData(reviewedData);
+    session.report = analyzeImportUniqueIssues(session.data);
+    if (session.report.issueCount > 0) {
+      return {
+        success: false,
+        issueCount: session.report.issueCount,
+        report: session.report
+      };
+    }
+
+    const importResult = await importTimelineDataToDatabase(mainWindow.webContents, session.data, session.options || {});
+    if (!importResult.success) {
+      return {
+        success: false,
+        error: importResult.error || 'Import failed.'
+      };
+    }
+
+    pendingImportSessions.delete(sessionId);
+
+    if (importReviewWindow && !importReviewWindow.isDestroyed()) {
+      importReviewWindow.close();
+    }
+
+    return { success: true };
   });
 
   ipcMain.on('quit-app', () => {

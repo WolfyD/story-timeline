@@ -1,6 +1,6 @@
 {
   "name": "story-timeline",
-  "version": "0.3.65",
+  "version": "0.3.80",
   "description": "Timeline builder for your stories",
   "main": "main.js",
   "scripts": {
@@ -22,14 +22,16 @@
     "@testing-library/jest-dom": "^6.4.2",
     "@testing-library/user-event": "^14.5.2",
     "electron": "^36.1.0",
-    "electron-builder": "^26.0.12",
+    "electron-builder": "^26.8.1",
     "electron-rebuild": "^3.2.9",
     "nodemon": "^3.1.10"
   },
   "dependencies": {
+    "@emnapi/runtime": "^1.9.1",
     "better-sqlite3": "^11.10.0",
     "remixicon": "^4.6.0",
     "sharp": "^0.34.1",
+    "tslib": "^2.8.1",
     "uuid": "^11.1.0"
   },
   "build": {
