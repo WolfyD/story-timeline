@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Review</title>
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../css/import-review.css">
+</head>
+<body class="import-review-page">
+    <div class="import-review-container">
+        <div class="import-review-header">
+            <h2>Import Review - Unique ID Issues</h2>
+            <button class="btn" id="close-review-btn">Close</button>
+        </div>
+
+        <div class="import-review-controls">
+            <label>
+                <input type="checkbox" id="show-only-issues">
+                Show only problematic items
+            </label>
+            <button class="btn" id="recheck-btn">Recheck Issues</button>
+            <button class="btn btn-primary" id="continue-import-btn">Continue Import</button>
+        </div>
+
+        <div class="import-review-status" id="review-status">
+            Loading import review...
+        </div>
+
+        <div class="import-review-table-wrap">
+            <table class="import-review-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Title</th>
+                        <th>ID</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="review-rows"></tbody>
+            </table>
+        </div>
+    </div>
+    <script src="../importReview.js"></script>
+</body>
+</html>
